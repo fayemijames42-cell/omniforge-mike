@@ -56,3 +56,28 @@
 #sourceList .source-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:175px}
 #sourceList .source-chip button{background:transparent;border:0;color:#f6b0be;font-size:15px;line-height:1}
 @media(max-width:800px){.pane-title{gap:7px}.focus-control{font-size:10px}.focus-control select{max-width:86px;font-size:11px;padding:5px}.source-actions{padding-inline:11px}.source-shelf{max-height:25dvh}}
+
+
+/* OMNIFORGE Notes — browser-only editable artifacts */
+.notes-area{width:100%;max-width:960px;margin:0 auto;padding:18px 20px 72px;color:var(--text)}
+.notes-area h2{font-size:23px;margin:0 0 6px}
+.notes-area p{font-size:12px;color:var(--soft);line-height:1.55}
+.note-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0}
+.note-toolbar select{flex:1;min-width:140px;padding:10px;background:#20283a;color:var(--text);border:1px solid #535b73;border-radius:9px}
+.note-toolbar button,.note-action{padding:9px 11px;background:#373251;color:#f1e6ff;border:1px solid #75649c;border-radius:9px;min-height:39px}
+.note-editor{background:#1d2536;border:1px solid #434f68;border-radius:14px;padding:16px}
+.note-editor label{display:block;margin:10px 0 5px;font-size:12px;color:#d2d8e8}
+.note-editor input,.note-editor textarea{display:block;width:100%;color:#fff;background:#101624;border:1px solid #48536a;padding:11px 13px;border-radius:9px;resize:vertical}
+.note-editor textarea{min-height:210px;line-height:1.6}
+.note-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note-actions .note-primary{background:#ad92ed;color:#15152a;border-color:#ad92ed;font-weight:700}
+.note-preview{margin-top:15px;border:1px solid #3f4a64;padding:14px;background:#101829;border-radius:10px;line-height:1.65;overflow-wrap:anywhere}
+.note-preview h3{font-size:17px;margin:0 0 8px}
+.note-preview .body{white-space:pre-wrap}
+.note-empty{padding:25px 13px;text-align:center;border:1px dashed #4d5872;border-radius:12px}
+.note-saved{font-size:12px;color:#b9dece;min-height:20px;margin-top:8px}
+.message .by{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.message .by>span:first-child{margin-right:auto}
+.note-from-reply{background:transparent;border:1px solid #5c5a7a;border-radius:7px;color:#d8d1ee;padding:4px 7px;font-size:10px}
+.nexus-route{color:#b5a4e6;font-weight:600;font-size:10px;margin-left:6px}
+@media(max-width:800px){.notes-area{padding:14px 12px 65px}.note-toolbar{gap:6px}.note-toolbar button{padding:8px}.mobile-nav button{font-size:16px}.mobile-nav button span{font-size:9px}}
