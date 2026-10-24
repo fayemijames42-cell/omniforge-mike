@@ -41,3 +41,23 @@ test('conversation history is bounded and excludes system injection',async()=>{
  assert.ok(messages.slice(1,-1).every(m=>m.content.length<=1600));
  assert.ok(messages.slice(1,-1).every(m=>m.role!=='system'));
 });
+
+test('image endpoint calls a single free-compatible FLUX model at four steps',async()=>{
+ let calls=0;
+ const env={AI:{run:async(model,input)=>{calls++;assert.equal(model,'@cf/black-forest-labs/flux-1-schnell');assert.equal(input.steps,4);assert.equal(input.prompt,'a cow in a meadow');return {image:'A'.repeat(200)}}}};
+ const request=new Request('https://mikee.test/api/image',{method:'POST',headers:{origin:'https://mikee.test','content-type':'application/json'},body:JSON.stringify({prompt:'a cow in a meadow'})});
+ const result=await worker.fetch(request,env),body=await result.json();
+ assert.equal(result.status,200);assert.equal(body.live,true);assert.equal(body.mime,'image/jpeg');assert.equal(body.image.length,200);assert.equal(calls,1);
+});
+test('image endpoint rejects other origins and invalid input before inference',async()=>{
+ let calls=0;const env={AI:{run:async()=>{calls++;return {image:'A'.repeat(200)}}}};
+ const request=(prompt,origin)=>new Request('https://mikee.test/api/image',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({prompt})});
+ assert.equal((await worker.fetch(request('a cow','https://evil.test'),env)).status,403);
+ assert.equal((await worker.fetch(request('', 'https://mikee.test'),env)).status,400);
+ assert.equal((await worker.fetch(request('x'.repeat(1300),'https://mikee.test'),env)).status,400);
+ assert.equal(calls,0);
+});
+test('image endpoint never fabricates images when provider fails',async()=>{
+ const request=new Request('https://mikee.test/api/image',{method:'POST',headers:{origin:'https://mikee.test'},body:JSON.stringify({prompt:'a cow'})});
+ assert.equal((await worker.fetch(request,{AI:{run:async()=>{throw Error('quota exceeded')}}})).status,502);
+});

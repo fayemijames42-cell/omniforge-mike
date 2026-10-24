@@ -138,3 +138,11 @@ dialog,.settings-box{background:#181e1a;border-color:#5b685c}
 .vector-artifact img{display:block;width:min(100%,440px);max-height:440px;object-fit:contain;background:#edf0eb;border-radius:8px;align-self:center}
 .vector-artifact figcaption{font-size:11px;color:#c7d6c9;line-height:1.4}
 .vector-artifact button{background:#2b3b30;border:1px solid #718a74;color:#f2f6f1;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:650}
+
+/* Real text-to-image results are visibly distinct from SVG sketches. */
+.real-image-artifact{margin:12px 0 4px;padding:10px;background:#111a16;border:1px solid #4f6356;border-radius:13px;max-width:100%;display:flex;flex-direction:column;gap:10px}
+.real-image-artifact img{display:block;width:min(100%,512px);max-height:610px;object-fit:contain;border-radius:9px;align-self:center;background:#26312a}
+.real-image-artifact figcaption{color:#c9d9ce;font-size:11px;line-height:1.5}
+.real-image-artifact button,.image-upgrade{background:#263b2d;border:1px solid #72977d;color:#f1f7ee;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:680}
+.image-upgrade{margin-top:10px}
+.real-image-artifact .image-artifact-actions{display:flex;gap:8px}

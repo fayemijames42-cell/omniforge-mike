@@ -18,6 +18,25 @@ const json=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'
 export default {async fetch(request,env){const url=new URL(request.url);
  if(url.pathname==='/quick-chat')return new Response(page,{headers:{'content-type':'text/html; charset=utf-8','content-security-policy':"default-src 'self' 'unsafe-inline' blob:; frame-src 'self' blob:; connect-src 'self'; img-src 'self' data: blob: https:;",'x-content-type-options':'nosniff'}});
  if(url.pathname==='/api/health')return json({ok:true,aiBound:!!env.AI,model:MODEL,verified:false});
+ if(url.pathname==='/api/image'&&request.method==='POST'){
+  // One intentional FLUX inference call. No fallback chaining or paid provider.
+  if(!env.AI)return json({error:'Workers AI is not configured.'},503);
+  const origin=request.headers.get('origin');
+  if(origin!==url.origin)return json({error:'Image generation requires a same-origin browser request.'},403);
+  const size=Number(request.headers.get('content-length')||0);
+  if(size>1600)return json({error:'Image prompt too large.'},413);
+  let input;
+  try{const raw=await request.text();if(new TextEncoder().encode(raw).length>1600)return json({error:'Image prompt too large.'},413);input=JSON.parse(raw)}
+  catch{return json({error:'Invalid image request.'},400)}
+  const prompt=typeof input?.prompt==='string'?input.prompt.trim():'';
+  if(prompt.length<2||prompt.length>900)return json({error:'Image prompt must contain 2–900 characters.'},400);
+  try{
+   const result=await env.AI.run('@cf/black-forest-labs/flux-1-schnell',{prompt,steps:4});
+   const image=result?.image;
+   if(typeof image!=='string'||image.length<100||image.length>3000000)return json({error:'The image model did not return a usable JPEG.'},502);
+   return json({image,mime:'image/jpeg',model:'@cf/black-forest-labs/flux-1-schnell',live:true});
+  }catch(err){return json({error:'Image generation failed or the free AI allowance was exhausted: '+String(err?.message||err).slice(0,220)},502)}
+ }
  if(url.pathname==='/api/chat'&&request.method==='POST'){
   if(!env.AI)return json({error:'Workers AI binding missing. Add AI binding named AI in Worker Settings.'},503);
   const origin=request.headers.get('origin');if(origin&&origin!==url.origin)return json({error:'Cross-origin requests not allowed'},403);

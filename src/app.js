@@ -1,7 +1,7 @@
 /* OMNIFORGE mobile UI - local/manual MVP. No fabricated AI or hosted uploads. */
 (function(){'use strict';const C=window.OMNI,W=window.OMNI_WORKSPACE;const $=s=>document.querySelector(s);let project=null,all=[],activeView='preview',mobileView=innerWidth>800?'preview':'chat',preferences={name:'MIKEE',mock:false},selectedAsset=null,originalURL=null,renderedURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message';
 const ui={chat:$('#chatStream'),chips:$('#chips'),edit:$('#editControls'),grid:$('#assetGrid'),photoEditor:$('#photoEditor'),frame:$('#siteFrame'),previewEmpty:$('#previewEmpty'),select:$('#projectSelect')};
-const E=C.esc, uid=C.uuid, K=window.OMNI_KNOWLEDGE;function notify(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>t.style.display='none',3600)}
+const E=C.esc, uid=C.uuid, K=window.OMNI_KNOWLEDGE;const imagePreviewURLs=new Set();function notify(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>t.style.display='none',3600)}
 function fail(e){const msg=e?.name==='QuotaExceededError'?'Device storage is full. Export a backup, remove unused photos, then try again.':e?.message||String(e);notify(msg);console.warn('OMNIFORGE action failed:',e)}
 function queued(fn){queue=queue.catch(()=>{}).then(fn).catch(fail);return queue}
 function autoChatTitle(input){
@@ -74,7 +74,22 @@ async function refreshList(){all=await C.listProjects();ui.select.innerHTML=all.
 async function activate(projectId){project=projectId?await C.getProject(projectId):null;if(project)project=C.formatMigrated(project);selectedAsset=null;if(originalURL)URL.revokeObjectURL(originalURL);originalURL=null;await refreshList();await showAll();if(project)await C.setPref('lastProjectId',project.id)}
 function switchMobile(tab){mobileView=tab;const mobile=innerWidth<=800;const a=tab==='chat'?'chat':'result';$('.workarea').className='workarea mobile-'+a;document.querySelectorAll('[data-mobile]').forEach(b=>b.classList.toggle('active',b.dataset.mobile===tab));if(tab!=='chat')changeTab(tab==='preview'?'preview':tab);if(!mobile){$('.workarea').className='workarea'} }
 function changeTab(tab){activeView=tab;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===tab));['preview','edit','photos','notes','files'].forEach(v=>{const el=$('#'+v+'Panel');el.classList.toggle('active',tab===v)});if(tab==='photos')renderPhotos();if(tab==='edit')renderEditor();if(tab==='notes')renderNotes()}
-function drawMessages(){ui.chat.innerHTML='';const messages=project?.messages||[];ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><h1>What would you like to explore?</h1><p>Talk to <span class="assistantName">${E(preferences.name)}</span> about any subject. Learn, write, solve problems, plan projects, or create something new.</p><div class="local-note">Chat uses Cloudflare Workers AI. Conversations are saved in this browser. Your messages and relevant project text are sent to the AI provider. Photo editing uses local tools. For instant offline arithmetic, type <code>/calc (5+3)*2</code>.</div></div>`;return}for(const m of messages){const node=document.createElement('article');node.className='message '+(m.role==='user'?'user':'assistant');const copying=m.role==='assistant'?`<button class="copy-message" type="button" data-copy-id="${E(m.id||'')}" aria-label="Copy reply">Copy</button><button class="note-from-reply" type="button" data-save-note="${E(m.id||'')}" aria-label="Save reply as a note">Save note</button>${m.engine==='WORKERS AI'&&!/<html|<!doctype/i.test(m.text)?`<button class="note-from-reply" type="button" data-memory-id="${E(m.id||'')}" aria-label="Save reply as knowledge">Remember</button>`:''}`:'';const route=m.role==='user'&&m.route?`<span class="nexus-route" title="Local NEXUS routing; no extra AI call">· ${E(m.route)}</span>`:'';node.innerHTML=`<div class="by"><span>${m.role==='user'?'You':E(preferences.name)+' · '+(m.engine||'RULE-BASED / NOT LIVE AI')}</span>${route}${copying}</div><div class="body">${m.role==='user'?E(m.text):formatReply(m.svgSummary||m.text)}</div>`;const vector=m.role==='assistant'&&m.engine==='WORKERS AI'?(m.svgMarkup?{svg:window.OMNI_VECTOR?.sanitize(m.svgMarkup),explanation:m.svgSummary||''}:m.text?.includes('<svg')?window.OMNI_VECTOR?.convertResponse(m.text):null):null;if(vector?.svg){const figure=document.createElement('figure');figure.className='vector-artifact';const caption=document.createElement('figcaption');caption.textContent='Vector illustration (SVG) · created from AI-generated code, not a raster image model';const img=document.createElement('img');img.src=window.OMNI_VECTOR.dataURI(vector.svg);img.alt='Generated vector illustration';img.loading='lazy';const button=document.createElement('button');button.type='button';button.textContent='↓ Save SVG';button.dataset.downloadSvg=m.id;figure.append(caption,img,button);node.querySelector('.body').textContent=vector.explanation||'MIKEE created a vector illustration. This is an SVG drawing, not photorealistic image generation.';node.append(figure);}ui.chat.appendChild(node)}if(requestPending)renderPendingBubble();ui.chat.scrollTop=ui.chat.scrollHeight}
+function drawMessages(){for(const url of imagePreviewURLs)URL.revokeObjectURL(url);imagePreviewURLs.clear();ui.chat.innerHTML='';const messages=project?.messages||[];ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><h1>What would you like to explore?</h1><p>Talk to <span class="assistantName">${E(preferences.name)}</span> about any subject. Learn, write, solve problems, plan projects, or create something new.</p><div class="local-note">Chat uses Cloudflare Workers AI. Conversations are saved in this browser. Your messages and relevant project text are sent to the AI provider. Photo editing uses local tools. For instant offline arithmetic, type <code>/calc (5+3)*2</code>.</div></div>`;return}for(const m of messages){const node=document.createElement('article');node.className='message '+(m.role==='user'?'user':'assistant');const copying=m.role==='assistant'?`<button class="copy-message" type="button" data-copy-id="${E(m.id||'')}" aria-label="Copy reply">Copy</button><button class="note-from-reply" type="button" data-save-note="${E(m.id||'')}" aria-label="Save reply as a note">Save note</button>${m.engine==='WORKERS AI'&&!/<html|<!doctype/i.test(m.text)?`<button class="note-from-reply" type="button" data-memory-id="${E(m.id||'')}" aria-label="Save reply as knowledge">Remember</button>`:''}`:'';const route=m.role==='user'&&m.route?`<span class="nexus-route" title="Local NEXUS routing; no extra AI call">· ${E(m.route)}</span>`:'';node.innerHTML=`<div class="by"><span>${m.role==='user'?'You':E(preferences.name)+' · '+(m.engine||'RULE-BASED / NOT LIVE AI')}</span>${route}${copying}</div><div class="body">${m.role==='user'?E(m.text):formatReply(m.svgSummary||m.text)}</div>`;const vector=m.role==='assistant'&&m.engine==='WORKERS AI'?(m.svgMarkup?{svg:window.OMNI_VECTOR?.sanitize(m.svgMarkup),explanation:m.svgSummary||''}:m.text?.includes('<svg')?window.OMNI_VECTOR?.convertResponse(m.text):null):null;if(vector?.svg){const figure=document.createElement('figure');figure.className='vector-artifact';const caption=document.createElement('figcaption');caption.textContent='Vector illustration (SVG) · created from AI-generated code, not a raster image model';const img=document.createElement('img');img.src=window.OMNI_VECTOR.dataURI(vector.svg);img.alt='Generated vector illustration';img.loading='lazy';const button=document.createElement('button');button.type='button';button.textContent='↓ Save SVG';button.dataset.downloadSvg=m.id;figure.append(caption,img,button);node.querySelector('.body').textContent=vector.explanation||'MIKEE created a vector illustration. This is an SVG drawing, not photorealistic image generation.';node.append(figure);
+ const upgrade=document.createElement('button');upgrade.type='button';upgrade.className='image-upgrade';upgrade.dataset.upgradeImage=m.id;upgrade.textContent='Create real AI image instead';node.append(upgrade);
+ }if(m.imageId&&m.role==='assistant'){
+ const figure=document.createElement('figure');figure.className='real-image-artifact';
+ const caption=document.createElement('figcaption');caption.textContent='Generated with FLUX.1 Schnell · AI image · stored locally';
+ const img=document.createElement('img');img.alt='AI-generated image: '+String(m.imagePrompt||'illustration').slice(0,120);img.loading='lazy';
+ const actions=document.createElement('div');actions.className='image-artifact-actions';
+ const download=document.createElement('button');download.type='button';download.textContent='↓ Save image';download.dataset.downloadImage=m.id;
+ actions.append(download);figure.append(caption,img,actions);node.append(figure);
+ const expectedProject=project?.id;
+ void C.getBlob(m.imageId).then(blob=>{
+  if(!blob||project?.id!==expectedProject||!img.isConnected)return;
+  const url=URL.createObjectURL(blob);imagePreviewURLs.add(url);img.src=url;
+ }).catch(()=>{img.alt='Saved image is unavailable on this device.'});
+}
+ui.chat.appendChild(node)}if(requestPending)renderPendingBubble();ui.chat.scrollTop=ui.chat.scrollHeight}
 async function preview(){const stamp=++previewToken;if(!project?.website||project.chatOnly){ui.frame.style.display='none';ui.previewEmpty.style.display='grid';$('#previewPageName').textContent='No website yet';return}try{const doc=project.website.rawHtml||C.renderSite(project,await C.assetMap(project));if(stamp!==previewToken)return;ui.frame.sandbox='allow-scripts';ui.frame.srcdoc=doc.replace(/<head([^>]*)>/i,`<head$1><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https:; font-src data:;">`);ui.frame.style.display='block';ui.previewEmpty.style.display='none';$('#previewPageName').textContent=project.website.pages?.length+' page(s) · '+project.website.layout; }catch(e){fail(e)}}
 async function showAll(){drawMessages();$('#activeArtifact').textContent=project?.name||'No active conversation';$('#undoBtn').disabled=!!project?.chatOnly||!(project?.history?.length);$('#exportBtn').disabled=!project||!!project.chatOnly;$('#zipBtn').disabled=!project||!!project.chatOnly;$('#fileHTML').disabled=!project||!!project.chatOnly;$('#fileZIP').disabled=!project||!!project.chatOnly;$('#fileJSON').disabled=!project;$('#exportChat').disabled=!project?.messages?.length;renderSources();document.querySelectorAll('.assistantName').forEach(x=>x.textContent=preferences.name);$('.status span').textContent=window.OMNI_OFFLINE_UI?.isOffline()?'LOCAL KNOWLEDGE · NO AI':preferences.mock?'LOCAL RULES — NOT AI':aiState;$('.status').title=preferences.mock?'Local rules only.':'A real reply is required before AI is marked verified.';if(activeView==='edit')renderEditor();if(activeView==='photos')renderPhotos();if(activeView==='notes')renderNotes();await preview()}
 function msg(role,text,engine){return {id:uid(),at:Date.now(),role,text,engine}}
@@ -92,9 +107,9 @@ function renderPendingBubble(){
 function updatePendingText(){
  if(!requestPending)return;
  const elapsed=Math.floor((Date.now()-pendingStartedAt)/1000);
- let label=pendingKind==='website'?'MIKEE is creating your website…':'MIKEE is thinking…';
+ let label=pendingKind==='website'?'MIKEE is creating your website…':pendingKind==='image'?'MIKEE is generating your image…':'MIKEE is thinking…';
  if(elapsed>=45)label='Taking longer than usual — still processing your request…';
- else if(elapsed>=15)label=pendingKind==='website'?'Still generating your website…':'Still working on your reply…';
+ else if(elapsed>=15)label=pendingKind==='website'?'Still generating your website…':pendingKind==='image'?'Still generating your image…':'Still working on your reply…';
  $('#typingText').textContent=label;
  $('#typingElapsed').textContent=elapsed+'s';
  const message=ui.chat.querySelector('#aiWorking .typing-label');
@@ -125,6 +140,52 @@ function setPending(busy,text=''){
  }
 }
 async function saveMessage(text){if(!project)return;project.messages=[...(project.messages||[]),msg('assistant',text,preferences.mock?'MOCK — NOT LIVE AI':'RULE-BASED / NOT LIVE AI')].slice(-100);await C.saveProject(project);await showAll()}
+
+function imagePromptFromText(text){
+ const raw=String(text||'').trim();
+ const yes=raw.match(/^(?:(?:please|mikee)[,: ]+)*(?:generate|genrate|create|make|draw|render|design|produce)\s+(?:(?:me|us)\s+)?(?:(?:an?|the)\s+)?(?:image|picture|photo|photograph|illustration|artwork|painting)\s*(?:of|showing|depicting|with|about|for)?\s+(.+)$/i);
+ return yes&&yes[1].trim().length>1?raw.slice(0,900):null;
+}
+function mayGenerateImage(){
+ const utc=new Date().toISOString().slice(0,10),key='omniforge-image-requests-'+utc;
+ let count=0;try{count=Number(localStorage.getItem(key)||0)}catch{}
+ if(count>=3)throw Error('This device has reached the voluntary 3-image daily limit to protect the free AI allowance. Try again another day.');
+ if(!confirm('Generate one real AI image with Cloudflare FLUX.1 Schnell? This spends part of the shared free AI daily allowance. Up to 3 attempts per day on this browser.'))return false;
+ try{localStorage.setItem(key,String(count+1))}catch{}
+ return true;
+}
+async function sendImage(text,promptText,{reuse=false}={}){
+ if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false)throw Error('Real AI image generation requires Cloud AI and internet access. Switch to Cloud AI, then request the image again.');
+ if(!mayGenerateImage())return;
+ if(requestPending)return;
+ $('#prompt').value='';
+ setPending(true,'create image');
+ pendingKind='image';updatePendingText();
+ try{
+  if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
+  if(!project.chatTitleSet&&project.chatOnly){project.name=autoChatTitle(text)||'Image creation';project.chatTitleSet=true;project.updatedAt=Date.now()}
+  if(!reuse){const m=msg('user',text);m.route='Text-to-image · FLUX.1 Schnell';project.messages.push(m);await C.saveProject(project);await refreshList();await showAll()}
+  const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),75000);
+  let response;
+  try{response=await fetch('/api/image',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({prompt:promptText}),signal:controller.signal})}finally{clearTimeout(deadline)}
+  let data;try{data=await response.json()}catch{throw Error('Image service returned an unreadable response.')}
+  if(!response.ok||data.live!==true)throw Error(data.error||'Image generation failed.');
+  if(typeof data.image!=='string'||data.image.length>3000000)throw Error('Invalid or oversized image response.');
+  const raw=atob(data.image),buffer=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)buffer[i]=raw.charCodeAt(i);
+  const blob=new Blob([buffer],{type:'image/jpeg'});
+  if(blob.size<100||blob.size>2250000)throw Error('Generated image was missing or unexpectedly large.');
+  const imageId=uid();await C.saveBlob(imageId,blob);
+  const result=msg('assistant','Generated image using Cloudflare FLUX.1 Schnell. Saved in this conversation on this device.','FLUX.1 SCHNELL · IMAGE');result.imageId=imageId;result.imagePrompt=promptText;
+  project.messages.push(result);project.messages=project.messages.slice(-100);
+  aiState='AI IMAGE GENERATED';await C.saveProject(project);await refreshList();await showAll();
+ }catch(error){
+  aiState='IMAGE REQUEST FAILED';
+  const description=error?.name==='AbortError'?'Image request timed out.':String(error?.message||error);
+  if(project){project.messages.push(msg('assistant','Image generation unavailable: '+description+'\nNo SVG placeholder was substituted.','ERROR'));await C.saveProject(project);await showAll()}else fail(error);
+ }finally{setPending(false)}
+}
+
 async function sendCalculation(text,displayText=text){
  const expr=window.OMNI_CALC.expressionFromCommand(text);
  if(expr===null)return;
@@ -159,6 +220,8 @@ async function respondOffline(text,{existing=false,reason=''}={}){
 async function send(text){
  text=text.trim();if(!text||requestPending)return;
  if(window.OMNI_CALC?.expressionFromCommand(text)!==null)return sendCalculation(text);
+ const imageRequest=imagePromptFromText(text);
+ if(imageRequest!==null)return sendImage(text,imageRequest);
   const arithmetic=window.OMNI_CALC?.arithmeticFromText(text);
   if(arithmetic!==null&&arithmetic!==undefined)return sendCalculation('/calc '+arithmetic,text);
  if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false){if(navigator.onLine===false)window.OMNI_OFFLINE_UI?.setOffline(true);return respondOffline(text);}
@@ -253,6 +316,10 @@ $('#closeChatSearch').onclick=()=>$('#chatSearchDialog').close();
 $('#chatSearchInput').addEventListener('input',()=>renderChatSearch().catch(fail));
 $('#chatSearchResults').addEventListener('click',event=>{const target=event.target.closest('[data-open-chat]');if(!target)return;queued(async()=>{await activate(target.dataset.openChat);$('#chatSearchDialog').close();switchMobile('chat')})});
 ui.chat.addEventListener('click',event=>{
+ const downloadImage=event.target.closest('[data-download-image]');
+ if(downloadImage){queued(async()=>{const m=(project?.messages||[]).find(x=>x.id===downloadImage.dataset.downloadImage);const blob=m?.imageId?await C.getBlob(m.imageId):null;if(!blob)throw Error('Image is no longer saved on this device.');C.download(blob,'omniforge-image-'+Date.now()+'.jpg');notify('Image saved as JPEG.')});return}
+ const upgrade=event.target.closest('[data-upgrade-image]');
+ if(upgrade){queued(async()=>{const messages=project?.messages||[],i=messages.findIndex(x=>x.id===upgrade.dataset.upgradeImage);if(i<0)return;const original=[...messages.slice(0,i)].reverse().find(x=>x.role==='user');if(!original)throw Error('Could not locate the original image request.');await sendImage(original.text,original.text,{reuse:true})});return}
  const vectorButton=event.target.closest('[data-download-svg]');if(vectorButton){queued(async()=>{const original=(project?.messages||[]).find(m=>m.id===vectorButton.dataset.downloadSvg);if(!original)return;const safe=window.OMNI_VECTOR?.sanitize(original.svgMarkup||window.OMNI_VECTOR?.extract(original.text));if(!safe)throw Error('Vector drawing is unavailable.');C.download(new Blob([safe],{type:'image/svg+xml;charset=utf-8'}),'omniforge-vector-'+Date.now()+'.svg');notify('SVG illustration saved.');});return}
  const save=event.target.closest('[data-save-note]');
  if(save){queued(async()=>{if(!project)return;const message=(project.messages||[]).find(m=>m.id===save.dataset.saveNote);if(!message)return;const note=W.createNote(project,W.replyTitle(message.text),message.text);await C.saveProject(project);changeTab('notes');switchMobile('notes');notify('Reply saved as note: '+note.title)});return}
