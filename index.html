@@ -5,6 +5,11 @@
   <div class="projectbar"><label class="project-select-wrap"><span>ACTIVE PROJECT</span><select id="projectSelect" aria-label="Active project"></select></label><button id="newProject" class="small-btn">＋ New</button><button id="deleteProject" class="icon-btn danger" title="Delete active project" aria-label="Delete project">⌫</button></div>
   <main class="workarea">
     <section class="chat-pane" id="chatPane" aria-label="Conversation"><div class="pane-title"><span><span class="dot"></span> Chat with <b class="assistantName">MIKEE</b></span><span class="mini-label">WORKERS AI</span></div><div id="chatStream" class="chat-stream" aria-live="polite"></div><div id="chips" class="chips"><button data-prompt="Build a website for a creative learning academy">Academy website</button><button data-prompt="Make an elegant perfume business website">Perfume storefront</button><button data-prompt="Create a website for a community event">Community event</button></div>
+      <div id="typingIndicator" class="typing-indicator" role="status" aria-live="polite" hidden>
+        <span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span id="typingText" class="typing-copy">MIKEE is thinking…</span>
+        <span id="typingElapsed" class="typing-elapsed" aria-hidden="true">0s</span>
+      </div>
       <form id="composer" class="composer"><textarea id="prompt" rows="2" placeholder="Describe your idea or a change to your site…" aria-label="Message"></textarea><div class="composer-actions"><label class="upload-label" title="Attach photos">＋ Photos<input id="chatPhotoFiles" type="file" multiple accept="image/png,image/jpeg,image/webp" hidden></label><span class="muted" id="composerHint">Changes stay on this device</span><button id="sendBtn" type="submit" class="send-btn" aria-label="Send">➤</button></div></form>
     </section>
     <section class="result-pane" id="resultPane" aria-label="Result and website editor">

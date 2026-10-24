@@ -1,5 +1,5 @@
 /* OMNIFORGE mobile UI - local/manual MVP. No fabricated AI or hosted uploads. */
-(function(){'use strict';const C=window.OMNI;const $=s=>document.querySelector(s);let project=null,all=[],activeView='preview',mobileView=innerWidth>800?'preview':'chat',preferences={name:'MIKEE',mock:false},selectedAsset=null,originalURL=null,renderedURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET';
+(function(){'use strict';const C=window.OMNI;const $=s=>document.querySelector(s);let project=null,all=[],activeView='preview',mobileView=innerWidth>800?'preview':'chat',preferences={name:'MIKEE',mock:false},selectedAsset=null,originalURL=null,renderedURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message';
 const ui={chat:$('#chatStream'),chips:$('#chips'),edit:$('#editControls'),grid:$('#assetGrid'),photoEditor:$('#photoEditor'),frame:$('#siteFrame'),previewEmpty:$('#previewEmpty'),select:$('#projectSelect')};
 const E=C.esc, uid=C.uuid;function notify(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>t.style.display='none',3600)}
 function fail(e){const msg=e?.name==='QuotaExceededError'?'Device storage is full. Export a backup, remove unused photos, then try again.':e?.message||String(e);notify(msg);console.warn('OMNIFORGE action failed:',e)}
@@ -8,22 +8,73 @@ async function refreshList(){all=await C.listProjects();ui.select.innerHTML=all.
 async function activate(projectId){project=projectId?await C.getProject(projectId):null;if(project)project=C.formatMigrated(project);selectedAsset=null;if(originalURL)URL.revokeObjectURL(originalURL);originalURL=null;await refreshList();await showAll();if(project)await C.setPref('lastProjectId',project.id)}
 function switchMobile(tab){mobileView=tab;const mobile=innerWidth<=800;const a=tab==='chat'?'chat':'result';$('.workarea').className='workarea mobile-'+a;document.querySelectorAll('[data-mobile]').forEach(b=>b.classList.toggle('active',b.dataset.mobile===tab));if(tab!=='chat')changeTab(tab==='preview'?'preview':tab);if(!mobile){$('.workarea').className='workarea'} }
 function changeTab(tab){activeView=tab;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===tab));['preview','edit','photos','files'].forEach(v=>{const el=$('#'+v+'Panel');el.classList.toggle('active',tab===v)});if(tab==='photos')renderPhotos();if(tab==='edit')renderEditor()}
-function drawMessages(){ui.chat.innerHTML='';const messages=project?.messages||[];ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><h1>What shall we create?</h1><p>Describe a website idea to <span class="assistantName">${E(preferences.name)}</span>. Continue the conversation to change the <em>same</em> project.</p><div class="local-note">Chat uses Cloudflare Workers AI. Describe a website or ask a question. Projects stay in this browser; your prompt and website text are sent to the AI provider. Photo editing uses local tools.</div></div>`;return}for(const m of messages){const node=document.createElement('article');node.className='message '+(m.role==='user'?'user':'assistant');node.innerHTML=`<div class="by">${m.role==='user'?'You':E(preferences.name)+' · '+(m.engine||'RULE-BASED / NOT LIVE AI')}</div><div class="body">${E(m.text)}</div>`;ui.chat.appendChild(node)}ui.chat.scrollTop=ui.chat.scrollHeight}
+function drawMessages(){ui.chat.innerHTML='';const messages=project?.messages||[];ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><h1>What shall we create?</h1><p>Describe a website idea to <span class="assistantName">${E(preferences.name)}</span>. Continue the conversation to change the <em>same</em> project.</p><div class="local-note">Chat uses Cloudflare Workers AI. Describe a website or ask a question. Projects stay in this browser; your prompt and website text are sent to the AI provider. Photo editing uses local tools.</div></div>`;return}for(const m of messages){const node=document.createElement('article');node.className='message '+(m.role==='user'?'user':'assistant');node.innerHTML=`<div class="by">${m.role==='user'?'You':E(preferences.name)+' · '+(m.engine||'RULE-BASED / NOT LIVE AI')}</div><div class="body">${E(m.text)}</div>`;ui.chat.appendChild(node)}if(requestPending)renderPendingBubble();ui.chat.scrollTop=ui.chat.scrollHeight}
 async function preview(){const stamp=++previewToken;if(!project?.website){ui.frame.style.display='none';ui.previewEmpty.style.display='grid';return}try{const doc=project.website.rawHtml||C.renderSite(project,await C.assetMap(project));if(stamp!==previewToken)return;ui.frame.sandbox='allow-scripts';ui.frame.srcdoc=doc.replace(/<head([^>]*)>/i,`<head$1><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https:; font-src data:;">`);ui.frame.style.display='block';ui.previewEmpty.style.display='none';$('#previewPageName').textContent=project.website.pages?.length+' page(s) · '+project.website.layout; }catch(e){fail(e)}}
 async function showAll(){drawMessages();$('#activeArtifact').textContent=project?.name||'No website yet';$('#undoBtn').disabled=!(project?.history?.length);$('#exportBtn').disabled=!project;$('#zipBtn').disabled=!project;document.querySelectorAll('.assistantName').forEach(x=>x.textContent=preferences.name);$('.status span').textContent=preferences.mock?'LOCAL RULES — NOT AI':aiState;$('.status').title=preferences.mock?'Local rules only.':'A real reply is required before AI is marked verified.';if(activeView==='edit')renderEditor();if(activeView==='photos')renderPhotos();await preview()}
 function msg(role,text,engine){return {id:uid(),at:Date.now(),role,text,engine}}
+
+function renderPendingBubble(){
+ const node=document.createElement('article');
+ node.className='message assistant typing-message';
+ node.id='aiWorking';
+ node.setAttribute('role','status');
+ node.setAttribute('aria-label','MIKEE is preparing a response');
+ node.innerHTML='<div class="by">MIKEE · WORKERS AI</div><div class="typing-row"><span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="typing-label">Preparing your response…</span></div>';
+ ui.chat.appendChild(node);
+ updatePendingText();
+}
+function updatePendingText(){
+ if(!requestPending)return;
+ const elapsed=Math.floor((Date.now()-pendingStartedAt)/1000);
+ let label=pendingKind==='website'?'MIKEE is creating your website…':'MIKEE is thinking…';
+ if(elapsed>=45)label='Taking longer than usual — still processing your request…';
+ else if(elapsed>=15)label=pendingKind==='website'?'Still generating your website…':'Still working on your reply…';
+ $('#typingText').textContent=label;
+ $('#typingElapsed').textContent=elapsed+'s';
+ const message=ui.chat.querySelector('#aiWorking .typing-label');
+ if(message)message.textContent=label;
+}
+function setPending(busy,text=''){
+ requestPending=busy;
+ const indicator=$('#typingIndicator'),prompt=$('#prompt'),sendButton=$('#sendBtn');
+ indicator.hidden=!busy;
+ prompt.disabled=busy;
+ sendButton.disabled=busy;
+ sendButton.textContent=busy?'…':'➤';
+ sendButton.setAttribute('aria-label',busy?'MIKEE is responding':'Send');
+ ui.select.disabled=busy;
+ $('#newProject').disabled=busy;
+ $('#deleteProject').disabled=busy||!project;
+ ui.chips.querySelectorAll('button').forEach(button=>button.disabled=busy);
+ $('#composerHint').textContent=busy?'AI request in progress':'Changes stay on this device';
+ if(pendingTimer!==null){clearInterval(pendingTimer);pendingTimer=null}
+ if(busy){
+  pendingKind=/website|landing page|webpage|build a site|create a site/i.test(text)?'website':'message';
+  pendingStartedAt=Date.now();
+  updatePendingText();
+  pendingTimer=setInterval(updatePendingText,1000);
+ }else{
+  ui.chat.querySelector('#aiWorking')?.remove();
+  $('.status span').textContent=preferences.mock?'LOCAL RULES — NOT AI':aiState;
+ }
+}
 async function saveMessage(text){if(!project)return;project.messages=[...(project.messages||[]),msg('assistant',text,preferences.mock?'MOCK — NOT LIVE AI':'RULE-BASED / NOT LIVE AI')].slice(-100);await C.saveProject(project);await showAll()}
 async function send(text){
  if(preferences.mock)return sendLocal(text);
- text=text.trim();if(!text)return;
- $('#sendBtn').disabled=true;
+ text=text.trim();if(!text||requestPending)return;
+ $('#prompt').value='';
+ aiState='MIKEE IS GENERATING…';
+ setPending(true,text);
+ $('.status span').textContent=aiState;
  try{
   if(!project){project=C.makeProject(text.slice(0,60));project.website.rawHtml='<!doctype html><html><body><p>Your generated website will appear here.</p></body></html>';await C.saveProject(project);await C.setPref('lastProjectId',project.id)}
   const history=(project.messages||[]).filter(m=>['user','assistant'].includes(m.role)&&m.engine!=='ERROR').slice(-8).map(m=>({role:m.role,content:m.aiContent||m.text}));
   const currentHtml=C.renderSite(project);if(currentHtml.length>24000)throw Error('This website exceeds the current AI editing limit (24,000 characters). Export a backup; manual tools remain available.');
   project.messages.push(msg('user',text));await C.saveProject(project);await showAll();
-  const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history,currentHtml}),signal:AbortSignal.timeout(90000)});
-  const data=await response.json();if(!response.ok)throw Error(data.error||'AI request failed');
+  const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),90000);
+  let response;try{response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history,currentHtml}),signal:controller.signal})}finally{clearTimeout(deadline)}
+  let data;try{data=await response.json()}catch{throw Error('The server returned an unreadable response. Please try a smaller website request.')}
+  if(!response.ok)throw Error(data.error||'AI request failed');
   if(data.live!==true||typeof data.reply!=='string')throw Error('No verified provider response was received.');
   aiState='AI RESPONSE VERIFIED';
   const match=data.reply.match(/<!doctype html[\s\S]*?<\/html>/i)||data.reply.match(/<html[\s\S]*?<\/html>/i);
@@ -31,8 +82,8 @@ async function send(text){
   if(match){project=C.change(project,p=>{p.website.rawHtml=match[0]}).project;answer='Your website is updated. Open Preview to try it, or export HTML. Continue chatting to make changes.';}
   else if(/<!doctype html|<html/i.test(data.reply)){answer='The AI returned incomplete HTML. Your previous website is unchanged. Ask for a shorter complete website.';}
   const m=msg('assistant',answer,'WORKERS AI');m.aiContent=data.reply;project.messages.push(m);project.messages=project.messages.slice(-100);
-  $('#prompt').value='';await C.saveProject(project);await refreshList();await showAll();if(match&&innerWidth<=800)switchMobile('preview');
- }catch(e){aiState='AI REQUEST FAILED';if(project){project.messages.push(msg('assistant',e.message,'ERROR'));await C.saveProject(project);await showAll()}else fail(e)}finally{$('#sendBtn').disabled=false}
+  await C.saveProject(project);await refreshList();await showAll();if(match&&innerWidth<=800)switchMobile('preview');
+ }catch(e){aiState='AI REQUEST FAILED';const error=e?.name==='AbortError'?'The website request timed out. Your earlier site is unchanged. Try requesting a smaller page first, then add sections in follow-up messages.':e.message;if(project){project.messages.push(msg('assistant',error,'ERROR'));await C.saveProject(project);await showAll()}else fail(e)}finally{setPending(false)}
 }
 async function sendLocal(text){text=text.trim();if(!text)return;$('#sendBtn').disabled=true;try{const [tool,args]=C.actionFromPrompt(text,project);if(tool==='create_website'){const result=C.callTool(tool,null,args);result.messages=[msg('user',text)];await C.saveProject(result);project=result;await C.setPref('lastProjectId',project.id);project.messages.push(msg('assistant',`Website created locally: “${project.name}” (${project.website.pages.length} pages). Open Preview or Edit. This is a rule-based layout, not a live AI-generated website.`,preferences.mock?'MOCK — NOT LIVE AI':'RULE-BASED / NOT LIVE AI'));await C.saveProject(project);await refreshList()}
  else {project.messages=[...(project.messages||[]),msg('user',text)].slice(-100);const result=C.callTool(tool,project,args);if(result.export){await C.exportHTML(project);project.messages.push(msg('assistant','Exported the current website as an offline HTML file.','LOCAL TOOL'))}else if(result.details){project.messages.push(msg('assistant',`Current site: ${result.details.pages} page(s), ${result.details.photos} photo(s), ${result.details.versions} saved undo versions.`, 'LOCAL TOOL'))}else if(result.changed){project=result.project;project.messages.push(msg('assistant',`Updated “${project.name}”. This is version ${project.version}. Preview, refresh or Undo to check the actual change.`,preferences.mock?'MOCK — NOT LIVE AI':'RULE-BASED / NOT LIVE AI'))}else project.messages.push(msg('assistant','No change was necessary.','LOCAL TOOL'));project.messages=project.messages.slice(-100);await C.saveProject(project)}
