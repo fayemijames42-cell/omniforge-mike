@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const runtime={window:{},Math,Number,Object,String};
 vm.createContext(runtime);
 vm.runInContext(readFileSync(new URL('../src/calculator.js',import.meta.url),'utf8'),runtime);
-const {calculate,expressionFromCommand}=runtime.window.OMNI_CALC;
+const {calculate,expressionFromCommand,arithmeticFromText}=runtime.window.OMNI_CALC;
 test('Calculator accepts explicit commands only',()=>{
  assert.equal(expressionFromCommand('/calc (5+3)*2'),'(5+3)*2');
  assert.equal(expressionFromCommand('calculate: sqrt(9)'),'sqrt(9)');
@@ -25,4 +25,9 @@ test('Local arithmetic rejects invalid input, unsafe expressions and undefined r
   assert.throws(()=>calculate(value),undefined,value);
  }
  assert.throws(()=>calculate('('.repeat(31)+'1'+')'.repeat(31)),/nested/i);
+});
+
+test('Plain numeric questions route to local calculation without a Cloudflare call',()=>{
+ for(const [text,expression] of [['2+1','2+1'],['What is 2 + 1?','2 + 1'],['calculate 7*6','7*6'],['what\'s (3+5)*2?','(3+5)*2']])assert.equal(expressionFromCommand(text)||arithmeticFromText(text),expression);
+ for(const text of ['What is a diode?','What is 555 timer?','2+1 in binary','Calculate my costs next year'])assert.equal(arithmeticFromText(text),null);
 });

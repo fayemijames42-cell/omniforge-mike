@@ -132,3 +132,9 @@ dialog,.settings-box{background:#181e1a;border-color:#5b685c}
 #memorySave{margin-top:12px}
 #memoryStatus{color:#a9c6b2}
 @media(max-width:800px){.mode-toggle{font-size:11px;padding:6px 9px}.source-actions{gap:6px}.source-actions>span{display:none}.memory-actions button,.memory-actions label{flex:1 1 44%;text-align:center}.knowledge-vault{margin-top:15px}}
+
+/* SVG illustrations are previewed as images, not wall-of-code responses. */
+.vector-artifact{margin:12px 0 2px;padding:10px;background:#121917;border:1px solid #405348;border-radius:13px;max-width:100%;display:flex;flex-direction:column;gap:10px;align-items:start}
+.vector-artifact img{display:block;width:min(100%,440px);max-height:440px;object-fit:contain;background:#edf0eb;border-radius:8px;align-self:center}
+.vector-artifact figcaption{font-size:11px;color:#c7d6c9;line-height:1.4}
+.vector-artifact button{background:#2b3b30;border:1px solid #718a74;color:#f2f6f1;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:650}

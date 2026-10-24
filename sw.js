@@ -1,6 +1,6 @@
 /* Offline app shell only: never cache /api/chat or store private AI requests. */
-const CACHE='omniforge-shell-v0.8.1';
-const ASSETS=['/','/index.html','/src/style.css','/src/core.js','/src/workspace.js','/src/calculator.js','/src/offline.js','/src/offline-ui.js','/src/knowledge.xml','/src/app.js','/vendor/jszip.min.js'];
+const CACHE='omniforge-shell-v0.8.2';
+const ASSETS=['/','/index.html','/src/style.css','/src/core.js','/src/workspace.js','/src/calculator.js','/src/offline.js','/src/offline-ui.js','/src/vector.js','/src/knowledge.xml','/src/app.js','/vendor/jszip.min.js'];
 self.addEventListener('install',event=>{
  event.waitUntil((async()=>{const cache=await caches.open(CACHE);await Promise.allSettled(ASSETS.map(async path=>{const response=await fetch(path,{cache:'reload'});if(response.ok)await cache.put(path,response)}));await self.skipWaiting()})());
 });

@@ -13,6 +13,17 @@ function expressionFromCommand(text){
  const result=input.match(/^\/calc(?:ulate)?(?:\s+|:\s*)(.*)$/is)||input.match(/^calculate:\s*(.*)$/is);
  return result?result[1].trim():null;
 }
+/* Intentionally conservative: only standalone numerical questions, never arbitrary prose. */
+function arithmeticFromText(input){
+ const value=String(input||'').trim();
+ if(value.length>160)return null;
+ const match=value.match(/^(?:(?:what\s+is|what's|how\s+much\s+is|calculate|compute|evaluate|solve)\s*:?\s*)?([0-9.(+\-][0-9.eE+\-*/%^()×÷\s]*)\??$/i);
+ if(!match)return null;
+ const formula=match[1].trim();
+ if(!/[+\-*/%^×÷]/.test(formula))return null;
+ if(!/\d/.test(formula))return null;
+ return formula;
+}
 function calculate(source){
  const input=String(source||'').trim().replace(/×/g,'*').replace(/÷/g,'/');
  if(!input)throw Error('Enter an expression after /calc.');
@@ -57,5 +68,5 @@ function calculate(source){
  if(pos<tokens.length)throw Error('Unexpected input after the expression.');
  return {value,formatted:Number(value.toPrecision(12)).toString(),expression:input};
 }
-root.OMNI_CALC={calculate,expressionFromCommand};
+root.OMNI_CALC={calculate,expressionFromCommand,arithmeticFromText};
 })(window);
