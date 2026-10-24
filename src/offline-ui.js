@@ -17,7 +17,7 @@ function renderMode(){
  button.setAttribute('aria-pressed',String(active));
  button.title=active?'Only stored information. No AI model is used.':'Try Cloudflare Workers AI for the next question.';
  const status=document.querySelector('.status span');
- if(active&&status)status.textContent='LOCAL KNOWLEDGE · NO AI';
+ if(status)status.textContent=active?'LOCAL KNOWLEDGE · NO AI':'CLOUD AI · READY TO TRY';
  const hint=$('#composerHint');
  if(active&&hint)hint.textContent='Stored answers only · no AI';
  else if(hint&&hint.textContent==='Stored answers only · no AI')hint.textContent='Changes stay on this device';
