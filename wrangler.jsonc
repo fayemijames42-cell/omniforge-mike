@@ -1,0 +1,17 @@
+{
+  "name": "omniforge-mike",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-24",
+  "workers_dev": true,
+  "ai": {
+    "binding": "AI"
+  },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*",
+      "/quick-chat"
+    ]
+  }
+}
