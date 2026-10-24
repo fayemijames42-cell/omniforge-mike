@@ -109,7 +109,7 @@ function setPending(busy,text=''){
  sendButton.textContent=busy?'…':'➤';
  sendButton.setAttribute('aria-label',busy?'MIKEE is responding':'Send');
  ui.select.disabled=busy;
- $('#newProject').disabled=busy;
+ $('#newProject').disabled=busy;$('#modeToggle').disabled=busy;
  $('#deleteProject').disabled=busy||!project;$('#chatSearchBtn').disabled=busy;$('#renameChat').disabled=busy||!project;$('#chatFocus').disabled=busy;$('#toggleSources').disabled=busy;$('#sourceFiles').disabled=busy;
  ui.chips.querySelectorAll('button').forEach(button=>button.disabled=busy);
  $('#composerHint').textContent=busy?'AI request in progress':'Changes stay on this device';
@@ -159,7 +159,7 @@ async function respondOffline(text,{existing=false,reason=''}={}){
 async function send(text){
  text=text.trim();if(!text||requestPending)return;
  if(window.OMNI_CALC?.expressionFromCommand(text)!==null)return sendCalculation(text);
- if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false)return respondOffline(text);
+ if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false){if(navigator.onLine===false)window.OMNI_OFFLINE_UI?.setOffline(true);return respondOffline(text);}
  if(preferences.mock)return sendLocal(text);
  $('#prompt').value='';
  aiState='MIKEE IS GENERATING…';

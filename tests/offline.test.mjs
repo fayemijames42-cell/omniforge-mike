@@ -16,3 +16,13 @@ test('offline normalization is deterministic and ignores conversational filler',
  assert.ok(K.words('Please explain what a DIODE is').includes('diode'));
  assert.equal(K.bestMatch('hi',facts),null);
 });
+
+// Regression guards: service-worker shell must contain every local knowledge script.
+import {existsSync} from 'node:fs';
+const swText=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+test('Offline shell caches local knowledge UI and uses network-first for hourly XML refresh',()=>{
+ assert.match(swText,/\x2fsrc\x2foffline-ui\.js/);
+ assert.match(swText,/url\.pathname==='\x2fsrc\x2fknowledge\.xml'/);
+ assert.match(swText,/fetch\(request,\{cache:'no-cache'\}\)/);
+ assert.ok(existsSync(new URL('../src/knowledge.xml',import.meta.url)));
+});
