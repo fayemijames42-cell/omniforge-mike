@@ -18,6 +18,25 @@ const json=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'
 export default {async fetch(request,env){const url=new URL(request.url);
  if(url.pathname==='/quick-chat')return new Response(page,{headers:{'content-type':'text/html; charset=utf-8','content-security-policy':"default-src 'self' 'unsafe-inline' blob:; frame-src 'self' blob:; connect-src 'self'; img-src 'self' data: blob: https:;",'x-content-type-options':'nosniff'}});
  if(url.pathname==='/api/health')return json({ok:true,aiBound:!!env.AI,model:MODEL,verified:false});
+ if(url.pathname==='/api/title'&&request.method==='POST'){
+  if(!env.AI)return json({error:'AI unavailable'},503);
+  const origin=request.headers.get('origin');
+  if(origin&&origin!==url.origin)return json({error:'Cross-origin request denied'},403);
+  const size=Number(request.headers.get('content-length')||0);
+  if(size>2500)return json({error:'Request too large'},413);
+  let data;
+  try{const raw=await request.text();if(new TextEncoder().encode(raw).length>2500)return json({error:'Request too large'},413);data=JSON.parse(raw)}
+  catch{return json({error:'Invalid JSON'},400)}
+  const message=typeof data?.message==='string'?data.message.trim().slice(0,900):'';
+  if(!message)return json({error:'Message required'},400);
+  try{
+   const system='Generate a short accurate title for a user conversation about ANY topic. Reply with only a 2 to 6 word title, no quotes, prefix, explanation, emojis, or markdown. Summarize the main subject of the message, not what you want to do. Do not presume it is website-related.';
+   const result=await env.AI.run(MODEL,{messages:[{role:'system',content:system},{role:'user',content:message}],max_tokens:48});
+   const title=String(result?.response||'').split(/\r?\n/)[0].replace(/^title:\s*/i,'').replace(/[<>"#*_]/g,'').trim().slice(0,60);
+   if(!title)return json({error:'No title returned'},502);
+   return json({title,live:true});
+  }catch{return json({error:'Title generation failed'},502)}
+ }
  if(url.pathname==='/api/chat'&&request.method==='POST'){
   if(!env.AI)return json({error:'Workers AI binding missing. Add AI binding named AI in Worker Settings.'},503);
   const origin=request.headers.get('origin');if(origin&&origin!==url.origin)return json({error:'Cross-origin requests not allowed'},403);
@@ -27,7 +46,7 @@ export default {async fetch(request,env){const url=new URL(request.url);
   const message=typeof data.message==='string'?data.message.trim().slice(0,3000):'';if(!message)return json({error:'Message required'},400);
   const currentHtml=typeof data.currentHtml==='string'?data.currentHtml.slice(0,24000):'';
   const history=Array.isArray(data.history)?data.history.slice(-8).filter(x=>['user','assistant'].includes(x?.role)&&typeof x.content==='string').map(x=>({role:x.role,content:x.content.slice(0,4000)})):[];
-  const system=`You are MIKEE, the conversational AI assistant in OMNIFORGE. Answer normal conversation naturally. If the user requests a new website or a change to the current website, return one complete, standalone HTML document starting with <!doctype html> and ending with </html>, with inline CSS and JavaScript, no external dependencies. Do not surround website code in markdown fences. Make working responsive websites. If editing, preserve existing content and modify only as requested. Never claim to have published a site or used tools you haven't used. If the user is not asking for website creation/editing, reply in plain language.`;
+  const system=`You are MIKEE, OMNIFORGE's general-purpose conversational assistant and creation coordinator. Help users learn, write, analyze, plan, explore ideas, and build creative projects. Website development is only one optional capability. Answer normal conversation naturally. If the user requests a new website or a change to the current website, return one complete, standalone HTML document starting with <!doctype html> and ending with </html>, with inline CSS and JavaScript, no external dependencies. Do not surround website code in markdown fences. Make working responsive websites. If editing, preserve existing content and modify only as requested. Never claim to have published a site or used tools you haven't used. If the user is not asking for website creation/editing, reply in plain language.`;
   const context=currentHtml?`Existing website HTML (edit this if the user asks to modify the site):\n${currentHtml}`:'No existing website yet.';
   try{const out=await env.AI.run(MODEL,{messages:[{role:'system',content:system+'\n'+context},...history,{role:'user',content:message}],max_tokens:3000});const reply=out?.response;if(typeof reply!=='string'||!reply.trim())return json({error:'The AI provider returned no answer. Try again.'},502);return json({reply,model:MODEL,live:true});}
   catch(err){return json({error:'Workers AI request failed: '+String(err?.message||err).slice(0,350)},502)}
