@@ -35,3 +35,24 @@
 .message .body code{font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace}
 .message .body .formatted-bold{font-weight:750}
 @media(max-width:800px){#chatSearchBtn{min-width:32px;padding:5px 7px}.projectbar{gap:5px}.projectbar select{padding-inline:8px}.small-btn{padding-inline:7px}}
+
+
+/* OMNIFORGE v0.6: source-grounded and task-focused conversation */
+.focus-control{display:flex;align-items:center;gap:6px;color:#afbad0;font-size:11px;white-space:nowrap}
+.focus-control select{max-width:102px;background:#252b40;color:#f4f1ff;border:1px solid #4a5472;border-radius:8px;padding:7px 8px;font-size:12px}
+.source-actions{display:flex;gap:8px;align-items:center;padding:0 16px 8px;color:#929fbd;font-size:11px}
+.source-actions button{border:1px solid #4b426c;border-radius:9px;background:#27253e;color:#dbd0ff;font-size:12px;padding:5px 10px}
+.source-actions #sourceCount{display:inline-block;min-width:17px;font-weight:750}
+.source-shelf{margin:0 12px 9px;border:1px solid #424d66;background:#1c2234;border-radius:11px;padding:11px 12px;max-height:26dvh;overflow:auto}
+.source-shelf[hidden]{display:none}
+.source-shelf-head{display:flex;gap:7px;justify-content:space-between;align-items:center}
+.source-shelf strong{font-size:12px}
+.source-shelf-head label{cursor:pointer;border:1px solid #7d6aa7;border-radius:7px;color:#e8dcff;padding:6px 7px;font-size:11px}
+.source-shelf p{color:#b4bed3;margin:8px 0;font-size:11px;line-height:1.45}
+.source-shelf .source-opt{font-size:11px;color:#dde1ee;display:flex;align-items:center;gap:6px}
+.source-opt input{accent-color:#a994fa}
+#sourceList{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+#sourceList .source-chip{display:inline-flex;gap:7px;align-items:center;background:#313954;border-radius:7px;padding:5px 8px;font-size:11px;max-width:100%}
+#sourceList .source-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:175px}
+#sourceList .source-chip button{background:transparent;border:0;color:#f6b0be;font-size:15px;line-height:1}
+@media(max-width:800px){.pane-title{gap:7px}.focus-control{font-size:10px}.focus-control select{max-width:86px;font-size:11px;padding:5px}.source-actions{padding-inline:11px}.source-shelf{max-height:25dvh}}

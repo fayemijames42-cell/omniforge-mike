@@ -40,13 +40,43 @@ async function renderChatSearch(){
  }).join(''):'<div class="search-empty">No saved conversations match this search.</div>';
 }
 
+
+/* Sources and focus are local-first, opt-in and never invoke an extra model. */
+function renderSources(){
+ const notes=project?.sources||[];
+ $('#sourceCount').textContent=String(notes.length);
+ $('#useSources').checked=project?.useSources!==false;
+ $('#chatFocus').value=['general','learn','write','code','create'].includes(project?.focus)?project.focus:'general';
+ $('#sourceList').innerHTML=notes.map((note,i)=>'<div class="source-chip"><span title="'+E(note.name)+'">'+E(note.name)+'</span><button type="button" data-remove-source="'+i+'" aria-label="Remove reference note '+E(note.name)+'">×</button></div>').join('')||'<small>No notes attached to this conversation.</small>';
+}
+async function addReferenceNotes(fileList){
+ if(requestPending)throw Error('Finish the current AI request before editing reference notes.');
+ const files=Array.from(fileList||[]);
+ if(!files.length)return;
+ if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
+ const next=[...(project.sources||[])];
+ for(const file of files){
+  if(!/\.(txt|md|markdown|csv|json)$/i.test(file.name))throw Error('Use plain text, Markdown, CSV, or JSON notes. PDF parsing is not available yet.');
+  if(file.size>24000)throw Error('Each note must be 24 KB or smaller. Copy a relevant excerpt for longer documents.');
+  const content=(await file.text()).replace(/\u0000/g,'').slice(0,3200).trim();
+  if(!content)throw Error('The attached note is empty.');
+  const item={name:file.name.slice(0,75),content};
+  const index=next.findIndex(n=>n.name===item.name);
+  if(index>=0)next[index]=item;
+  else{if(next.length>=3)throw Error('Use up to 3 short reference notes per conversation. Remove an older note first.');next.push(item)}
+ }
+ project.sources=next;project.useSources=true;project.updatedAt=Date.now();
+ await C.saveProject(project);await refreshList();renderSources();
+ $('#sourceShelf').hidden=false;$('#toggleSources').setAttribute('aria-expanded','true');
+ notify(next.length+' reference note(s) attached. Note contents are sent only when you send a message with Include notes enabled.');
+}
 async function refreshList(){all=await C.listProjects();ui.select.innerHTML=all.length?all.map(p=>`<option value="${E(p.id)}">${E(p.name||'Untitled')} · ${new Date(p.updatedAt).toLocaleDateString()}</option>`).join(''):'<option value="">No projects yet</option>';if(project)ui.select.value=project.id;$('#deleteProject').disabled=!project;$('#renameChat').disabled=!project}
 async function activate(projectId){project=projectId?await C.getProject(projectId):null;if(project)project=C.formatMigrated(project);selectedAsset=null;if(originalURL)URL.revokeObjectURL(originalURL);originalURL=null;await refreshList();await showAll();if(project)await C.setPref('lastProjectId',project.id)}
 function switchMobile(tab){mobileView=tab;const mobile=innerWidth<=800;const a=tab==='chat'?'chat':'result';$('.workarea').className='workarea mobile-'+a;document.querySelectorAll('[data-mobile]').forEach(b=>b.classList.toggle('active',b.dataset.mobile===tab));if(tab!=='chat')changeTab(tab==='preview'?'preview':tab);if(!mobile){$('.workarea').className='workarea'} }
 function changeTab(tab){activeView=tab;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===tab));['preview','edit','photos','files'].forEach(v=>{const el=$('#'+v+'Panel');el.classList.toggle('active',tab===v)});if(tab==='photos')renderPhotos();if(tab==='edit')renderEditor()}
 function drawMessages(){ui.chat.innerHTML='';const messages=project?.messages||[];ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><h1>What would you like to explore?</h1><p>Talk to <span class="assistantName">${E(preferences.name)}</span> about any subject. Learn, write, solve problems, plan projects, or create something new.</p><div class="local-note">Chat uses Cloudflare Workers AI. Conversations are saved in this browser. Your messages and relevant project text are sent to the AI provider. Photo editing uses local tools.</div></div>`;return}for(const m of messages){const node=document.createElement('article');node.className='message '+(m.role==='user'?'user':'assistant');const copying=m.role==='assistant'?`<button class="copy-message" type="button" data-copy-id="${E(m.id||'')}" aria-label="Copy reply">Copy</button>`:'';node.innerHTML=`<div class="by"><span>${m.role==='user'?'You':E(preferences.name)+' · '+(m.engine||'RULE-BASED / NOT LIVE AI')}</span>${copying}</div><div class="body">${m.role==='user'?E(m.text):formatReply(m.text)}</div>`;ui.chat.appendChild(node)}if(requestPending)renderPendingBubble();ui.chat.scrollTop=ui.chat.scrollHeight}
 async function preview(){const stamp=++previewToken;if(!project?.website||project.chatOnly){ui.frame.style.display='none';ui.previewEmpty.style.display='grid';$('#previewPageName').textContent='No website yet';return}try{const doc=project.website.rawHtml||C.renderSite(project,await C.assetMap(project));if(stamp!==previewToken)return;ui.frame.sandbox='allow-scripts';ui.frame.srcdoc=doc.replace(/<head([^>]*)>/i,`<head$1><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https:; font-src data:;">`);ui.frame.style.display='block';ui.previewEmpty.style.display='none';$('#previewPageName').textContent=project.website.pages?.length+' page(s) · '+project.website.layout; }catch(e){fail(e)}}
-async function showAll(){drawMessages();$('#activeArtifact').textContent=project?.name||'No active conversation';$('#undoBtn').disabled=!!project?.chatOnly||!(project?.history?.length);$('#exportBtn').disabled=!project||!!project.chatOnly;$('#zipBtn').disabled=!project||!!project.chatOnly;$('#fileHTML').disabled=!project||!!project.chatOnly;$('#fileZIP').disabled=!project||!!project.chatOnly;$('#fileJSON').disabled=!project;$('#exportChat').disabled=!project?.messages?.length;document.querySelectorAll('.assistantName').forEach(x=>x.textContent=preferences.name);$('.status span').textContent=preferences.mock?'LOCAL RULES — NOT AI':aiState;$('.status').title=preferences.mock?'Local rules only.':'A real reply is required before AI is marked verified.';if(activeView==='edit')renderEditor();if(activeView==='photos')renderPhotos();await preview()}
+async function showAll(){drawMessages();$('#activeArtifact').textContent=project?.name||'No active conversation';$('#undoBtn').disabled=!!project?.chatOnly||!(project?.history?.length);$('#exportBtn').disabled=!project||!!project.chatOnly;$('#zipBtn').disabled=!project||!!project.chatOnly;$('#fileHTML').disabled=!project||!!project.chatOnly;$('#fileZIP').disabled=!project||!!project.chatOnly;$('#fileJSON').disabled=!project;$('#exportChat').disabled=!project?.messages?.length;renderSources();document.querySelectorAll('.assistantName').forEach(x=>x.textContent=preferences.name);$('.status span').textContent=preferences.mock?'LOCAL RULES — NOT AI':aiState;$('.status').title=preferences.mock?'Local rules only.':'A real reply is required before AI is marked verified.';if(activeView==='edit')renderEditor();if(activeView==='photos')renderPhotos();await preview()}
 function msg(role,text,engine){return {id:uid(),at:Date.now(),role,text,engine}}
 
 function renderPendingBubble(){
@@ -80,7 +110,7 @@ function setPending(busy,text=''){
  sendButton.setAttribute('aria-label',busy?'MIKEE is responding':'Send');
  ui.select.disabled=busy;
  $('#newProject').disabled=busy;
- $('#deleteProject').disabled=busy||!project;$('#chatSearchBtn').disabled=busy;$('#renameChat').disabled=busy||!project;
+ $('#deleteProject').disabled=busy||!project;$('#chatSearchBtn').disabled=busy;$('#renameChat').disabled=busy||!project;$('#chatFocus').disabled=busy;$('#toggleSources').disabled=busy;$('#sourceFiles').disabled=busy;
  ui.chips.querySelectorAll('button').forEach(button=>button.disabled=busy);
  $('#composerHint').textContent=busy?'AI request in progress':'Changes stay on this device';
  if(pendingTimer!==null){clearInterval(pendingTimer);pendingTimer=null}
@@ -109,7 +139,7 @@ async function send(text){
   const currentHtml=project.chatOnly?'':C.renderSite(project);if(currentHtml.length>24000)throw Error('This website exceeds the current AI editing limit (24,000 characters). Export a backup; manual tools remain available.');
   project.messages.push(msg('user',text));await C.saveProject(project);await refreshList();await showAll();
   const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),90000);
-  let response;try{response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history,currentHtml}),signal:controller.signal})}finally{clearTimeout(deadline)}
+  let response;try{response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history,currentHtml,focus:project.focus||'general',sources:project.useSources===false?[]:(project.sources||[]).slice(0,3)}),signal:controller.signal})}finally{clearTimeout(deadline)}
   let data;try{data=await response.json()}catch{throw Error('The server returned an unreadable response. Please try a smaller website request.')}
   if(!response.ok)throw Error(data.error||'AI request failed');
   if(data.live!==true||typeof data.reply!=='string')throw Error('No verified provider response was received.');
@@ -155,6 +185,35 @@ $('#chatSearchResults').addEventListener('click',event=>{const target=event.targ
 ui.chat.addEventListener('click',event=>{const btn=event.target.closest('[data-copy-id]');if(!btn)return;const message=(project?.messages||[]).find(m=>m.id===btn.dataset.copyId);if(!message)return;navigator.clipboard.writeText(message.text||'').then(()=>notify('Reply copied.')).catch(()=>notify('Unable to copy automatically on this browser.'))});
 $('#exportChat').onclick=()=>queued(()=>saveChatTranscript());
 $('#exportBtn').onclick=()=>queued(()=>exportAction('html'));$('#zipBtn').onclick=()=>queued(()=>exportAction('zip'));$('#fileHTML').onclick=()=>queued(()=>exportAction('html'));$('#fileZIP').onclick=()=>queued(()=>exportAction('zip'));$('#fileJSON').onclick=()=>queued(()=>exportAction('json'));
+
+$('#chatFocus').addEventListener('change',event=>queued(async()=>{
+ if(requestPending)return;
+ if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
+ const focus=event.target.value;
+ if(!['general','learn','write','code','create'].includes(focus))return;
+ project.focus=focus;project.updatedAt=Date.now();
+ await C.saveProject(project);await refreshList();
+ notify(focus==='general'?'General chat selected.':'Focus changed to '+focus+'. Same AI model, no extra model calls.');
+}));
+$('#toggleSources').onclick=()=>{
+ const panel=$('#sourceShelf');panel.hidden=!panel.hidden;
+ $('#toggleSources').setAttribute('aria-expanded',String(!panel.hidden));
+};
+$('#sourceFiles').onchange=event=>queued(async()=>{
+ try{await addReferenceNotes(event.target.files)}finally{event.target.value=''}
+});
+$('#useSources').onchange=()=>queued(async()=>{
+ if(!project){$('#useSources').checked=false;return}
+ project.useSources=$('#useSources').checked;await C.saveProject(project);renderSources();
+});
+$('#sourceList').onclick=event=>queued(async()=>{
+ const button=event.target.closest('[data-remove-source]');
+ if(!button||!project||requestPending)return;
+ const index=Number(button.dataset.removeSource);
+ project.sources=(project.sources||[]).filter((_,i)=>i!==index);
+ await C.saveProject(project);renderSources();
+ notify('Reference note removed.');
+});
 $('#settingsButton').onclick=()=>$('#settingsDialog').showModal();$('#saveSettings').onclick=()=>queued(async()=>{preferences.name=($('#assistantNameInput').value.trim()||'MIKEE').slice(0,32);preferences.mock=$('#mockToggle').checked;await C.setPref('assistantName',preferences.name);await C.setPref('mock',preferences.mock);await showAll();notify('Settings saved')});
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>changeTab(b.dataset.view));document.querySelectorAll('[data-mobile]').forEach(b=>b.onclick=()=>switchMobile(b.dataset.mobile));window.addEventListener('resize',()=>switchMobile(mobileView));
 for(const id of ['chatPhotoFiles','photoFiles'])$('#'+id).onchange=e=>queued(async()=>{await uploadFiles(e.target.files);e.target.value=''});
