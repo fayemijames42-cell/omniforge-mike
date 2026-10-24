@@ -4,23 +4,14 @@ const ui={chat:$('#chatStream'),chips:$('#chips'),edit:$('#editControls'),grid:$
 const E=C.esc, uid=C.uuid;function notify(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>t.style.display='none',3600)}
 function fail(e){const msg=e?.name==='QuotaExceededError'?'Device storage is full. Export a backup, remove unused photos, then try again.':e?.message||String(e);notify(msg);console.warn('OMNIFORGE action failed:',e)}
 function queued(fn){queue=queue.catch(()=>{}).then(fn).catch(fail);return queue}
-function autoChatTitle(input){const s=String(input||'').trim().replace(/\s+/g,' ');if(!s||/^(hi|hello|hey|ok|thanks)[.! ]*$/i.test(s))return '';return s.replace(/^(please|mikee|explain|tell me about|help me)\s+/i,'').split(' ').slice(0,7).join(' ').slice(0,60)}
-
-async function refineAutoTitle(id,provisional,message){
- try{
-  const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),16000);
-  let response;try{response=await fetch('/api/title',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:message.slice(0,900)}),signal:controller.signal})}finally{clearTimeout(timeout)}
-  if(!response.ok)return;
-  const body=await response.json();
-  const title=typeof body.title==='string'?body.title.trim().slice(0,60):'';
-  if(!title||title===provisional)return;
-  const saved=await C.getProject(id);
-  if(!saved||saved.name!==provisional||saved.chatTitlePinned)return;
-  saved.name=title;saved.updatedAt=Date.now();
-  await C.saveProject(saved);
-  if(project?.id===id&&project.name===provisional){project.name=title;await refreshList();$('#activeArtifact').textContent=title}
- }catch{/* Keep local title when AI title generation is unavailable. */}
+function autoChatTitle(input){
+ let s=String(input||'').replace(/https?:\/\/\S+/g,'').replace(/\s+/g,' ').trim();
+ if(!s||/^(hi|hello|hey|yo|ok|okay|thanks|thank you|good morning|good afternoon)[!.,? ]*$/i.test(s))return '';
+ s=s.replace(/^(?:hi|hello|hey)[!,.\s]+/i,'').replace(/^(?:(?:mikee|please)[!,.:\s]+|can you\s+|could you\s+|would you\s+|i (?:want|need) (?:you )?to\s+|help me (?:to |with )?)/i,'');
+ const website=s.match(/(?:website|landing page|webpage)\s+(?:for|called|about)\s+([a-z0-9][a-z0-9 -]{2,40})/i);
+ if(website)return (website[1].split(/[.,!?;:]/)[0].trim().split(/\s+/).slice(0,3).join(' ')+' Website').slice(0,60);
+ s=s.replace(/^(?:explain|tell me about|teach me about|what is|what are|how do i|how can i|write about|research|summarize|study)\s+/i,'').replace(/^(?:a|an|the)\s+/i,'');
+ return s.replace(/[.!?]+$/,'').split(/\s+/).slice(0,7).join(' ').slice(0,60)||'New Chat';
 }
 
 /* Format model text safely. No remote Markdown scripts or third-party dependencies. */
@@ -55,7 +46,7 @@ function switchMobile(tab){mobileView=tab;const mobile=innerWidth<=800;const a=t
 function changeTab(tab){activeView=tab;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===tab));['preview','edit','photos','files'].forEach(v=>{const el=$('#'+v+'Panel');el.classList.toggle('active',tab===v)});if(tab==='photos')renderPhotos();if(tab==='edit')renderEditor()}
 function drawMessages(){ui.chat.innerHTML='';const messages=project?.messages||[];ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><h1>What would you like to explore?</h1><p>Talk to <span class="assistantName">${E(preferences.name)}</span> about any subject. Learn, write, solve problems, plan projects, or create something new.</p><div class="local-note">Chat uses Cloudflare Workers AI. Conversations are saved in this browser. Your messages and relevant project text are sent to the AI provider. Photo editing uses local tools.</div></div>`;return}for(const m of messages){const node=document.createElement('article');node.className='message '+(m.role==='user'?'user':'assistant');const copying=m.role==='assistant'?`<button class="copy-message" type="button" data-copy-id="${E(m.id||'')}" aria-label="Copy reply">Copy</button>`:'';node.innerHTML=`<div class="by"><span>${m.role==='user'?'You':E(preferences.name)+' · '+(m.engine||'RULE-BASED / NOT LIVE AI')}</span>${copying}</div><div class="body">${m.role==='user'?E(m.text):formatReply(m.text)}</div>`;ui.chat.appendChild(node)}if(requestPending)renderPendingBubble();ui.chat.scrollTop=ui.chat.scrollHeight}
 async function preview(){const stamp=++previewToken;if(!project?.website||project.chatOnly){ui.frame.style.display='none';ui.previewEmpty.style.display='grid';$('#previewPageName').textContent='No website yet';return}try{const doc=project.website.rawHtml||C.renderSite(project,await C.assetMap(project));if(stamp!==previewToken)return;ui.frame.sandbox='allow-scripts';ui.frame.srcdoc=doc.replace(/<head([^>]*)>/i,`<head$1><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https:; font-src data:;">`);ui.frame.style.display='block';ui.previewEmpty.style.display='none';$('#previewPageName').textContent=project.website.pages?.length+' page(s) · '+project.website.layout; }catch(e){fail(e)}}
-async function showAll(){drawMessages();$('#activeArtifact').textContent=project?.name||'No active conversation';$('#undoBtn').disabled=!!project?.chatOnly||!(project?.history?.length);$('#exportBtn').disabled=!project||!!project.chatOnly;$('#zipBtn').disabled=!project;$('#exportChat').disabled=!project?.messages?.length;document.querySelectorAll('.assistantName').forEach(x=>x.textContent=preferences.name);$('.status span').textContent=preferences.mock?'LOCAL RULES — NOT AI':aiState;$('.status').title=preferences.mock?'Local rules only.':'A real reply is required before AI is marked verified.';if(activeView==='edit')renderEditor();if(activeView==='photos')renderPhotos();await preview()}
+async function showAll(){drawMessages();$('#activeArtifact').textContent=project?.name||'No active conversation';$('#undoBtn').disabled=!!project?.chatOnly||!(project?.history?.length);$('#exportBtn').disabled=!project||!!project.chatOnly;$('#zipBtn').disabled=!project||!!project.chatOnly;$('#fileHTML').disabled=!project||!!project.chatOnly;$('#fileZIP').disabled=!project||!!project.chatOnly;$('#fileJSON').disabled=!project;$('#exportChat').disabled=!project?.messages?.length;document.querySelectorAll('.assistantName').forEach(x=>x.textContent=preferences.name);$('.status span').textContent=preferences.mock?'LOCAL RULES — NOT AI':aiState;$('.status').title=preferences.mock?'Local rules only.':'A real reply is required before AI is marked verified.';if(activeView==='edit')renderEditor();if(activeView==='photos')renderPhotos();await preview()}
 function msg(role,text,engine){return {id:uid(),at:Date.now(),role,text,engine}}
 
 function renderPendingBubble(){
@@ -113,7 +104,7 @@ async function send(text){
  $('.status span').textContent=aiState;
  try{
   if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.saveProject(project);await C.setPref('lastProjectId',project.id)}
-  let firstTopicTitle='';if(project.chatOnly&&!project.chatTitleSet){const name=autoChatTitle(text);if(name){project.name=name;project.chatTitleSet=true;project.updatedAt=Date.now();firstTopicTitle=name}}
+  if(project.chatOnly&&!project.chatTitleSet){const name=autoChatTitle(text);if(name){project.name=name;project.chatTitleSet=true;project.updatedAt=Date.now()}}
   const history=(project.messages||[]).filter(m=>['user','assistant'].includes(m.role)&&m.engine!=='ERROR').slice(-8).map(m=>({role:m.role,content:m.aiContent||m.text}));
   const currentHtml=project.chatOnly?'':C.renderSite(project);if(currentHtml.length>24000)throw Error('This website exceeds the current AI editing limit (24,000 characters). Export a backup; manual tools remain available.');
   project.messages.push(msg('user',text));await C.saveProject(project);await refreshList();await showAll();
