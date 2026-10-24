@@ -1,7 +1,7 @@
 /* OMNIFORGE mobile UI - local/manual MVP. No fabricated AI or hosted uploads. */
 (function(){'use strict';const C=window.OMNI,W=window.OMNI_WORKSPACE;const $=s=>document.querySelector(s);let project=null,all=[],activeView='preview',mobileView=innerWidth>800?'preview':'chat',preferences={name:'MIKEE',mock:false},selectedAsset=null,originalURL=null,renderedURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message';
 const ui={chat:$('#chatStream'),chips:$('#chips'),edit:$('#editControls'),grid:$('#assetGrid'),photoEditor:$('#photoEditor'),frame:$('#siteFrame'),previewEmpty:$('#previewEmpty'),select:$('#projectSelect')};
-const E=C.esc, uid=C.uuid;function notify(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>t.style.display='none',3600)}
+const E=C.esc, uid=C.uuid, K=window.OMNI_KNOWLEDGE;function notify(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>t.style.display='none',3600)}
 function fail(e){const msg=e?.name==='QuotaExceededError'?'Device storage is full. Export a backup, remove unused photos, then try again.':e?.message||String(e);notify(msg);console.warn('OMNIFORGE action failed:',e)}
 function queued(fn){queue=queue.catch(()=>{}).then(fn).catch(fail);return queue}
 function autoChatTitle(input){
@@ -74,9 +74,9 @@ async function refreshList(){all=await C.listProjects();ui.select.innerHTML=all.
 async function activate(projectId){project=projectId?await C.getProject(projectId):null;if(project)project=C.formatMigrated(project);selectedAsset=null;if(originalURL)URL.revokeObjectURL(originalURL);originalURL=null;await refreshList();await showAll();if(project)await C.setPref('lastProjectId',project.id)}
 function switchMobile(tab){mobileView=tab;const mobile=innerWidth<=800;const a=tab==='chat'?'chat':'result';$('.workarea').className='workarea mobile-'+a;document.querySelectorAll('[data-mobile]').forEach(b=>b.classList.toggle('active',b.dataset.mobile===tab));if(tab!=='chat')changeTab(tab==='preview'?'preview':tab);if(!mobile){$('.workarea').className='workarea'} }
 function changeTab(tab){activeView=tab;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===tab));['preview','edit','photos','notes','files'].forEach(v=>{const el=$('#'+v+'Panel');el.classList.toggle('active',tab===v)});if(tab==='photos')renderPhotos();if(tab==='edit')renderEditor();if(tab==='notes')renderNotes()}
-function drawMessages(){ui.chat.innerHTML='';const messages=project?.messages||[];ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><h1>What would you like to explore?</h1><p>Talk to <span class="assistantName">${E(preferences.name)}</span> about any subject. Learn, write, solve problems, plan projects, or create something new.</p><div class="local-note">Chat uses Cloudflare Workers AI. Conversations are saved in this browser. Your messages and relevant project text are sent to the AI provider. Photo editing uses local tools. For instant offline arithmetic, type <code>/calc (5+3)*2</code>.</div></div>`;return}for(const m of messages){const node=document.createElement('article');node.className='message '+(m.role==='user'?'user':'assistant');const copying=m.role==='assistant'?`<button class="copy-message" type="button" data-copy-id="${E(m.id||'')}" aria-label="Copy reply">Copy</button><button class="note-from-reply" type="button" data-save-note="${E(m.id||'')}" aria-label="Save reply as a note">Save note</button>`:'';const route=m.role==='user'&&m.route?`<span class="nexus-route" title="Local NEXUS routing; no extra AI call">· ${E(m.route)}</span>`:'';node.innerHTML=`<div class="by"><span>${m.role==='user'?'You':E(preferences.name)+' · '+(m.engine||'RULE-BASED / NOT LIVE AI')}</span>${route}${copying}</div><div class="body">${m.role==='user'?E(m.text):formatReply(m.text)}</div>`;ui.chat.appendChild(node)}if(requestPending)renderPendingBubble();ui.chat.scrollTop=ui.chat.scrollHeight}
+function drawMessages(){ui.chat.innerHTML='';const messages=project?.messages||[];ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><h1>What would you like to explore?</h1><p>Talk to <span class="assistantName">${E(preferences.name)}</span> about any subject. Learn, write, solve problems, plan projects, or create something new.</p><div class="local-note">Chat uses Cloudflare Workers AI. Conversations are saved in this browser. Your messages and relevant project text are sent to the AI provider. Photo editing uses local tools. For instant offline arithmetic, type <code>/calc (5+3)*2</code>.</div></div>`;return}for(const m of messages){const node=document.createElement('article');node.className='message '+(m.role==='user'?'user':'assistant');const copying=m.role==='assistant'?`<button class="copy-message" type="button" data-copy-id="${E(m.id||'')}" aria-label="Copy reply">Copy</button><button class="note-from-reply" type="button" data-save-note="${E(m.id||'')}" aria-label="Save reply as a note">Save note</button>${m.engine==='WORKERS AI'&&!/<html|<!doctype/i.test(m.text)?`<button class="note-from-reply" type="button" data-memory-id="${E(m.id||'')}" aria-label="Save reply as knowledge">Remember</button>`:''}`:'';const route=m.role==='user'&&m.route?`<span class="nexus-route" title="Local NEXUS routing; no extra AI call">· ${E(m.route)}</span>`:'';node.innerHTML=`<div class="by"><span>${m.role==='user'?'You':E(preferences.name)+' · '+(m.engine||'RULE-BASED / NOT LIVE AI')}</span>${route}${copying}</div><div class="body">${m.role==='user'?E(m.text):formatReply(m.text)}</div>`;ui.chat.appendChild(node)}if(requestPending)renderPendingBubble();ui.chat.scrollTop=ui.chat.scrollHeight}
 async function preview(){const stamp=++previewToken;if(!project?.website||project.chatOnly){ui.frame.style.display='none';ui.previewEmpty.style.display='grid';$('#previewPageName').textContent='No website yet';return}try{const doc=project.website.rawHtml||C.renderSite(project,await C.assetMap(project));if(stamp!==previewToken)return;ui.frame.sandbox='allow-scripts';ui.frame.srcdoc=doc.replace(/<head([^>]*)>/i,`<head$1><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https:; font-src data:;">`);ui.frame.style.display='block';ui.previewEmpty.style.display='none';$('#previewPageName').textContent=project.website.pages?.length+' page(s) · '+project.website.layout; }catch(e){fail(e)}}
-async function showAll(){drawMessages();$('#activeArtifact').textContent=project?.name||'No active conversation';$('#undoBtn').disabled=!!project?.chatOnly||!(project?.history?.length);$('#exportBtn').disabled=!project||!!project.chatOnly;$('#zipBtn').disabled=!project||!!project.chatOnly;$('#fileHTML').disabled=!project||!!project.chatOnly;$('#fileZIP').disabled=!project||!!project.chatOnly;$('#fileJSON').disabled=!project;$('#exportChat').disabled=!project?.messages?.length;renderSources();document.querySelectorAll('.assistantName').forEach(x=>x.textContent=preferences.name);$('.status span').textContent=preferences.mock?'LOCAL RULES — NOT AI':aiState;$('.status').title=preferences.mock?'Local rules only.':'A real reply is required before AI is marked verified.';if(activeView==='edit')renderEditor();if(activeView==='photos')renderPhotos();if(activeView==='notes')renderNotes();await preview()}
+async function showAll(){drawMessages();$('#activeArtifact').textContent=project?.name||'No active conversation';$('#undoBtn').disabled=!!project?.chatOnly||!(project?.history?.length);$('#exportBtn').disabled=!project||!!project.chatOnly;$('#zipBtn').disabled=!project||!!project.chatOnly;$('#fileHTML').disabled=!project||!!project.chatOnly;$('#fileZIP').disabled=!project||!!project.chatOnly;$('#fileJSON').disabled=!project;$('#exportChat').disabled=!project?.messages?.length;renderSources();document.querySelectorAll('.assistantName').forEach(x=>x.textContent=preferences.name);$('.status span').textContent=window.OMNI_OFFLINE_UI?.isOffline()?'LOCAL KNOWLEDGE · NO AI':preferences.mock?'LOCAL RULES — NOT AI':aiState;$('.status').title=preferences.mock?'Local rules only.':'A real reply is required before AI is marked verified.';if(activeView==='edit')renderEditor();if(activeView==='photos')renderPhotos();if(activeView==='notes')renderNotes();await preview()}
 function msg(role,text,engine){return {id:uid(),at:Date.now(),role,text,engine}}
 
 function renderPendingBubble(){
@@ -121,7 +121,7 @@ function setPending(busy,text=''){
   pendingTimer=setInterval(updatePendingText,1000);
  }else{
   ui.chat.querySelector('#aiWorking')?.remove();
-  $('.status span').textContent=preferences.mock?'LOCAL RULES — NOT AI':aiState;
+  $('.status span').textContent=window.OMNI_OFFLINE_UI?.isOffline()?'LOCAL KNOWLEDGE · NO AI':preferences.mock?'LOCAL RULES — NOT AI':aiState;
  }
 }
 async function saveMessage(text){if(!project)return;project.messages=[...(project.messages||[]),msg('assistant',text,preferences.mock?'MOCK — NOT LIVE AI':'RULE-BASED / NOT LIVE AI')].slice(-100);await C.saveProject(project);await showAll()}
@@ -139,9 +139,27 @@ async function sendCalculation(text){
  project.messages=project.messages.slice(-100);
  await C.saveProject(project);await refreshList();await showAll();
 }
+
+async function respondOffline(text,{existing=false,reason=''}={}){
+ $('#prompt').value='';
+ if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
+ if(project.chatOnly&&!project.chatTitleSet){const title=autoChatTitle(text);if(title){project.name=title;project.chatTitleSet=true}}
+ if(!existing){const m=msg('user',text);m.route='LOCAL KNOWLEDGE (no AI)';project.messages.push(m)}
+ await K.syncBundled().catch(()=>{});
+ const data=await K.answer(text);
+ const caption=data.found?'\n\nSaved topic: '+data.question+'\nSource: '+data.source+'\n':'\n';
+ const warning=data.found&&data.kind!=='builtin'?'\nThis saved/imported answer has not been independently verified.':'';
+ const start=reason?'Cloud AI unavailable ('+reason.slice(0,130)+'). Local reference mode:\n\n':'';
+ project.messages.push(msg('assistant',start+data.text+caption+warning+'\n[LOCAL REFERENCE: no AI inference or live research]','LOCAL KNOWLEDGE · NO AI'));
+ project.messages=project.messages.slice(-100);
+ aiState='LOCAL KNOWLEDGE · NO AI';
+ await C.saveProject(project);await refreshList();await showAll();
+}
+
 async function send(text){
  text=text.trim();if(!text||requestPending)return;
  if(window.OMNI_CALC?.expressionFromCommand(text)!==null)return sendCalculation(text);
+ if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false)return respondOffline(text);
  if(preferences.mock)return sendLocal(text);
  $('#prompt').value='';
  aiState='MIKEE IS GENERATING…';
@@ -166,7 +184,14 @@ async function send(text){
   else if(/<!doctype html|<html/i.test(data.reply)){answer='The AI returned incomplete HTML. Your previous website is unchanged. Ask for a shorter complete website.';}
   const m=msg('assistant',answer,'WORKERS AI');m.aiContent=data.reply;project.messages.push(m);project.messages=project.messages.slice(-100);
   await C.saveProject(project);await refreshList();await showAll();if(match&&innerWidth<=800)switchMobile('preview');
- }catch(e){aiState='AI REQUEST FAILED';const error=e?.name==='AbortError'?'The website request timed out. Your earlier site is unchanged. Try requesting a smaller page first, then add sections in follow-up messages.':e.message;if(project){project.messages.push(msg('assistant',error,'ERROR'));await C.saveProject(project);await showAll()}else fail(e)}finally{setPending(false)}
+  }catch(e){
+  const message=e?.name==='AbortError'?'Request timed out':String(e?.message||e);
+  const fallback=!navigator.onLine||e?.name==='AbortError'||/quota|daily limit|neurons|rate.limit|limit exceeded|too many requests|Workers AI request failed|provider returned|AI binding|failed to fetch|network|unreadable response|AI request failed/i.test(message);
+  if(fallback&&project){
+   window.OMNI_OFFLINE_UI?.setOffline(true);
+   try{await respondOffline(text,{existing:true,reason:message})}catch(inner){project.messages.push(msg('assistant','Cloud AI unavailable, and local memory failed: '+inner.message,'ERROR'));await C.saveProject(project);await showAll()}
+  }else{aiState='AI REQUEST FAILED';if(project){project.messages.push(msg('assistant',message,'ERROR'));await C.saveProject(project);await showAll()}else fail(e)}
+ }finally{setPending(false)}
 }
 async function sendLocal(text){text=text.trim();if(!text)return;$('#sendBtn').disabled=true;try{const [tool,args]=C.actionFromPrompt(text,project);if(tool==='create_website'){const result=C.callTool(tool,null,args);result.messages=[msg('user',text)];await C.saveProject(result);project=result;await C.setPref('lastProjectId',project.id);project.messages.push(msg('assistant',`Website created locally: “${project.name}” (${project.website.pages.length} pages). Open Preview or Edit. This is a rule-based layout, not a live AI-generated website.`,preferences.mock?'MOCK — NOT LIVE AI':'RULE-BASED / NOT LIVE AI'));await C.saveProject(project);await refreshList()}
  else {project.messages=[...(project.messages||[]),msg('user',text)].slice(-100);const result=C.callTool(tool,project,args);if(result.export){await C.exportHTML(project);project.messages.push(msg('assistant','Exported the current website as an offline HTML file.','LOCAL TOOL'))}else if(result.details){project.messages.push(msg('assistant',`Current site: ${result.details.pages} page(s), ${result.details.photos} photo(s), ${result.details.versions} saved undo versions.`, 'LOCAL TOOL'))}else if(result.changed){project=result.project;project.messages.push(msg('assistant',`Updated “${project.name}”. This is version ${project.version}. Preview, refresh or Undo to check the actual change.`,preferences.mock?'MOCK — NOT LIVE AI':'RULE-BASED / NOT LIVE AI'))}else project.messages.push(msg('assistant','No change was necessary.','LOCAL TOOL'));project.messages=project.messages.slice(-100);await C.saveProject(project)}

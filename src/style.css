@@ -81,3 +81,54 @@
 .note-from-reply{background:transparent;border:1px solid #5c5a7a;border-radius:7px;color:#d8d1ee;padding:4px 7px;font-size:10px}
 .nexus-route{color:#b5a4e6;font-weight:600;font-size:10px;margin-left:6px}
 @media(max-width:800px){.notes-area{padding:14px 12px 65px}.note-toolbar{gap:6px}.note-toolbar button{padding:8px}.mobile-nav button{font-size:16px}.mobile-nav button span{font-size:9px}}
+
+
+/* OMNIFORGE v0.8: graphite / soft ivory — intentionally no purple styling. */
+:root{--bg:#080a0a;--side:#111514;--mid:#191d1c;--border:#383e3b;--soft:#afb8b2;--text:#f1f3f0;--gold:#d0d8d1;--lav:#e0e7e1}
+body{background:#080a0a;color:#edf0ed}
+.masthead{background:#111413;border-color:#363d38}
+.mark{background:linear-gradient(140deg,#59645e,#252c28);color:#fbfffc}
+.mark span,.result-sub,.status,.result-tabs button.active{color:#d8e1da}
+.status{background:#1c221f;border:1px solid #4a554d}
+.projectbar{background:#141817;border-color:#38413b}
+.projectbar select,.icon-btn,.small-btn{background:#202522;border-color:#455149;color:#f0f4f1}
+.chat-pane{background:linear-gradient(145deg,#151a17,#0d1010);border-color:#303a34}
+.pane-title{border-color:#323934}
+.dot{background:#8cbea4}
+.message.user{background:#35413b;color:#f7faf7}
+.message.assistant{background:#1b211e;border-color:#414b43}
+.message .by{color:#d3ded4}
+.chips button,.source-actions button,.focus-control select{background:#222923;color:#d7e0d8;border-color:#48534a}
+.chips button:hover,.source-actions button:hover{background:#313b33}
+.composer{background:#151a18;border-color:#4b564e}
+.send-btn{background:linear-gradient(135deg,#f0f3ed,#b6c7b9);color:#142018}
+.typing-indicator{background:linear-gradient(130deg,#26322a,#1a211d);border-color:#4d6a56}
+.typing-dots i{background:#c5d4c8}
+.upload-label,.field-actions button,.file-import,.big-upload{background:#272f29;border-color:#546156;color:#edf0e9}
+.result-pane,.mobile-nav{background:#111614}
+.result-top,.result-tabs{background:#111614}
+.result-tabs button.active{background:#303a33;border-color:#667266}
+.tool-actions button,.result-tabs button,.file-actions button{background:#252c27;border-color:#414e43;color:#e7ede8}
+.primary-action{background:#cad4ca;border-color:#8ca28e;color:#18231c}
+.mobile-nav{border-color:#354039}
+.mobile-nav button.active{background:#29322b;color:#e5eae4}
+dialog,.settings-box{background:#181e1a;border-color:#5b685c}
+.settings-status{background:#242c25;border-color:#4c5c4d}
+.notice{background:#292d25;color:#dbe4d9;border-color:#4a594d}
+#toast{background:#1a251d;border-color:#738477}
+#siteFrame{background:#f9faf8}
+.mode-toggle{border:1px solid #63756a;background:#29372e;color:#f4f6f1;padding:7px 12px;border-radius:10px;font-weight:650;white-space:nowrap}
+.mode-toggle.local-active{background:#546249;color:#fff;border-color:#8fa589}
+.source-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.source-actions>span{font-size:11px;color:#aab5ad}
+.knowledge-vault{border:1px solid #4b594e;background:#18201b;padding:14px;border-radius:13px;margin:18px 0 25px;color:#e5ede6}
+.knowledge-vault summary{font-size:14px;font-weight:750;cursor:pointer;color:#eaf2e9}
+.knowledge-vault h3{font-size:13px;color:#dce6dc;margin-top:18px}
+.knowledge-vault p{font-size:12px;line-height:1.6}
+.knowledge-vault label{display:block;margin:12px 0 5px;font-size:12px;color:#d7e0d7}
+.knowledge-vault input:not([type=file]),.knowledge-vault textarea{display:block;background:#121814;color:#e9efea;width:100%;border:1px solid #566559;border-radius:8px;padding:10px;font:inherit}
+.memory-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.knowledge-vault button,.memory-actions label{border:1px solid #526151;background:#2b352c;color:#f0f3ee;border-radius:8px;padding:9px 11px;cursor:pointer;font-size:12px;width:auto;margin:0}
+#memorySave{margin-top:12px}
+#memoryStatus{color:#a9c6b2}
+@media(max-width:800px){.mode-toggle{font-size:11px;padding:6px 9px}.source-actions{gap:6px}.source-actions>span{display:none}.memory-actions button,.memory-actions label{flex:1 1 44%;text-align:center}.knowledge-vault{margin-top:15px}}
