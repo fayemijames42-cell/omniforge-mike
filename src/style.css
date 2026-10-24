@@ -146,3 +146,14 @@ dialog,.settings-box{background:#181e1a;border-color:#5b685c}
 .real-image-artifact button,.image-upgrade{background:#263b2d;border:1px solid #72977d;color:#f1f7ee;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:680}
 .image-upgrade{margin-top:10px}
 .real-image-artifact .image-artifact-actions{display:flex;gap:8px}
+
+/* Local project file editor: functional on narrow Android screens. */
+.code-workspace{margin:16px 0 20px;padding:14px;border:1px solid #4b5a50;border-radius:12px;background:#151d18;color:#eef3ed}
+.code-workspace summary{font-weight:700;cursor:pointer}
+#codeWorkspace{display:flex;flex-direction:column;gap:10px;padding-top:12px}
+#codeWorkspace label{font-size:12px;color:#ccd6cb}
+#codeWorkspace select,#codeFileEditor{color:#f2f6f2;background:#0b120e;border:1px solid #526054;border-radius:8px;padding:9px;font:13px/1.45 ui-monospace,monospace}
+#codeFileEditor{resize:vertical;min-height:240px;width:100%;white-space:pre;tab-size:2}
+.code-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.code-tools button{background:#303e33;border:1px solid #637566;border-radius:8px;color:#f3f7f2;padding:8px 10px;font-size:12px}
+#codeDiffOutput{overflow:auto;max-height:300px;white-space:pre-wrap;background:#090e0b;padding:12px;border-radius:8px;color:#c8e6c5}
