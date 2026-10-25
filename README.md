@@ -59,3 +59,19 @@ See [audit and acceptance record](docs/INTEGRATION_AUDIT_2026-10-25.md), [offlin
 Conversations, notes, projects and photos live in this browser on this device. Export backups for portability. Clearing browser data can remove them. Local storage is not an account-wide cloud sync system. Saved edits and portable backups preserve the current document; unsaved text in an editor must be saved before exporting.
 
 This release does not claim a complete school syllabus database, universal factual accuracy, arbitrary server-side execution, or that every authenticated provider has been tested. Production acceptance must record actual provider responses separately from deterministic tests and deployment checks.
+
+### Automatic free AI routing
+
+MIKEE now always selects a connected free service for ordinary chat. There is no visitor-facing
+model selector, and previously stored provider preferences are reset to Auto. An unavailable
+or unconfigured Gemini/Groq connection is skipped; it is never represented as a functioning
+service without credentials, free-tier confirmation and a successful real response. Only the
+authenticated owner can run a targeted connection test or manage encrypted keys.
+If all free allowances are exhausted, MIKEE shows one clear error and a short retry cooldown.
+No paid fallback or fabricated offline AI response is enabled. Groq (the inference provider)
+and xAI Grok are different products; only Groq is included in this repository.
+
+Build/Node tests cover routing, token budgets, refusals, auth and provider failover.
+The optional Playwright test uses mocked providers. Neither confirms that external API keys
+exist on the live deployment. Real end-to-end provider success requires an actual response
+from the deployed /api/chat endpoint and owner-side connection checks.

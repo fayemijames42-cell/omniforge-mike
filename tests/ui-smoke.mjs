@@ -113,7 +113,9 @@ try {
    await C.deleteProject(shared.id);if(await C.getBlob(asset))throw Error('Left an orphaned blob');
   },backups.originalId);
 
-  await settings(); await page.locator('.connections-section > summary').click();
+  await settings(); assert.equal(await page.locator('#aiProviderSelect').count(),0);
+  await page.locator('.connections-section > summary').click();
+  assert.equal(await page.locator('[data-connection="groq"]').count(),0);
   await page.locator('#ownerToken').fill(env.MIKEE_ADMIN_TOKEN); await page.locator('#unlockOwner').click();
   await page.locator('#ownerLock').waitFor({ state: 'visible' });
   await page.locator('[data-connection="groq"] > summary').click();

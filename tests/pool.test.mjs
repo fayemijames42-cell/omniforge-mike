@@ -229,3 +229,24 @@ test('queue output cannot make the browser fetch a private-network image URL', a
       : Response.json({ generations: [{ img: 'https://127.0.0.1/private', censored: false }] }) });
   const start = await (await h.pool.image({ prompt: 'A classroom' })).json(); assert.equal((await h.pool.job(start.jobId)).status, 502);
 });
+
+test('public legacy provider preference cannot pin chat to unavailable Groq',async()=>{
+ const h=await harness({active:['cloudflare']});
+ const response=await h.send({message:'Hello',provider:'groq'}),body=await response.json();
+ assert.equal(response.status,200);assert.equal(body.provider,'cloudflare');assert.equal(body.live,true);
+});
+test('authenticated owner retains specific API diagnostics',async()=>{
+ const token='fixture-owner-access-token-long-enough';let calls=0;
+ const h=await harness({active:['groq','cloudflare'],env:{MIKEE_ADMIN_TOKEN:token,GROQ_API_KEY:'fixture-groq-key'},fetcher:async()=>{calls++;return fixture('Owner diagnostic');}});
+ const response=await worker.fetch(req({message:'Check API',provider:'groq'},'https://mikee.test','/api/chat',{authorization:'Bearer '+token}),h.env),body=await response.json();
+ assert.equal(response.status,200);assert.equal(body.provider,'groq');assert.equal(calls,1);
+});
+test('auto skips unconfigured Gemini and Groq and uses free Cloudflare AI',async()=>{
+ const h=await harness({active:['gemini','groq','cloudflare']});
+ const response=await h.send({message:'Hello'}),body=await response.json();
+ assert.equal(response.status,200);assert.equal(body.provider,'cloudflare');
+ const status=await h.pool.status();
+ assert.equal(status.providers.find(p=>p.id==='gemini').state,'needs_key');
+ assert.equal(status.providers.find(p=>p.id==='groq').state,'needs_key');
+ assert.ok(status.providers.find(p=>p.id==='cloudflare').verifiedAt);
+});
