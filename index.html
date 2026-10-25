@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#090b0b"><title>OMNIFORGE — Created by ADEN.inc</title><meta name="description" content="OMNIFORGE, an AI-assisted creative workspace created by ADEN.inc. Chat with MIKEE, develop projects, create and export your work."><meta property="og:title" content="OMNIFORGE — Created by ADEN.inc"><meta property="og:description" content="Meet MIKEE, your AI-assisted creation workspace by ADEN.inc."><link rel="stylesheet" href="./src/style.css"></head>
 <body>
 <div id="app">
-  <header class="masthead"><div class="brand"><div class="mark">O<span>✦</span></div><div><strong>OMNIFORGE</strong><small>Created by ADEN.inc</small></div></div><button class="status" title="Provider response not yet tested">● <span>AI — NOT TESTED YET</span></button><button id="settingsButton" class="icon-btn" aria-label="Open settings">⚙</button></header>
+  <header class="masthead"><button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open workspace menu" aria-controls="mobileDrawer" aria-expanded="false"><span aria-hidden="true">☰</span></button><div class="brand"><div class="mark">O<span>✦</span></div><div><strong>OMNIFORGE</strong><small>Created by ADEN.inc</small></div></div><button class="status" title="Provider response not yet tested">● <span>AI — NOT TESTED YET</span></button><button id="settingsButton" class="icon-btn" aria-label="Open settings">⚙</button></header>
   <div class="projectbar"><label class="project-select-wrap"><span>ACTIVE CONVERSATION</span><select id="projectSelect" aria-label="Active project"></select></label><button id="chatSearchBtn" class="icon-btn" title="Search conversations" aria-label="Search conversations">⌕</button><button id="renameChat" class="icon-btn" aria-label="Rename chat" title="Rename chat">✎</button><button id="newProject" class="small-btn">＋ Chat</button><button id="deleteProject" class="icon-btn danger" title="Delete active project" aria-label="Delete project">⌫</button></div>
   <main class="workarea">
     <section class="chat-pane" id="chatPane" aria-label="Conversation"><div class="pane-title"><span><span class="dot"></span> Chat with <b class="assistantName">MIKEE</b></span><label class="focus-control" title="Choose response style. This changes guidance, not the AI model.">Focus <select id="chatFocus" aria-label="Conversation focus"><option value="general">General</option><option value="learn">Learn</option><option value="write">Write</option><option value="code">Code</option><option value="create">Create</option></select></label></div><div id="chatStream" class="chat-stream" aria-live="polite"></div><div id="chips" class="chips"><button data-prompt="Explain artificial intelligence in simple terms">Learn something</button><button data-prompt="Help me plan a creative project step by step">Plan a project</button><button data-prompt="Create a website for a community event">Create a website</button></div>
@@ -33,7 +33,33 @@
  </details><div id="storageState"></div></div></div>
     </section>
   </main>
-  <nav class="mobile-nav" aria-label="Mobile workspace navigation"><button data-mobile="chat" class="active">◉<span>Chat</span></button><button data-mobile="preview">▣<span>Preview</span></button><button data-mobile="edit">✎<span>Edit</span></button><button data-mobile="photos">▧<span>Photos</span></button><button data-mobile="notes">▤<span>Notes</span></button><button data-mobile="files">⇩<span>Files</span></button></nav>
+  <!-- Mobile tools stay behind the menu button, keeping the conversation uncluttered. -->
+<div id="mobileDrawerLayer" class="mobile-drawer-layer" hidden>
+  <button id="mobileDrawerBackdrop" class="mobile-drawer-backdrop" type="button" aria-label="Close workspace menu"></button>
+  <aside id="mobileDrawer" class="mobile-drawer" role="dialog" aria-modal="true" aria-label="Workspace navigation">
+    <div class="drawer-heading"><div><strong>Workspace</strong><small>OMNIFORGE · ADEN.inc</small></div><button type="button" id="closeMobileDrawer" class="drawer-close" aria-label="Close menu">✕</button></div>
+    <div class="drawer-scroll">
+      <p class="drawer-section-label">WORKSPACE</p>
+      <nav class="drawer-links" aria-label="Workspace sections">
+        <button type="button" data-mobile="chat" class="active"><span aria-hidden="true">◉</span> Chat with MIKEE</button>
+        <button type="button" data-mobile="preview"><span aria-hidden="true">▣</span> Website preview</button>
+        <button type="button" data-mobile="edit"><span aria-hidden="true">✎</span> Website editor</button>
+        <button type="button" data-mobile="photos"><span aria-hidden="true">▧</span> Photo workshop</button>
+        <button type="button" data-mobile="notes"><span aria-hidden="true">▤</span> Notes</button>
+        <button type="button" data-mobile="files"><span aria-hidden="true">⇩</span> Files &amp; backups</button>
+      </nav>
+      <label class="drawer-focus" for="drawerFocus">RESPONSE FOCUS <select id="drawerFocus" aria-label="MIKEE response focus"><option value="general">General</option><option value="learn">Learn</option><option value="write">Write</option><option value="code">Code</option><option value="create">Create</option></select></label>
+      <p class="drawer-section-label">CONVERSATIONS &amp; SETTINGS</p>
+      <div class="drawer-links drawer-tools">
+        <button type="button" data-drawer-action="search">⌕ <span>Find conversations</span></button>
+        <button type="button" data-drawer-action="rename">✎ <span>Rename conversation</span></button>
+        <button type="button" data-drawer-action="settings">⚙ <span>Settings &amp; AI information</span></button>
+        <button type="button" data-drawer-action="delete" class="drawer-danger">⌫ <span>Delete current conversation</span></button>
+      </div>
+      <p class="drawer-privacy">Conversations and projects are stored in this browser. Use Files &amp; backups to export copies.</p>
+    </div>
+  </aside>
+</div>
 </div>
 <dialog id="settingsDialog"><form method="dialog" class="settings-box"><div class="modal-heading"><h2>Workspace settings</h2><button value="cancel" class="icon-btn">✕</button></div><label>Assistant display name<input id="assistantNameInput" maxlength="32" placeholder="MIKEE"></label><div class="settings-status"><strong>Engine: WORKERS AI</strong><p>Chat calls a real model on Cloudflare. Your prompts, recent messages and current website text are sent to Workers AI. Daily free usage limits apply. Public guest safeguards: chat up to 8/min per visitor and 40/min per location; images up to 2/min per visitor and 4/min per location. Counts are approximate, not a daily Neuron balance.</p></div><label class="switch"><input id="mockToggle" type="checkbox"> Use local rule-based mode <small>MOCK — NOT LIVE AI</small></label><p class="muted">Photos remain on this device. Website generation and conversation require internet access and a deployed AI binding.</p><p class="muted creator-about">OMNIFORGE · Created by <strong>ADEN.inc</strong>. Projects and chat history are saved in this browser unless you export them.</p><button id="saveSettings" value="save" class="primary-action">Save settings</button></form></dialog>
 <dialog id="chatSearchDialog" class="search-dialog" aria-label="Search saved chats"><div class="search-head"><h2>Find conversations</h2><button type="button" class="icon-btn" id="closeChatSearch" aria-label="Close search">✕</button></div><label for="chatSearchInput">Search chat titles and messages</label><input id="chatSearchInput" type="search" autocomplete="off" placeholder="Search your conversations…" maxlength="120"><div id="chatSearchResults" class="search-results"></div><p class="muted">Search happens on this device. No AI requests or additional credits.</p></dialog>
