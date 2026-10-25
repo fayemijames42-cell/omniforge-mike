@@ -227,6 +227,7 @@ async function send(text){
  if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false){if(navigator.onLine===false)window.OMNI_OFFLINE_UI?.setOffline(true);return respondOffline(text);}
  if(preferences.mock)return sendLocal(text);
  $('#prompt').value='';
+ let shortLimitReached=false;
  aiState='MIKEE IS GENERATING…';
  setPending(true,text);
  $('.status span').textContent=aiState;
@@ -240,7 +241,7 @@ async function send(text){
   const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),90000);
   let response;try{response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history,currentHtml,focus:route.focus,sources:project.useSources===false?[]:(project.sources||[]).slice(0,3)}),signal:controller.signal})}finally{clearTimeout(deadline)}
   let data;try{data=await response.json()}catch{throw Error('The server returned an unreadable response. Please try a smaller website request.')}
-  if(!response.ok)throw Error(data.error||'AI request failed');
+  if(!response.ok){if(response.status===429)shortLimitReached=true;throw Error(data.error||'AI request failed');}
   if(data.live!==true||typeof data.reply!=='string')throw Error('No verified provider response was received.');
   aiState='AI RESPONSE VERIFIED';
   const match=data.reply.match(/<!doctype html[\s\S]*?<\/html>/i)||data.reply.match(/<html[\s\S]*?<\/html>/i);
@@ -251,7 +252,7 @@ async function send(text){
   await C.saveProject(project);await refreshList();await showAll();if(match&&innerWidth<=800)switchMobile('preview');
   }catch(e){
   const message=e?.name==='AbortError'?'Request timed out':String(e?.message||e);
-  const fallback=!navigator.onLine||e?.name==='AbortError'||/quota|daily limit|neurons|rate.limit|limit exceeded|too many requests|Workers AI request failed|provider returned|AI binding|failed to fetch|network|unreadable response|AI request failed/i.test(message);
+  const fallback=!shortLimitReached&&(!navigator.onLine||e?.name==='AbortError'||/quota|daily limit|neurons|rate.limit|limit exceeded|too many requests|Workers AI request failed|provider returned|AI binding|failed to fetch|network|unreadable response|AI request failed/i.test(message));
   if(fallback&&project){
    window.OMNI_OFFLINE_UI?.setOffline(true);
    try{await respondOffline(text,{existing:true,reason:message})}catch(inner){project.messages.push(msg('assistant','Cloud AI unavailable, and local memory failed: '+inner.message,'ERROR'));await C.saveProject(project);await showAll()}

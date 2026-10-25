@@ -13,5 +13,39 @@
       "/api/*",
       "/quick-chat"
     ]
-  }
+  },
+  "ratelimits": [
+    {
+      "name": "CHAT_VISITOR_LIMIT",
+      "namespace_id": "921001",
+      "simple": {
+        "limit": 8,
+        "period": 60
+      }
+    },
+    {
+      "name": "CHAT_SHARED_LIMIT",
+      "namespace_id": "921002",
+      "simple": {
+        "limit": 40,
+        "period": 60
+      }
+    },
+    {
+      "name": "IMAGE_VISITOR_LIMIT",
+      "namespace_id": "921003",
+      "simple": {
+        "limit": 2,
+        "period": 60
+      }
+    },
+    {
+      "name": "IMAGE_SHARED_LIMIT",
+      "namespace_id": "921004",
+      "simple": {
+        "limit": 4,
+        "period": 60
+      }
+    }
+  ]
 }

@@ -1,6 +1,9 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../worker.js';
+import realWorker from '../worker.js';
+const allow={limit:async()=>({success:true})};
+const allGuards={CHAT_VISITOR_LIMIT:allow,CHAT_SHARED_LIMIT:allow,IMAGE_VISITOR_LIMIT:allow,IMAGE_SHARED_LIMIT:allow};
+const worker={fetch(req,env){return realWorker.fetch(req,{...allGuards,...env})}};
 const req=(body,origin='https://mikee.test')=>new Request('https://mikee.test/api/chat',{method:'POST',headers:{'content-type':'application/json',origin},body:JSON.stringify(body)});
 let calls=0;const env={AI:{run:async(model,input)=>{calls++;assert.equal(model,'@cf/meta/llama-3.1-8b-instruct-fp8');assert.equal(input.messages.at(-1).content,'hello');return {response:'Test fixture response'}}}};
 test('health never claims a live call',async()=>{const r=await worker.fetch(new Request('https://mikee.test/api/health'),env);const j=await r.json();assert.equal(j.aiBound,true);assert.equal(j.verified,false);assert.equal(calls,0)});
@@ -60,4 +63,30 @@ test('image endpoint rejects other origins and invalid input before inference',a
 test('image endpoint never fabricates images when provider fails',async()=>{
  const request=new Request('https://mikee.test/api/image',{method:'POST',headers:{origin:'https://mikee.test'},body:JSON.stringify({prompt:'a cow'})});
  assert.equal((await worker.fetch(request,{AI:{run:async()=>{throw Error('quota exceeded')}}})).status,502);
+});
+
+test('Inference is blocked without rate limiting bindings',async()=>{
+ let hits=0;const e={AI:{run:async()=>{hits++;return {response:'unexpected'}}}};
+ const r=await realWorker.fetch(req({message:'hello'}),e);
+ assert.equal(r.status,503);assert.equal((await r.json()).protectionUnavailable,true);assert.equal(hits,0);
+});
+test('Visitor quota returns HTTP 429 and no AI invocation',async()=>{
+ let hits=0;const e={AI:{run:async()=>{hits++;return {response:'unexpected'}}},CHAT_VISITOR_LIMIT:{limit:async()=>({success:false})},CHAT_SHARED_LIMIT:allow};
+ const r=await realWorker.fetch(req({message:'hello'}),e);
+ assert.equal(r.status,429);assert.equal(r.headers.get('retry-after'),'60');assert.equal((await r.json()).rateLimited,true);assert.equal(hits,0);
+});
+test('Shared chat quota returns HTTP 429',async()=>{
+ let hits=0;const e={AI:{run:async()=>{hits++;return {response:'unexpected'}}},CHAT_VISITOR_LIMIT:allow,CHAT_SHARED_LIMIT:{limit:async()=>({success:false})}};
+ assert.equal((await realWorker.fetch(req({message:'hello'}),e)).status,429);assert.equal(hits,0);
+});
+test('Image quota rejects model invocation before FLUX runs',async()=>{
+ let hits=0;const e={AI:{run:async()=>{hits++;return {image:'A'.repeat(200)}}},IMAGE_VISITOR_LIMIT:{limit:async()=>({success:false})},IMAGE_SHARED_LIMIT:allow};
+ const request=new Request('https://mikee.test/api/image',{method:'POST',headers:{origin:'https://mikee.test'},body:JSON.stringify({prompt:'cow'})});
+ assert.equal((await realWorker.fetch(request,e)).status,429);assert.equal(hits,0);
+});
+test('Server uses trusted IP for visitor key and constant key for shared allowance',async()=>{
+ const keys=[],limiter={limit:async p=>{keys.push(p.key);return {success:true}}};
+ const e={AI:{run:async()=>({response:'ok'})},CHAT_VISITOR_LIMIT:limiter,CHAT_SHARED_LIMIT:limiter};
+ const r=await realWorker.fetch(new Request('https://mikee.test/api/chat',{method:'POST',headers:{origin:'https://mikee.test','cf-connecting-ip':'192.0.2.8'},body:JSON.stringify({message:'test'})}),e);
+ assert.equal(r.status,200);assert.deepEqual(keys,['192.0.2.8','public']);
 });
