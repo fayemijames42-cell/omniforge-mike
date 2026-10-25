@@ -14,22 +14,34 @@ const CREATIVE=/^(?:(?:please|can you|could you) +)?(?:write|draft|create|genera
 const STRIP=/^\s*(?:search (?:the )?(?:web|internet|online)(?: for)?|browse (?:the )?(?:web|internet)(?: for)?|look up|find online sources (?:for|about)|verify|fact.check)\s*[:,-]?\s*/i;
 const QUESTION_PREFIX=/^(?:please |can you |could you |tell me |show me |give me |what is |what are |who was |who is |who invented |who discovered |when was |where was |how does |how do |how is |explain how |explain why |the meaning of )+/i;
 const FOLLOWUP=/^(?:go on|continue|elaborate|explain more|why|how so|tell me more|more details)[.!? ]*$/i;
+// Users address their assistant naturally: "MIKEE, who invented the transistor?".
+// The old anchored classifier skipped this prefix and never retrieved sources.
+function normalizedQuestion(text){
+ let clean=String(text||'').trim();
+ clean=clean.replace(/^(?:(?:hey|hi|hello|good morning|good afternoon|good evening)[\s,!:.-]+)?(?:mikee|mickey|mike|nexus)[\s,!:.-]+/i,'');
+ clean=clean.replace(/^(?:(?:please\s+)?(?:can you|could you|would you|will you)\s+(?:(?:please\s+)?(?:tell me|explain to me|help me understand|show me|find out|check)\s+)?|(?:please\s+)?(?:tell me|i want to know|i'd like to know|i need to know)\s+)+/i,'');
+ return clean.trim();
+}
 function searchQuery(text){
- const plain=String(text||'').replace(STRIP,'').replace(QUESTION_PREFIX,'').replace(/^[\s]*(?:a|an|the)\s+/i,'').replace(/[?!.]+$/,'').replace(/\s+/g,' ').trim();
+ // Keep the first factual question as the search query; later clauses can be
+ // answered using the same evidence without submitting the entire chat prompt.
+ const first=String(text||'').split(/,?\s+and\s+(?=(?:how|what|who|when|why)\b)/i)[0];
+ const plain=first.replace(STRIP,'').replace(QUESTION_PREFIX,'').replace(/^[\s]*(?:a|an|the)\s+/i,'').replace(/[?!.]+$/,'').replace(/\s+/g,' ').trim();
  return plain.slice(0,200)||String(text||'').slice(0,200);
 }
 export function interpretUserIntent(message,history=[]){
  const text=String(message||'').slice(0,2400).trim();
- const explicit=EXPLICIT.test(text),fresh=FRESH.test(text);
- const creative=CREATIVE.test(text)||BUILD.test(text);
+ const question=normalizedQuestion(text);
+ const explicit=EXPLICIT.test(question),fresh=FRESH.test(text);
+ const creative=CREATIVE.test(question)||BUILD.test(text);
  const privacySensitive=PRIVACY.test(text)||/\b(?:my|mine|our|ours|i am|i'm|i feel|i have)\b/i.test(text);
- const followUp=FOLLOWUP.test(text);
+ const followUp=FOLLOWUP.test(question);
  // A server-side lookup can send the search query to an external service.
  // Protect personal prompts; keep creative and mathematical requests local/model-only.
- let researchMode=privacySensitive||followUp?'none':explicit?'explicit':!creative&&fresh?'automatic':!creative&&AUTO_REFERENCE.test(text)?'automatic':'none';
- const goal=creative?'create-or-compute':/\b(?:compare|versus|vs\.?|difference between|better than)\b/i.test(text)?'compare':/^(?:explain|how|why|teach)\b/i.test(text)?'explain':/\b(?:fact.check|verify|is it true)\b/i.test(text)?'verify':'answer';
+ let researchMode=privacySensitive||followUp?'none':explicit?'explicit':!creative&&fresh?'automatic':!creative&&AUTO_REFERENCE.test(question)?'automatic':'none';
+ const goal=creative?'create-or-compute':/\b(?:compare|versus|vs\.?|difference between|better than)\b/i.test(question)?'compare':/^(?:explain|how|why|teach)\b/i.test(question)?'explain':/\b(?:fact.check|verify|is it true)\b/i.test(question)?'verify':'answer';
  const prior=Array.isArray(history)&&history.some(m=>m?.role==='user'&&typeof m.content==='string');
- return {goal,researchMode,fresh:followUp?false:fresh,query:searchQuery(text),followUp,contextAvailable:!!prior};
+ return {goal,researchMode,fresh:followUp?false:fresh,query:searchQuery(question),followUp,contextAvailable:!!prior};
 }
 export function researchIntent(message){
  const intent=interpretUserIntent(message);
