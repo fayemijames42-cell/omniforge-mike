@@ -166,3 +166,56 @@ test('MIKEE polite requests and private requests use the right path',()=>{
  for(const text of ['MIKEE, what is my email address?','MIKEE, create a website for my business.','I have an important medical appointment'])
   assert.equal(researchIntent(text).requested,false,text);
 });
+
+test('Wikipedia lookup falls back to the official Action API when REST is unavailable',async()=>{
+ let requests=[];
+ const fetchMock=async(url,opts)=>{
+  requests.push(String(url));
+  if(String(url).includes('/rest.php/'))return new Response('blocked',{status:403});
+  const u=new URL(url);
+  assert.equal(u.origin,'https://en.wikipedia.org');
+  assert.equal(u.pathname,'/w/api.php');
+  assert.equal(u.searchParams.get('action'),'query');
+  assert.equal(u.searchParams.get('srsearch'),'transistor');
+  assert.equal(u.searchParams.get('srlimit'),'4');
+  assert.equal(opts.redirect,'error');
+  return Response.json({query:{search:[
+   {title:'Transistor',snippet:'The transistor was <span class="searchmatch">invented</span> at Bell Labs.'},
+   {title:'Bell Labs',snippet:'Bell Laboratories conducted semiconductor research.'}
+  ]}});
+ };
+ const outcome=await collectEvidence('Who invented the transistor?',{},fetchMock);
+ assert.equal(outcome.scope,'wikipedia');
+ assert.equal(outcome.sources.length,2);
+ assert.equal(outcome.sources[0].url,'https://en.wikipedia.org/wiki/Transistor');
+ assert.ok(outcome.sources[0].excerpt.includes('invented at Bell Labs.'));
+ assert.ok(!outcome.sources[0].excerpt.includes('<span'));
+ assert.equal(requests.length,2);
+});
+test('Wikipedia fallback also covers REST responses with no usable source',async()=>{
+ let restCalls=0,actionCalls=0;
+ const mock=async(url)=>{
+  if(String(url).includes('/rest.php/')){restCalls++;return Response.json({pages:[]})}
+  actionCalls++;
+  return Response.json({query:{search:[{title:'Diode',snippet:'A semiconductor component.'}]}});
+ };
+ const r=await collectEvidence('What is a diode?',{},mock);
+ assert.equal(restCalls,1);assert.equal(actionCalls,1);
+ assert.equal(r.sources[0].publisher,'Wikipedia');
+});
+test('Successful REST lookup never adds a second unnecessary network request',async()=>{
+ let calls=0;
+ const response=await collectEvidence('Search the web for photosynthesis',{},async (url,opts)=>{
+  calls++;return wiki(url,opts);
+ });
+ assert.equal(response.sources.length,2);
+ assert.equal(calls,1);
+});
+test('Both Wikipedia endpoints failing reports unavailable sources instead of inventing citations',async()=>{
+ let calls=0;
+ const response=await collectEvidence('Who invented the transistor?',{},async()=>{calls++;return new Response('Denied',{status:429})});
+ assert.equal(calls,2);
+ assert.equal(response.sources.length,0);
+ assert.equal(response.scope,'wikipedia');
+ assert.match(response.error,/retrieval failed/i);
+});
