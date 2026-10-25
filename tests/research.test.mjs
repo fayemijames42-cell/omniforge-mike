@@ -1,7 +1,9 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {researchIntent,collectEvidence,evidenceText} from '../research.js';
-import realWorker from '../worker.js';
+import actualWorker from '../worker.js';
+import {withTestPool} from './fixtures/pool.mjs';
+const realWorker={async fetch(request,env){return actualWorker.fetch(request,await withTestPool(env))}};
 const wiki=async(url,opts)=>{
  assert.match(String(url),/^https:\/\/en\.wikipedia\.org\/w\/rest\.php\/v1\/search\/page\?/);
  assert.equal(opts.redirect,'error');

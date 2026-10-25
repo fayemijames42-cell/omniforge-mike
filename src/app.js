@@ -1,5 +1,5 @@
 /* OMNIFORGE mobile UI - local/manual MVP. No fabricated AI or hosted uploads. */
-(function(){'use strict';const C=window.OMNI,W=window.OMNI_WORKSPACE,F=window.OMNI_FILES;const $=s=>document.querySelector(s);let project=null,all=[],activeView='preview',mobileView=innerWidth>800?'preview':'chat',preferences={name:'MIKEE',mock:false},selectedAsset=null,originalURL=null,renderedURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message';
+(function(){'use strict';const C=window.OMNI,W=window.OMNI_WORKSPACE,F=window.OMNI_FILES,Pool=window.MIKEE_POOL;const $=s=>document.querySelector(s);let project=null,all=[],activeView='preview',mobileView=innerWidth>800?'preview':'chat',preferences={name:'MIKEE',mock:false,provider:'auto'},selectedAsset=null,originalURL=null,renderedURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message',pendingImage=null,activeAbort=null,imageJob=null;
 const ui={chat:$('#chatStream'),chips:$('#chips'),edit:$('#editControls'),grid:$('#assetGrid'),photoEditor:$('#photoEditor'),frame:$('#siteFrame'),previewEmpty:$('#previewEmpty'),select:$('#projectSelect')};
 const E=C.esc, uid=C.uuid, K=window.OMNI_KNOWLEDGE;const imagePreviewURLs=new Set();function notify(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>t.style.display='none',3600)}
 function fail(e){const msg=e?.name==='QuotaExceededError'?'Device storage is full. Export a backup, remove unused photos, then try again.':e?.message||String(e);notify(msg);console.warn('OMNIFORGE action failed:',e)}
@@ -71,7 +71,7 @@ async function addReferenceNotes(fileList){
  notify(next.length+' reference note(s) attached. Note contents are sent only when you send a message with Include notes enabled.');
 }
 async function refreshList(){all=await C.listProjects();ui.select.innerHTML=all.length?all.map(p=>`<option value="${E(p.id)}">${E(p.name||'Untitled')} · ${new Date(p.updatedAt).toLocaleDateString()}</option>`).join(''):'<option value="">No projects yet</option>';if(project)ui.select.value=project.id;$('#deleteProject').disabled=!project;$('#renameChat').disabled=!project}
-async function activate(projectId){project=projectId?await C.getProject(projectId):null;if(project)project=C.formatMigrated(project);selectedAsset=null;if(originalURL)URL.revokeObjectURL(originalURL);originalURL=null;await refreshList();await showAll();if(project)await C.setPref('lastProjectId',project.id)}
+async function activate(projectId){project=projectId?await C.getProject(projectId):null;if(project)project=C.formatMigrated(project);clearVision();selectedAsset=null;if(originalURL)URL.revokeObjectURL(originalURL);originalURL=null;await refreshList();await showAll();if(project)await C.setPref('lastProjectId',project.id)}
 function setMobileDrawer(open,restoreFocus=true){
  const layer=$('#mobileDrawerLayer');
  if(innerWidth>800)open=false;
@@ -97,7 +97,7 @@ function switchMobile(tab){
  setMobileDrawer(false);
 }
 function changeTab(tab){activeView=tab;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===tab));['preview','edit','photos','notes','files'].forEach(v=>{const el=$('#'+v+'Panel');el.classList.toggle('active',tab===v)});if(tab==='photos')renderPhotos();if(tab==='edit')renderEditor();if(tab==='notes')renderNotes();if(tab==='files')renderCodeWorkspace()}
-function drawMessages(){for(const url of imagePreviewURLs)URL.revokeObjectURL(url);imagePreviewURLs.clear();ui.chat.innerHTML='';const messages=project?.messages||[];ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><p class="creator-badge">OMNIFORGE · CREATED BY ADEN.inc</p><h1>What would you like to explore?</h1><p>Talk to <span class="assistantName">${E(preferences.name)}</span> about any subject. Learn, write, solve problems, plan projects, or create something new.</p><div class="local-note">Chat uses Cloudflare Workers AI. Conversations are saved in this browser. Your messages and relevant project text are sent to the AI provider. Photo editing uses local tools. For instant offline arithmetic, type <code>/calc (5+3)*2</code>.</div></div>`;return}for(const m of messages){const node=document.createElement('article');node.className='message '+(m.role==='user'?'user':'assistant');const copying=m.role==='assistant'?`<button class="copy-message" type="button" data-copy-id="${E(m.id||'')}" aria-label="Copy reply">Copy</button><button class="note-from-reply" type="button" data-save-note="${E(m.id||'')}" aria-label="Save reply as a note">Save note</button>${m.engine==='WORKERS AI'&&!/<html|<!doctype/i.test(m.text)?`<button class="note-from-reply" type="button" data-memory-id="${E(m.id||'')}" aria-label="Save reply as knowledge">Remember</button>`:''}`:'';const route=m.role==='user'&&m.route?`<span class="nexus-route" title="Local NEXUS routing; no extra AI call">· ${E(m.route)}</span>`:'';node.innerHTML=`<div class="by"><span>${m.role==='user'?'You':E(preferences.name)+' · '+(m.engine||'RULE-BASED / NOT LIVE AI')+(m.model?' · '+E(m.model):'')+(m.engine==='WORKERS AI'?' · '+(Array.isArray(m.sources)&&m.sources.length?(m.sources.length+' sources'):'no web sources'):'')}</span>${route}${copying}</div><div class="body">${m.role==='user'?E(m.text):formatReply(m.svgSummary||m.text)}</div>`;if(m.role==='assistant'&&Array.isArray(m.sources)&&m.sources.length){
+function drawMessages(){for(const url of imagePreviewURLs)URL.revokeObjectURL(url);imagePreviewURLs.clear();ui.chat.innerHTML='';const messages=project?.messages||[];ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><p class="creator-badge">OMNIFORGE · CREATED BY ADEN.inc</p><h1>What would you like to explore?</h1><p>Talk to <span class="assistantName">${E(preferences.name)}</span> about any subject. Learn, write, solve problems, plan projects, or create something new.</p><div class="local-note">MIKEE uses connected free AI services. Conversations are saved in this browser. Your messages and relevant project text are sent to the AI provider. Photo editing uses local tools. For instant offline arithmetic, type <code>/calc (5+3)*2</code>.</div></div>`;return}for(const m of messages){const node=document.createElement('article');node.className='message '+(m.role==='user'?'user':'assistant');const copying=m.role==='assistant'?`<button class="copy-message" type="button" data-copy-id="${E(m.id||'')}" aria-label="Copy reply">Copy</button><button class="note-from-reply" type="button" data-save-note="${E(m.id||'')}" aria-label="Save reply as a note">Save note</button>${['WORKERS AI','LIVE AI'].includes(m.engine)&&!/<html|<!doctype/i.test(m.text)?`<button class="note-from-reply" type="button" data-memory-id="${E(m.id||'')}" aria-label="Save reply as knowledge">Remember</button>`:''}`:'';const route=m.role==='user'&&m.route?`<span class="nexus-route" title="Local NEXUS routing; no extra AI call">· ${E(m.route)}</span>`:'';node.innerHTML=`<div class="by"><span>${m.role==='user'?'You':E(preferences.name)+' · '+(m.engine||'RULE-BASED / NOT LIVE AI')+(m.model&&!m.receipt?' · '+E(m.model):'')+(['WORKERS AI','LIVE AI'].includes(m.engine)?' · '+(Array.isArray(m.sources)&&m.sources.length?(m.sources.length+' sources'):'no web sources'):'')}</span>${route}${copying}</div><div class="body">${m.role==='user'?E(m.text):formatReply(m.svgSummary||m.text)}</div>`;if(m.role==='assistant'&&Array.isArray(m.sources)&&m.sources.length){
   const section=document.createElement('div');section.className='research-sources';
   const title=document.createElement('strong');title.textContent='Sources consulted · '+(m.researchScope==='wikipedia'?'Wikipedia reference search':'web search')+' · not independently verified';
   section.append(title);
@@ -121,11 +121,11 @@ function drawMessages(){for(const url of imagePreviewURLs)URL.revokeObjectURL(ur
   const detail=document.createElement('p');detail.textContent=String(m.researchNote).slice(0,360);
   banner.append(heading,detail);node.append(banner);
  }
- const vector=m.role==='assistant'&&m.engine==='WORKERS AI'?(m.svgMarkup?{svg:window.OMNI_VECTOR?.sanitize(m.svgMarkup),explanation:m.svgSummary||''}:m.text?.includes('<svg')?window.OMNI_VECTOR?.convertResponse(m.text):null):null;if(vector?.svg){const figure=document.createElement('figure');figure.className='vector-artifact';const caption=document.createElement('figcaption');caption.textContent='Vector illustration (SVG) · created from AI-generated code, not a raster image model';const img=document.createElement('img');img.src=window.OMNI_VECTOR.dataURI(vector.svg);img.alt='Generated vector illustration';img.loading='lazy';const button=document.createElement('button');button.type='button';button.textContent='↓ Save SVG';button.dataset.downloadSvg=m.id;figure.append(caption,img,button);node.querySelector('.body').textContent=vector.explanation||'MIKEE created a vector illustration. This is an SVG drawing, not photorealistic image generation.';node.append(figure);
+ const vector=m.role==='assistant'&&['WORKERS AI','LIVE AI'].includes(m.engine)?(m.svgMarkup?{svg:window.OMNI_VECTOR?.sanitize(m.svgMarkup),explanation:m.svgSummary||''}:m.text?.includes('<svg')?window.OMNI_VECTOR?.convertResponse(m.text):null):null;if(vector?.svg){const figure=document.createElement('figure');figure.className='vector-artifact';const caption=document.createElement('figcaption');caption.textContent='Vector illustration (SVG) · created from AI-generated code, not a raster image model';const img=document.createElement('img');img.src=window.OMNI_VECTOR.dataURI(vector.svg);img.alt='Generated vector illustration';img.loading='lazy';const button=document.createElement('button');button.type='button';button.textContent='↓ Save SVG';button.dataset.downloadSvg=m.id;figure.append(caption,img,button);node.querySelector('.body').textContent=vector.explanation||'MIKEE created a vector illustration. This is an SVG drawing, not photorealistic image generation.';node.append(figure);
  const upgrade=document.createElement('button');upgrade.type='button';upgrade.className='image-upgrade';upgrade.dataset.upgradeImage=m.id;upgrade.textContent='Create real AI image instead';node.append(upgrade);
  }if(m.imageId&&m.role==='assistant'){
  const figure=document.createElement('figure');figure.className='real-image-artifact';
- const caption=document.createElement('figcaption');caption.textContent='Generated with FLUX.1 Schnell · AI image · stored locally';
+ const caption=document.createElement('figcaption');caption.textContent='AI-generated image · stored locally'+(m.receipt?.attribution?' · '+m.receipt.attribution:'');
  const img=document.createElement('img');img.alt='AI-generated image: '+String(m.imagePrompt||'illustration').slice(0,120);img.loading='lazy';
  const actions=document.createElement('div');actions.className='image-artifact-actions';
  const download=document.createElement('button');download.type='button';download.textContent='↓ Save image';download.dataset.downloadImage=m.id;
@@ -136,8 +136,8 @@ function drawMessages(){for(const url of imagePreviewURLs)URL.revokeObjectURL(ur
   const url=URL.createObjectURL(blob);imagePreviewURLs.add(url);img.src=url;
  }).catch(()=>{img.alt='Saved image is unavailable on this device.'});
 }
-ui.chat.appendChild(node)}if(requestPending)renderPendingBubble();ui.chat.scrollTop=ui.chat.scrollHeight}
-async function preview(){const stamp=++previewToken;if(project?.codeWorkspace){try{const doc=F.previewDocument(project);ui.frame.sandbox='allow-scripts';ui.frame.srcdoc=doc;ui.frame.style.display='block';ui.previewEmpty.style.display='none';$('#previewPageName').textContent='3 local files · sandboxed';return}catch(error){fail(error);ui.frame.style.display='none';ui.previewEmpty.style.display='grid';return}}if(!project?.website||project.chatOnly){ui.frame.style.display='none';ui.previewEmpty.style.display='grid';$('#previewPageName').textContent='No website yet';return}try{const doc=project.website.rawHtml||C.renderSite(project,await C.assetMap(project));if(stamp!==previewToken)return;ui.frame.sandbox='allow-scripts';ui.frame.srcdoc=doc.replace(/<head([^>]*)>/i,`<head$1><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https:; font-src data:;">`);ui.frame.style.display='block';ui.previewEmpty.style.display='none';$('#previewPageName').textContent=project.website.pages?.length+' page(s) · '+project.website.layout; }catch(e){fail(e)}}
+if(m.receipt)node.insertAdjacentHTML('beforeend',Pool.receipt(m.receipt));ui.chat.appendChild(node)}if(requestPending)renderPendingBubble();ui.chat.scrollTop=ui.chat.scrollHeight}
+async function preview(){const stamp=++previewToken;if(project?.codeWorkspace){try{const doc=F.previewDocument(project);ui.frame.sandbox='allow-scripts';ui.frame.srcdoc=doc;ui.frame.style.display='block';ui.previewEmpty.style.display='none';$('#previewPageName').textContent='3 local files · sandboxed';return}catch(error){fail(error);ui.frame.style.display='none';ui.previewEmpty.style.display='grid';return}}if(!project?.website||project.chatOnly){ui.frame.style.display='none';ui.previewEmpty.style.display='grid';$('#previewPageName').textContent='No website yet';return}try{const doc=C.renderSite(project,await C.assetMap(project));if(stamp!==previewToken)return;ui.frame.sandbox='allow-scripts';ui.frame.srcdoc=doc.replace(/<head([^>]*)>/i,`<head$1><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https:; font-src data:;">`);ui.frame.style.display='block';ui.previewEmpty.style.display='none';$('#previewPageName').textContent=project.website.pages?.length+' page(s) · '+project.website.layout; }catch(e){fail(e)}}
 async function showAll(){drawMessages();$('#activeArtifact').textContent=project?.name||'No active conversation';$('#undoBtn').disabled=!!project?.chatOnly||!(project?.history?.length);$('#exportBtn').disabled=!project||!!project.chatOnly;$('#zipBtn').disabled=!project||!!project.chatOnly;$('#fileHTML').disabled=!project||!!project.chatOnly;$('#fileZIP').disabled=!project||!!project.chatOnly;$('#fileJSON').disabled=!project;$('#exportChat').disabled=!project?.messages?.length;renderSources();document.querySelectorAll('.assistantName').forEach(x=>x.textContent=preferences.name);$('.status span').textContent=window.OMNI_OFFLINE_UI?.isOffline()?'LOCAL KNOWLEDGE · NO AI':preferences.mock?'LOCAL RULES — NOT AI':aiState;$('.status').title=preferences.mock?'Local rules only.':'A real reply is required before AI is marked verified.';if(activeView==='edit')renderEditor();if(activeView==='photos')renderPhotos();if(activeView==='notes')renderNotes();if(activeView==='files')renderCodeWorkspace();await preview()}
 function msg(role,text,engine){return {id:uid(),at:Date.now(),role,text,engine}}
 
@@ -147,16 +147,16 @@ function renderPendingBubble(){
  node.id='aiWorking';
  node.setAttribute('role','status');
  node.setAttribute('aria-label','MIKEE is preparing a response');
- node.innerHTML='<div class="by">MIKEE · WORKERS AI</div><div class="typing-row"><span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="typing-label">Preparing your response…</span></div>';
+ node.innerHTML='<div class="by">MIKEE</div><div class="typing-row"><span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="typing-label">Preparing your response…</span></div>';
  ui.chat.appendChild(node);
  updatePendingText();
 }
 function updatePendingText(){
  if(!requestPending)return;
  const elapsed=Math.floor((Date.now()-pendingStartedAt)/1000);
- let label=pendingKind==='website'?'MIKEE is creating your website…':pendingKind==='image'?'MIKEE is generating your image…':'MIKEE is thinking…';
- if(elapsed>=45)label='Taking longer than usual — still processing your request…';
- else if(elapsed>=15)label=pendingKind==='website'?'Still generating your website…':pendingKind==='image'?'Still generating your image…':'Still working on your reply…';
+ let label=imageJob?'Waiting for a free image worker…':pendingKind==='audio'?'MIKEE is transcribing your audio…':pendingKind==='website'?'MIKEE is creating your website…':pendingKind==='image'?'MIKEE is generating your image…':'MIKEE is thinking…';
+ if(elapsed>=45&&!imageJob)label='Taking longer than usual — still processing your request…';
+ else if(elapsed>=15&&!imageJob&&pendingKind!=='audio')label=pendingKind==='website'?'Still generating your website…':pendingKind==='image'?'Still generating your image…':'Still working on your reply…';
  $('#typingText').textContent=label;
  $('#typingElapsed').textContent=elapsed+'s';
  const message=ui.chat.querySelector('#aiWorking .typing-label');
@@ -165,7 +165,7 @@ function updatePendingText(){
 function setPending(busy,text=''){
  requestPending=busy;
  const indicator=$('#typingIndicator'),prompt=$('#prompt'),sendButton=$('#sendBtn');
- indicator.hidden=!busy;
+ indicator.hidden=!busy;$('#cancelRequest').hidden=!busy;$('#chooseVision').disabled=busy;$('#composerMode').disabled=busy;
  prompt.disabled=busy;
  sendButton.disabled=busy;
  sendButton.textContent=busy?'…':'➤';
@@ -177,7 +177,7 @@ function setPending(busy,text=''){
  $('#composerHint').textContent=busy?'AI request in progress':'Changes stay on this device';
  if(pendingTimer!==null){clearInterval(pendingTimer);pendingTimer=null}
  if(busy){
-  pendingKind=/website|landing page|webpage|build a site|create a site/i.test(text)?'website':'message';
+  pendingKind=text==='audio'?'audio':/website|landing page|webpage|build a site|create a site/i.test(text)?'website':'message';
   pendingStartedAt=Date.now();
   updatePendingText();
   pendingTimer=setInterval(updatePendingText,1000);
@@ -193,44 +193,39 @@ function imagePromptFromText(text){
  const yes=raw.match(/^(?:(?:please|mikee)[,: ]+)*(?:generate|genrate|create|make|draw|render|design|produce)\s+(?:(?:me|us)\s+)?(?:(?:an?|the)\s+)?(?:image|picture|photo|photograph|illustration|artwork|painting)\s*(?:of|showing|depicting|with|about|for)?\s+(.+)$/i);
  return yes&&yes[1].trim().length>1?raw.slice(0,900):null;
 }
-function mayGenerateImage(){
- const utc=new Date().toISOString().slice(0,10),key='omniforge-image-requests-'+utc;
- let count=0;try{count=Number(localStorage.getItem(key)||0)}catch{}
- if(count>=3)throw Error('This device has reached the voluntary 3-image daily limit to protect the free AI allowance. Try again another day.');
- if(!confirm('Generate one real AI image with Cloudflare FLUX.1 Schnell? This spends part of the shared free AI daily allowance. Up to 3 attempts per day on this browser.'))return false;
- try{localStorage.setItem(key,String(count+1))}catch{}
- return true;
-}
 async function sendImage(text,promptText,{reuse=false}={}){
  if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false)throw Error('Real AI image generation requires Cloud AI and internet access. Switch to Cloud AI, then request the image again.');
- if(!mayGenerateImage())return;
  if(requestPending)return;
  $('#prompt').value='';
- setPending(true,'create image');
+ setPending(true,'create image');activeAbort=new AbortController();
  pendingKind='image';updatePendingText();
  try{
   if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
   if(!project.chatTitleSet&&project.chatOnly){project.name=autoChatTitle(text)||'Image creation';project.chatTitleSet=true;project.updatedAt=Date.now()}
-  if(!reuse){const m=msg('user',text);m.route='Text-to-image · FLUX.1 Schnell';project.messages.push(m);await C.saveProject(project);await refreshList();await showAll()}
-  const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),75000);
-  let response;
-  try{response=await fetch('/api/image',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({prompt:promptText}),signal:controller.signal})}finally{clearTimeout(deadline)}
-  let data;try{data=await response.json()}catch{throw Error('Image service returned an unreadable response.')}
-  if(!response.ok||data.live!==true)throw Error(data.error||'Image generation failed.');
-  if(typeof data.image!=='string'||data.image.length>3000000)throw Error('Invalid or oversized image response.');
-  const raw=atob(data.image),buffer=new Uint8Array(raw.length);
-  for(let i=0;i<raw.length;i++)buffer[i]=raw.charCodeAt(i);
-  const blob=new Blob([buffer],{type:'image/jpeg'});
-  if(blob.size<100||blob.size>2250000)throw Error('Generated image was missing or unexpectedly large.');
-  const imageId=uid();await C.saveBlob(imageId,blob);
-  const result=msg('assistant','Generated image using Cloudflare FLUX.1 Schnell. Saved in this conversation on this device.','FLUX.1 SCHNELL · IMAGE');result.model=typeof data.model==='string'?data.model.slice(0,100):'';result.imageId=imageId;result.imagePrompt=promptText;
+  if(!reuse){const m=msg('user',text);m.route='Image generation';project.messages.push(m);await C.saveProject(project);await refreshList();await showAll()}
+  let data=await Pool.request('/api/image',{body:{prompt:promptText},signal:activeAbort.signal});
+  if(data.jobId){imageJob=data.jobId;const deadline=Date.now()+600000;while(data.state!=='done'){
+   if(Date.now()>deadline)throw Error('The free image queue took too long. Try again later.');
+   await waitForPoll((data.pollAfter||10)*1000,activeAbort.signal);
+   data=await Pool.request('/api/image/'+imageJob,{signal:activeAbort.signal,timeout:25000});
+   if(data.state==='cancelled')throw new DOMException('Cancelled','AbortError');
+  }}
+  if(data.live!==true)throw Error(data.error||'No completed image was returned.');
+  let blob;
+  if(data.image||data.dataUrl){const url=data.dataUrl||'data:'+(data.mime||'image/jpeg')+';base64,'+data.image;const response=await fetch(url);blob=await response.blob();}
+  else if(data.imageUrl){const response=await fetch(data.imageUrl,{signal:activeAbort.signal,credentials:'omit',referrerPolicy:'no-referrer'});if(!response.ok)throw Error('The generated image could not be downloaded.');blob=await response.blob();}
+  if(!blob||blob.size<100||blob.size>2250000||!/^image\/(jpeg|png|webp)$/.test(blob.type))throw Error('The service returned an unsupported or oversized image.');
+  const asset=await C.addAsset(project,new File([blob],'mikee-image-'+Date.now()+'.'+(blob.type==='image/png'?'png':blob.type==='image/webp'?'webp':'jpg'),{type:blob.type}));
+  const imageId=asset.id;selectedAsset=imageId;
+  const result=msg('assistant','Your generated image is saved in this conversation and in Photos. You can edit it and add it to your website.','LIVE AI');result.model=typeof data.model==='string'?data.model.slice(0,100):'';result.imageId=imageId;result.imagePrompt=promptText;
+  result.receipt={provider:data.provider,providerName:data.providerName,model:data.model,attribution:data.attribution};
   project.messages.push(result);project.messages=project.messages.slice(-100);
   aiState='AI IMAGE GENERATED';await C.saveProject(project);await refreshList();await showAll();
  }catch(error){
   aiState='IMAGE REQUEST FAILED';
   const description=error?.name==='AbortError'?'Image request timed out.':String(error?.message||error);
   if(project){project.messages.push(msg('assistant','Image generation unavailable: '+description+'\nNo SVG placeholder was substituted.','ERROR'));await C.saveProject(project);await showAll()}else fail(error);
- }finally{setPending(false)}
+ }finally{if(imageJob&&activeAbort?.signal.aborted)Pool.request('/api/image/'+imageJob,{method:'DELETE',timeout:15000}).catch(()=>{});imageJob=null;activeAbort=null;setPending(false);Pool.refresh().catch(()=>{})}
 }
 
 async function sendCalculation(text,displayText=text){
@@ -286,18 +281,18 @@ async function respondOffline(text,{existing=false,reason=''}={}){
 
 async function send(text){
  text=text.trim();if(!text||requestPending)return;
- if(window.OMNI_CALC?.expressionFromCommand(text)!==null)return sendCalculation(text);
- if(window.OMNI_SYMBOLIC?.command(text))return sendSymbolic(text);
- const imageRequest=imagePromptFromText(text);
+ if(!pendingImage&&window.OMNI_CALC?.expressionFromCommand(text)!==null)return sendCalculation(text);
+ if(!pendingImage&&window.OMNI_SYMBOLIC?.command(text))return sendSymbolic(text);
+ const imageRequest=pendingImage?null:$('#composerMode').value==='image'?text.slice(0,900):/^\/image\s+/i.test(text)?text.replace(/^\/image\s+/i,'').slice(0,900):imagePromptFromText(text);
  if(imageRequest!==null)return sendImage(text,imageRequest);
   const arithmetic=window.OMNI_CALC?.arithmeticFromText(text);
-  if(arithmetic!==null&&arithmetic!==undefined)return sendCalculation('/calc '+arithmetic,text);
+  if(!pendingImage&&arithmetic!==null&&arithmetic!==undefined)return sendCalculation('/calc '+arithmetic,text);
  if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false){if(navigator.onLine===false)window.OMNI_OFFLINE_UI?.setOffline(true);return respondOffline(text);}
  if(preferences.mock)return sendLocal(text);
  $('#prompt').value='';
  let shortLimitReached=false;
  aiState='MIKEE IS GENERATING…';
- setPending(true,text);
+ setPending(true,text);activeAbort=new AbortController();
  $('.status span').textContent=aiState;
  try{
   if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.saveProject(project);await C.setPref('lastProjectId',project.id)}
@@ -306,26 +301,24 @@ async function send(text){
   const route=W.route(text,project.focus||'general',!project.chatOnly);
   const currentHtml=(!project.chatOnly&&route.includeWebsite)?C.renderSite(project):'';if(currentHtml.length>24000)throw Error('This website exceeds the current AI editing limit (24,000 characters). Export a backup; manual tools remain available.');
   const userMessage=msg('user',text);userMessage.route=route.label;project.messages.push(userMessage);await C.saveProject(project);await refreshList();await showAll();
-  const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),90000);
-  let response;try{response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history,currentHtml,focus:route.focus,sources:project.useSources===false?[]:(project.sources||[]).slice(0,3)}),signal:controller.signal})}finally{clearTimeout(deadline)}
-  let data;try{data=await response.json()}catch{throw Error('The server returned an unreadable response. Please try a smaller website request.')}
-  if(!response.ok){if(response.status===429)shortLimitReached=true;throw Error(data.error||'AI request failed');}
+  let data;try{data=await Pool.request('/api/chat',{body:{message:text,history,currentHtml,provider:preferences.provider,focus:route.focus,sources:project.useSources===false?[]:(project.sources||[]).slice(0,3),...(pendingImage?{image:pendingImage}:{})},signal:activeAbort.signal})}catch(error){if(error.retryAfter)shortLimitReached=true;throw error;}
   if(data.live!==true||typeof data.reply!=='string')throw Error('No verified provider response was received.');
   aiState='AI RESPONSE VERIFIED';
   const match=data.reply.match(/<!doctype html[\s\S]*?<\/html>/i)||data.reply.match(/<html[\s\S]*?<\/html>/i);
   let answer=data.reply;
   if(match){project=C.change(project,p=>{p.website.rawHtml=match[0]}).project;project.chatOnly=false;answer='Your website is updated. Open Preview to try it, or export HTML. Continue chatting to make changes.';}
   else if(/<!doctype html|<html/i.test(data.reply)){answer='The AI returned incomplete HTML. Your previous website is unchanged. Ask for a shorter complete website.';}
-  const m=msg('assistant',answer,'WORKERS AI');m.aiContent=data.reply;m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}project.messages.push(m);project.messages=project.messages.slice(-100);
+  const m=msg('assistant',answer,'LIVE AI');m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount};clearVision();m.aiContent=data.reply;m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}project.messages.push(m);project.messages=project.messages.slice(-100);
   await C.saveProject(project);await refreshList();await showAll();if(match&&innerWidth<=800)switchMobile('preview');
   }catch(e){
-  const message=e?.name==='AbortError'?'Request timed out':String(e?.message||e);
-  const fallback=!shortLimitReached&&(!navigator.onLine||e?.name==='AbortError'||/quota|daily limit|neurons|rate.limit|limit exceeded|too many requests|Workers AI request failed|provider returned|AI binding|failed to fetch|network|unreadable response|AI request failed/i.test(message));
+  const cancelled=activeAbort?.signal.aborted===true;
+  const message=cancelled?'Request cancelled.':e?.name==='AbortError'?'Request timed out':String(e?.message||e);
+  const fallback=!cancelled&&!shortLimitReached&&(!navigator.onLine||e?.name==='AbortError'||/quota|daily limit|neurons|rate.limit|limit exceeded|too many requests|Workers AI request failed|provider returned|AI binding|failed to fetch|network|unreadable response|AI request failed/i.test(message));
   if(fallback&&project){
    window.OMNI_OFFLINE_UI?.setOffline(true);
    try{await respondOffline(text,{existing:true,reason:message})}catch(inner){project.messages.push(msg('assistant','Cloud AI unavailable, and local memory failed: '+inner.message,'ERROR'));await C.saveProject(project);await showAll()}
   }else{aiState='AI REQUEST FAILED';if(project){project.messages.push(msg('assistant',message,'ERROR'));await C.saveProject(project);await showAll()}else fail(e)}
- }finally{setPending(false)}
+ }finally{activeAbort=null;setPending(false);Pool.refresh().catch(()=>{})}
 }
 async function sendLocal(text){text=text.trim();if(!text)return;$('#sendBtn').disabled=true;try{const [tool,args]=C.actionFromPrompt(text,project);if(tool==='create_website'){const result=C.callTool(tool,null,args);result.messages=[msg('user',text)];await C.saveProject(result);project=result;await C.setPref('lastProjectId',project.id);project.messages.push(msg('assistant',`Website created locally: “${project.name}” (${project.website.pages.length} pages). Open Preview or Edit. This is a rule-based layout, not a live AI-generated website.`,preferences.mock?'MOCK — NOT LIVE AI':'RULE-BASED / NOT LIVE AI'));await C.saveProject(project);await refreshList()}
  else {project.messages=[...(project.messages||[]),msg('user',text)].slice(-100);const result=C.callTool(tool,project,args);if(result.export){await C.exportHTML(project);project.messages.push(msg('assistant','Exported the current website as an offline HTML file.','LOCAL TOOL'))}else if(result.details){project.messages.push(msg('assistant',`Current site: ${result.details.pages} page(s), ${result.details.photos} photo(s), ${result.details.versions} saved undo versions.`, 'LOCAL TOOL'))}else if(result.changed){project=result.project;project.messages.push(msg('assistant',`Updated “${project.name}”. This is version ${project.version}. Preview, refresh or Undo to check the actual change.`,preferences.mock?'MOCK — NOT LIVE AI':'RULE-BASED / NOT LIVE AI'))}else project.messages.push(msg('assistant','No change was necessary.','LOCAL TOOL'));project.messages=project.messages.slice(-100);await C.saveProject(project)}
@@ -345,7 +338,7 @@ function renderCodeWorkspace(){
   });
   $('#convertCodeProject').onclick=()=>queued(async()=>{
    if(!project||project.chatOnly)throw Error('Open an existing website first.');
-   const html=project.website.rawHtml||C.renderSite(project,await C.assetMap(project));
+   const html=C.renderSite(project,await C.assetMap(project));
    project.codeWorkspace=F.fromHtml(html);project.updatedAt=Date.now();
    await C.saveProject(project);renderCodeWorkspace();await preview();notify('Website copied into editable files.');
   });return;
@@ -423,12 +416,34 @@ async function uploadFiles(fileList){if(!project)throw Error('Create a website b
 function photoURL(what){if(what)URL.revokeObjectURL(what)}
 async function renderPhotos(){const stamp=project?.id;if(!project){ui.grid.innerHTML='<p>Create a website first.</p>';ui.photoEditor.innerHTML='';return}const srcs=await Promise.all(project.assets.map(async a=>{const blob=await C.getBlob(a.id);return {asset:a,url:blob?URL.createObjectURL(blob):a.dataUrl||''}}));if(project?.id!==stamp)return;ui.grid.innerHTML=srcs.map(({asset:a,url})=>`<button class="asset-tile ${a.id===selectedAsset?'selected':''}" data-asset="${E(a.id)}"><img loading="lazy" src="${url}" alt="${E(a.name)}"><small>${E(a.name)}</small></button>`).join('')||'<p>No photos uploaded yet.</p>';const urls=srcs.map(x=>x.url).filter(u=>u.startsWith('blob:'));setTimeout(()=>urls.forEach(url=>URL.revokeObjectURL(url)),9000);ui.grid.querySelectorAll('[data-asset]').forEach(b=>b.addEventListener('click',()=>{selectedAsset=b.dataset.asset;renderPhotos()}));if(selectedAsset && project.assets.some(a=>a.id===selectedAsset))await showPhotoEditor();else ui.photoEditor.innerHTML='<p>Select a photo to edit, or use the Add photos button.</p>'}
 let imageOps={brightness:100,contrast:100,saturation:100,rotate:0,crop:'original',max:1200};
-async function showPhotoEditor(){photoURL(originalURL);originalURL=null;const a=project.assets.find(a=>a.id===selectedAsset);const blob=await C.getBlob(a.id);if(!blob){ui.photoEditor.textContent='This legacy asset is unavailable. Export your project and reimport it to repair.';return}originalURL=URL.createObjectURL(blob);imageOps={brightness:100,contrast:100,saturation:100,rotate:0,crop:'original',max:1200};ui.photoEditor.innerHTML=`<div class="photo-editor"><h3>${E(a.name)}</h3><div class="before-after"><figure><img id="beforeImg" src="${originalURL}" alt="Original photograph"><figcaption>ORIGINAL</figcaption></figure><figure><canvas id="afterCanvas"></canvas><figcaption>LOCAL EDIT PREVIEW</figcaption></figure></div>${[['brightness','Brightness'],['contrast','Contrast'],['saturation','Saturation']].map(([k,t])=>`<div class="range-row"><label for="filter_${k}">${t}</label><input id="filter_${k}" data-filter="${k}" type="range" min="0" max="200" value="100"><output id="output_${k}">100</output></div>`).join('')}<div class="editor-row"><label>Crop<select id="cropSelect"><option value="original">Full image</option><option value="square">Square (1:1)</option><option value="portrait">Portrait (4:5)</option><option value="landscape">Landscape (16:9)</option></select></label><label>Output max size<select id="resizeSelect"><option value="800">800 px</option><option value="1200" selected>1200 px</option><option value="1600">1600 px</option></select></label></div><div class="field-actions"><button id="rotateBtn">↻ Rotate 90°</button><button id="resetPhoto">↶ Reset edits</button><button id="saveEdited" class="primary-action">Save edited copy</button><button id="addPhoto" class="primary-action">＋ Add to this website</button></div><p>Project: <b>${E(project.name)}</b>. Saving creates a new photo asset and keeps the original.</p></div>`;
+async function showPhotoEditor(){photoURL(originalURL);originalURL=null;const a=project.assets.find(a=>a.id===selectedAsset);const blob=await C.getBlob(a.id);if(!blob){ui.photoEditor.textContent='This legacy asset is unavailable. Export your project and reimport it to repair.';return}originalURL=URL.createObjectURL(blob);imageOps={brightness:100,contrast:100,saturation:100,rotate:0,crop:'original',max:1200};ui.photoEditor.innerHTML=`<div class="photo-editor"><h3>${E(a.name)}</h3><div class="before-after"><figure><img id="beforeImg" src="${originalURL}" alt="Original photograph"><figcaption>ORIGINAL</figcaption></figure><figure><canvas id="afterCanvas"></canvas><figcaption>LOCAL EDIT PREVIEW</figcaption></figure></div>${[['brightness','Brightness'],['contrast','Contrast'],['saturation','Saturation']].map(([k,t])=>`<div class="range-row"><label for="filter_${k}">${t}</label><input id="filter_${k}" data-filter="${k}" type="range" min="0" max="200" value="100"><output id="output_${k}">100</output></div>`).join('')}<div class="editor-row"><label>Crop<select id="cropSelect"><option value="original">Full image</option><option value="square">Square (1:1)</option><option value="portrait">Portrait (4:5)</option><option value="landscape">Landscape (16:9)</option></select></label><label>Output max size<select id="resizeSelect"><option value="800">800 px</option><option value="1200" selected>1200 px</option><option value="1600">1600 px</option></select></label></div><div class="field-actions"><button id="rotateBtn">↻ Rotate 90°</button><button id="resetPhoto">↶ Reset edits</button><button id="saveEdited" class="primary-action">Save edited copy</button><button id="addPhoto" class="primary-action">＋ Add to this website</button><button id="analysePhoto">Ask MIKEE about this photo</button></div><p>Project: <b>${E(project.name)}</b>. Saving creates a new photo asset and keeps the original.</p></div>`;
  const im=new Image();im.onload=()=>{const can=$('#afterCanvas');if(can)drawImageToCanvas(im,can,imageOps)};im.src=originalURL;
- ui.photoEditor.querySelectorAll('[data-filter]').forEach(f=>f.addEventListener('input',()=>{imageOps[f.dataset.filter]=Number(f.value);$('#output_'+f.dataset.filter).textContent=f.value;drawImageToCanvas(im,$('#afterCanvas'),imageOps)}));$('#cropSelect').onchange=e=>{imageOps.crop=e.target.value;drawImageToCanvas(im,$('#afterCanvas'),imageOps)};$('#resizeSelect').onchange=e=>{imageOps.max=Number(e.target.value);drawImageToCanvas(im,$('#afterCanvas'),imageOps)};$('#rotateBtn').onclick=()=>{imageOps.rotate=(imageOps.rotate+90)%360;drawImageToCanvas(im,$('#afterCanvas'),imageOps)};$('#resetPhoto').onclick=()=>{imageOps={brightness:100,contrast:100,saturation:100,rotate:0,crop:'original',max:1200};showPhotoEditor()};$('#saveEdited').onclick=()=>queued(async()=>{const can=$('#afterCanvas');if(!can)throw Error('Canvas preview is unavailable');const blob=await new Promise(resolve=>can.toBlob(resolve,'image/jpeg',.87));if(!blob)throw Error('Could not save image');const asset={id:uid(),name:a.name.replace(/\.[^.]+$/,'')+'-edited.jpg',mimeType:'image/jpeg',size:blob.size,width:can.width,height:can.height,createdAt:Date.now(),originalId:a.originalId||a.id};await C.saveBlob(asset.id,blob);project.assets.push(asset);selectedAsset=asset.id;await C.saveProject(project);await renderPhotos();notify('Edited copy saved; original is preserved')});$('#addPhoto').onclick=()=>queued(async()=>{if(project.website.rawHtml)throw Error('Photo editing is available, but automatic photo placement into AI-generated HTML is not connected yet.');const expected=project.id;const res=C.callTool('add_asset_to_project',project,{assetIds:[a.id]});if(!res.changed)throw Error('Image is already in the gallery.');if(project.id!==expected)throw Error('Active project changed.');await C.saveProject(res.project);project=res.project;await showAll();switchMobile('preview');notify('Photo added to the correct website gallery')})}
+ ui.photoEditor.querySelectorAll('[data-filter]').forEach(f=>f.addEventListener('input',()=>{imageOps[f.dataset.filter]=Number(f.value);$('#output_'+f.dataset.filter).textContent=f.value;drawImageToCanvas(im,$('#afterCanvas'),imageOps)}));$('#cropSelect').onchange=e=>{imageOps.crop=e.target.value;drawImageToCanvas(im,$('#afterCanvas'),imageOps)};$('#resizeSelect').onchange=e=>{imageOps.max=Number(e.target.value);drawImageToCanvas(im,$('#afterCanvas'),imageOps)};$('#rotateBtn').onclick=()=>{imageOps.rotate=(imageOps.rotate+90)%360;drawImageToCanvas(im,$('#afterCanvas'),imageOps)};$('#resetPhoto').onclick=()=>{imageOps={brightness:100,contrast:100,saturation:100,rotate:0,crop:'original',max:1200};showPhotoEditor()};$('#saveEdited').onclick=()=>queued(async()=>{const can=$('#afterCanvas');if(!can)throw Error('Canvas preview is unavailable');const blob=await new Promise(resolve=>can.toBlob(resolve,'image/jpeg',.87));if(!blob)throw Error('Could not save image');const asset={id:uid(),name:a.name.replace(/\.[^.]+$/,'')+'-edited.jpg',mimeType:'image/jpeg',size:blob.size,width:can.width,height:can.height,createdAt:Date.now(),originalId:a.originalId||a.id};await C.saveBlob(asset.id,blob);project.assets.push(asset);selectedAsset=asset.id;await C.saveProject(project);await renderPhotos();notify('Edited copy saved; original is preserved')});$('#analysePhoto').onclick=()=>queued(async()=>{await attachVision(await C.getBlob(a.id));switchMobile('chat');notify('Photo ready. Type what you want MIKEE to analyse.');});$('#addPhoto').onclick=()=>queued(async()=>{if(project.website.rawHtml){const changed=C.change(project,p=>{const doc=new DOMParser().parseFromString(p.website.rawHtml,'text/html');let gallery=doc.querySelector('[data-omniforge-gallery]');if(!gallery){gallery=doc.createElement('section');gallery.dataset.omniforgeGallery='true';gallery.style.cssText='padding:24px;display:flex;gap:16px;flex-wrap:wrap';(doc.querySelector('main')||doc.body).appendChild(gallery)}if(!Array.from(gallery.querySelectorAll('img')).some(im=>im.getAttribute('src')==='omniforge-asset://'+a.id)){const im=doc.createElement('img');im.src='omniforge-asset://'+a.id;im.alt=a.name;im.style.cssText='max-width:100%;width:320px;height:auto;object-fit:contain';gallery.appendChild(im)}p.website.rawHtml='<!doctype html>'+doc.documentElement.outerHTML;});project=changed.project;await C.saveProject(project);await showAll();switchMobile('preview');notify('Photo added to this website. It will be embedded in HTML exports.');return;}const expected=project.id;const res=C.callTool('add_asset_to_project',project,{assetIds:[a.id]});if(!res.changed)throw Error('Image is already in the gallery.');if(project.id!==expected)throw Error('Active project changed.');await C.saveProject(res.project);project=res.project;await showAll();switchMobile('preview');notify('Photo added to the correct website gallery')})}
 function drawImageToCanvas(image,canvas,settings){if(!image.complete||!canvas)return;const ratio=({square:1,portrait:4/5,landscape:16/9})[settings.crop];let sw=image.naturalWidth,sh=image.naturalHeight,sx=0,sy=0;if(ratio){if(sw/sh>ratio){const nw=sh*ratio;sx=(sw-nw)/2;sw=nw}else{const nh=sw/ratio;sy=(sh-nh)/2;sh=nh}}const max=Math.min(1600,Math.max(300,settings.max)),size=Math.min(1,max/Math.max(sw,sh)),dw=Math.max(1,Math.round(sw*size)),dh=Math.max(1,Math.round(sh*size)),turn=settings.rotate%180!==0;canvas.width=turn?dh:dw;canvas.height=turn?dw:dh;const ctx=canvas.getContext('2d',{alpha:false});ctx.save();ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(settings.rotate*Math.PI/180);ctx.filter=`brightness(${settings.brightness}%) contrast(${settings.contrast}%) saturate(${settings.saturation}%)`;ctx.drawImage(image,sx,sy,sw,sh,-dw/2,-dh/2,dw,dh);ctx.restore()}
 async function exportAction(action){if(!project)throw Error('Create or open a project first.');if(action==='html'){await C.exportHTML(project);notify('Offline HTML exported')}if(action==='zip'){await C.exportZIP(project);notify('ZIP backup exported')}if(action==='json'){await C.exportJSON(project);notify('JSON backup exported')}}
-async function init(){try{await C.openDB();preferences={name:(await C.pref('assistantName'))||'MIKEE',mock:!!(await C.pref('mock'))};$('#assistantNameInput').value=preferences.name;$('#mockToggle').checked=preferences.mock;const items=await C.listProjects(),last=await C.pref('lastProjectId'),target=items.some(p=>p.id===last)?last:items[0]?.id;await activate(target||null);switchMobile(mobileView);$('#storageState').textContent=`Saved projects: ${items.length} · Current storage: this browser on this device`;}catch(e){fail(e);ui.chat.innerHTML=`<p style="padding:20px;color:#f7c0af">Browser storage is unavailable (${E(e.message)}). Open this page on Chrome using HTTPS or localhost. No changes will be saved.</p>`}}
+function clearVision(){pendingImage=null;const badge=$('#visionAttachment');if(badge)badge.hidden=true;}
+async function attachVision(blob){
+ if(!blob)throw Error('Choose a photo first.');
+ const url=URL.createObjectURL(blob),im=new Image();
+ try{await new Promise((resolve,reject)=>{im.onload=resolve;im.onerror=()=>reject(Error('Photo could not be read.'));im.src=url});
+  const ratio=Math.min(1,640/Math.max(im.naturalWidth,im.naturalHeight)),canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(im.naturalWidth*ratio));canvas.height=Math.max(1,Math.round(im.naturalHeight*ratio));
+  canvas.getContext('2d').drawImage(im,0,0,canvas.width,canvas.height);pendingImage=canvas.toDataURL('image/jpeg',.76);
+  if(pendingImage.length>500000)throw Error('Photo is too large after resizing. Choose a smaller image.');
+  $('#visionAttachment').hidden=false;$('#composerMode').value='chat';
+ }finally{URL.revokeObjectURL(url)}
+}
+function waitForPoll(ms,signal){return new Promise((resolve,reject)=>{const stop=()=>{clearTimeout(timer);reject(new DOMException('Cancelled','AbortError'))};const timer=setTimeout(()=>{signal.removeEventListener('abort',stop);resolve()},ms);if(signal.aborted)stop();else signal.addEventListener('abort',stop,{once:true});});}
+async function transcribeFile(file){
+ if(!file||requestPending)return;if(window.OMNI_OFFLINE_UI?.isOffline()||preferences.mock)throw Error('Switch to Cloud AI to transcribe audio.');if(file.size>2097152)throw Error('Choose a short recording under 2 MB.');
+ setPending(true,'audio');activeAbort=new AbortController();aiState='TRANSCRIBING AUDIO…';
+ try{const form=new FormData();form.append('file',file);const result=await Pool.request('/api/transcribe',{body:form,signal:activeAbort.signal});
+  if(result.live!==true||!result.reply)throw Error('No transcription was received.');$('#composerMode').value='chat';$('#prompt').value=result.reply;aiState='AI RESPONSE VERIFIED';notify('Transcription ready. Review the text, then send it.');
+ }catch(error){aiState='AUDIO REQUEST STOPPED';throw error;}finally{activeAbort=null;setPending(false);Pool.refresh().catch(()=>{});}
+}
+
+
+async function init(){try{await C.openDB();preferences={name:(await C.pref('assistantName'))||'MIKEE',mock:!!(await C.pref('mock')),provider:(await C.pref('provider'))||'auto'};$('#assistantNameInput').value=preferences.name;$('#mockToggle').checked=preferences.mock;const items=await C.listProjects(),last=await C.pref('lastProjectId'),target=items.some(p=>p.id===last)?last:items[0]?.id;await activate(target||null);switchMobile(mobileView);await Pool.mount();$('#aiProviderSelect').value=preferences.provider;$('#storageState').textContent=`Saved projects: ${items.length} · Current storage: this browser on this device`;}catch(e){fail(e);ui.chat.innerHTML=`<p style="padding:20px;color:#f7c0af">Browser storage is unavailable (${E(e.message)}). Open this page on Chrome using HTTPS or localhost. No changes will be saved.</p>`}}
 $('#composer').addEventListener('submit',e=>{e.preventDefault();queued(()=>send($('#prompt').value))});$('#prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#composer').requestSubmit()}});ui.chips.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{queued(()=>send(b.dataset.prompt))});
 $('#newProject').onclick=()=>queued(async()=>{const p=C.makeProject('New Chat');p.chatOnly=true;await C.saveProject(p);await activate(p.id);switchMobile('chat');notify('New conversation ready. The title will be chosen from your topic.')});$('#deleteProject').onclick=()=>queued(async()=>{if(!project)return;const name=project.name,id=project.id;if(!confirm(`Delete “${name}”? This cannot be undone. Export a ZIP backup first if you need one.`))return;await C.deleteProject(id);const next=(await C.listProjects())[0];await activate(next?.id||null);notify('Project deleted. Its orphan photo blobs may remain until browser data is cleared.')});$('#renameChat').onclick=()=>queued(async()=>{if(!project)return;const input=prompt('Rename this chat:',project.name);if(input===null)return;const title=input.trim().replace(/\s+/g,' ').slice(0,60);if(!title)return;project.name=title;project.chatTitlePinned=true;project.updatedAt=Date.now();await C.saveProject(project);await refreshList();await showAll();notify('Chat renamed')});ui.select.onchange=e=>queued(()=>activate(e.target.value));$('#undoBtn').onclick=()=>queued(doUndo);
 $('#chatSearchBtn').onclick=()=>queued(async()=>{await renderChatSearch();$('#chatSearchDialog').showModal();$('#chatSearchInput').focus()});
@@ -476,7 +491,7 @@ $('#sourceList').onclick=event=>queued(async()=>{
  await C.saveProject(project);renderSources();
  notify('Reference note removed.');
 });
-$('#settingsButton').onclick=()=>$('#settingsDialog').showModal();$('#saveSettings').onclick=()=>queued(async()=>{preferences.name=($('#assistantNameInput').value.trim()||'MIKEE').slice(0,32);preferences.mock=$('#mockToggle').checked;await C.setPref('assistantName',preferences.name);await C.setPref('mock',preferences.mock);await showAll();notify('Settings saved')});
+$('#settingsButton').onclick=()=>{$('#settingsDialog').showModal();Pool.refresh().catch(()=>{})};$('#saveSettings').onclick=()=>queued(async()=>{preferences.name=($('#assistantNameInput').value.trim()||'MIKEE').slice(0,32);preferences.mock=$('#mockToggle').checked;preferences.provider=$('#aiProviderSelect').value||'auto';await C.setPref('provider',preferences.provider);await C.setPref('assistantName',preferences.name);await C.setPref('mock',preferences.mock);await showAll();notify('Settings saved')});
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>changeTab(b.dataset.view));
  document.querySelectorAll('[data-mobile]').forEach(b=>b.onclick=()=>switchMobile(b.dataset.mobile));
  $('#mobileMenuButton').onclick=()=>setMobileDrawer($('#mobileDrawerLayer').hidden);
@@ -507,5 +522,7 @@ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>changeTab(b.da
  window.addEventListener('resize',()=>switchMobile(mobileView));
 for(const id of ['chatPhotoFiles','photoFiles'])$('#'+id).onchange=e=>queued(async()=>{await uploadFiles(e.target.files);e.target.value=''});
 $('#importFile').onchange=e=>queued(async()=>{const file=e.target.files[0];if(!file)return;const p=await C.importProject(file);await activate(p.id);switchMobile('preview');notify('Project imported. Changes are local to this device.');e.target.value=''});
+$('#chooseVision').onclick=()=>{if(!requestPending)$('#visionFile').click()};$('#visionFile').onchange=e=>queued(async()=>{const file=e.target.files[0];if(file)await attachVision(file);e.target.value='';});$('#removeVision').onclick=clearVision;$('#audioFile').onchange=e=>queued(async()=>{try{await transcribeFile(e.target.files[0])}finally{e.target.value=''}});$('#cancelRequest').onclick=()=>activeAbort?.abort();
+
 init();window.OMNI_TEST={getProject:()=>project,getUI:()=>({mobileView,activeView}),queue:()=>queue};
 })();

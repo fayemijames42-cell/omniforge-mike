@@ -15,7 +15,7 @@ function renderMode(){
  button.textContent=active?'◈ Local knowledge':'☁ Cloud AI';
  button.classList.toggle('local-active',active);
  button.setAttribute('aria-pressed',String(active));
- button.title=active?'Only stored information. No AI model is used.':'Try Cloudflare Workers AI for the next question.';
+ button.title=active?'Only stored information. No AI model is used.':'Try the connected free AI pool for the next question.';
  const status=document.querySelector('.status span');
  if(status)status.textContent=active?'LOCAL KNOWLEDGE · NO AI':'CLOUD AI · READY TO TRY';
  const hint=$('#composerHint');
@@ -64,7 +64,7 @@ async function saveReply(event){
   const index=msgs.findIndex(m=>m.id===button.dataset.memoryId);
   if(index<0)throw Error('Reply not available.');
   const assistant=msgs[index],question=msgs.slice(0,index).reverse().find(m=>m.role==='user');
-  if(!question||assistant.engine!=='WORKERS AI')throw Error('No eligible question/answer pair.');
+  if(!question||!['WORKERS AI','LIVE AI'].includes(assistant.engine))throw Error('No eligible question/answer pair.');
   if(assistant.text.length>6000||/<html|<!doctype/i.test(assistant.text))throw Error('Use short plain-text answers only.');
   await K.addRecord({question:question.text,answer:assistant.text,source:'User-saved MIKEE reply (not verified)',kind:'saved-ai'});
   await updateStatus();toast('Remembered on this device. AI answers should be checked for accuracy.');

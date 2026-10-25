@@ -1,6 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import realWorker from '../worker.js';
+import actualWorker from '../worker.js';
+import {withTestPool} from './fixtures/pool.mjs';
+const realWorker={async fetch(request,env){return actualWorker.fetch(request,await withTestPool(env))}};
 const allow={limit:async()=>({success:true})};
 const budgetAllow={getByName:()=>({fetch:async()=>new Response(JSON.stringify({allowed:true,attempts:1,remaining:69,cap:70}),{headers:{'content-type':'application/json'}})})};
 const allGuards={CHAT_VISITOR_LIMIT:allow,CHAT_SHARED_LIMIT:allow,IMAGE_VISITOR_LIMIT:allow,IMAGE_SHARED_LIMIT:allow,DAILY_BUDGET:budgetAllow};
@@ -13,8 +15,8 @@ test('rejects invalid JSON object',async()=>assert.equal((await worker.fetch(req
 test('rejects cross origin before AI',async()=>assert.equal((await worker.fetch(req({message:'hello'},'null'),env)).status,403));
 test('checks actual body size without content-length',async()=>assert.equal((await worker.fetch(req({message:'x'.repeat(91000)}),env)).status,413));
 test('calls binding and returns provider text',async()=>{const r=await worker.fetch(req({message:'hello',history:[{role:'system',content:'bad'}]}),env);assert.equal(r.status,200);assert.equal((await r.json()).reply,'Test fixture response');assert.equal(calls,1)});
-test('empty provider output is error, never fabricated reply',async()=>assert.equal((await worker.fetch(req({message:'hello'}),{AI:{run:async()=>({})}})).status,502));
-test('provider failure remains visible',async()=>assert.equal((await worker.fetch(req({message:'hello'}),{AI:{run:async()=>{throw Error('quota exceeded')}}})).status,502));
+test('empty provider output is error, never fabricated reply',async()=>assert.equal((await worker.fetch(req({message:'hello'}),{AI:{run:async()=>({})}})).status,429));
+test('provider failure remains visible',async()=>assert.equal((await worker.fetch(req({message:'hello'}),{AI:{run:async()=>{throw Error('quota exceeded')}}})).status,429));
 test('serves existing workspace assets',async()=>assert.equal(await (await worker.fetch(new Request('https://mikee.test/'),{ASSETS:{fetch:async()=>new Response('workspace')}})).text(),'workspace'));
 
 test('no unnecessary AI title inference endpoint',async()=>{
@@ -63,7 +65,7 @@ test('image endpoint rejects other origins and invalid input before inference',a
 });
 test('image endpoint never fabricates images when provider fails',async()=>{
  const request=new Request('https://mikee.test/api/image',{method:'POST',headers:{origin:'https://mikee.test'},body:JSON.stringify({prompt:'a cow'})});
- assert.equal((await worker.fetch(request,{AI:{run:async()=>{throw Error('quota exceeded')}}})).status,502);
+ assert.equal((await worker.fetch(request,{AI:{run:async()=>{throw Error('quota exceeded')}}})).status,429);
 });
 
 test('Inference is blocked without rate limiting bindings',async()=>{
@@ -92,33 +94,32 @@ test('Server uses trusted IP for visitor key and constant key for shared allowan
  assert.equal(r.status,200);assert.deepEqual(keys,['192.0.2.8','public']);
 });
 
-test('Daily protection fails closed before inference if binding is absent',async()=>{
+test('Pool protection fails closed before inference if binding is absent',async()=>{
  let calls=0;
  const noBudget={AI:{run:async()=>{calls++;return {response:'never'}}},CHAT_VISITOR_LIMIT:allow,CHAT_SHARED_LIMIT:allow};
- const r=await realWorker.fetch(req({message:'hello'}),noBudget);
+ const r=await actualWorker.fetch(req({message:'hello'}),noBudget);
  assert.equal(r.status,503);assert.equal((await r.json()).protectionUnavailable,true);assert.equal(calls,0);
 });
-test('Daily chat cap returns 429 with reset and no model calls',async()=>{
- let calls=0;
- const rejected={getByName:()=>({fetch:async()=>Response.json({allowed:false,attempts:70,remaining:0,cap:70})})};
- const e={...allGuards,DAILY_BUDGET:rejected,AI:{run:async()=>{calls++;return {response:'never'}}}};
- const r=await realWorker.fetch(req({message:'hello'}),e),body=await r.json();
- assert.equal(r.status,429);assert.equal(body.dailyLimit,true);assert.match(body.resetAt,/T00:00:00Z$/);assert.equal(calls,0);
+test('Per-provider chat cap returns 429 without a model call',async()=>{
+ let calls=0;const e=await withTestPool({...allGuards,AI:{run:async()=>{calls++;return {response:'never'}}}});
+ const q=e.POOL_FIXTURE.ledger('cloudflare',Date.now());q.requests=80;
+ const r=await actualWorker.fetch(req({message:'hello'}),e),body=await r.json();
+ assert.equal(r.status,429);assert.equal(body.code,'FREE_POOL_WAIT');assert.ok(body.retryAfter>0);assert.equal(calls,0);
 });
-test('Daily image cap returns 429 before expensive generation',async()=>{
- let calls=0;
- const e={...allGuards,DAILY_BUDGET:{getByName:()=>({fetch:async()=>Response.json({allowed:false,attempts:8})})},AI:{run:async()=>{calls++;return {image:'A'.repeat(200)}}}};
+test('Per-provider image cap returns 429 when no other service is connected',async()=>{
+ let calls=0;const e=await withTestPool({...allGuards,AI:{run:async()=>{calls++;return {image:'A'.repeat(200)}}}});
+ e.POOL_FIXTURE.ledger('cloudflare-image',Date.now()).requests=8;
  const request=new Request('https://mikee.test/api/image',{method:'POST',headers:{origin:'https://mikee.test'},body:JSON.stringify({prompt:'turtle in sand'})});
- assert.equal((await realWorker.fetch(request,e)).status,429);assert.equal(calls,0);
+ assert.equal((await actualWorker.fetch(request,e)).status,429);assert.equal(calls,0);
 });
 test('Budget attempts are reserved before even a failing AI invocation',async()=>{
  const order=[];
- const e={...allGuards,DAILY_BUDGET:{getByName:()=>({fetch:async()=>{order.push('reserved');return Response.json({allowed:true,attempts:3})}})},AI:{run:async()=>{order.push('failed');throw Error('provider unavailable')}}};
+ const e={...allGuards,POOL_RESERVE:()=>order.push('reserved'),AI:{run:async()=>{order.push('failed');throw Error('provider unavailable')}}};
  const r=await realWorker.fetch(req({message:'hello'}),e);
- assert.equal(r.status,502);assert.deepEqual(order,['reserved','failed']);
+ assert.equal(r.status,429);assert.deepEqual(order,['reserved','failed']);
 });
 test('Chat response explicitly identifies provider and model',async()=>{
  const e={AI:{run:async()=>({response:'Greetings'})}};
  const r=await worker.fetch(req({message:'hello'}),e);
- const data=await r.json();assert.equal(data.provider,'Cloudflare Workers AI');assert.equal(data.model,'@cf/meta/llama-3.1-8b-instruct-fp8');
+ const data=await r.json();assert.equal(data.provider,'cloudflare');assert.equal(data.model,'@cf/meta/llama-3.1-8b-instruct-fp8');
 });

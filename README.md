@@ -91,3 +91,15 @@ The change is intentionally small: a deterministic routing rule is **not** equiv
 ### v1.7: addressed research questions and visible evidence status
 
 Previously a user saying `MIKEE, who invented the transistor, and how did its invention change electronics?` did not activate automatic research: the simple intent matcher expected `Who invented` to be at the very beginning. The lookup now safely ignores a leading MIKEE/Mickey/NEXUS address and common polite requests, and reduces multipart queries to a focused topic (e.g. `transistor`). Source-backed responses include an actual citation list, and each live AI message displays either the number of retrieved sources or `no web sources` in the metadata. If the Wikipedia API fails or the small research budget is exhausted, the answer must visibly state that its facts were not web-verified. **Do not equate source snippets with verified history**: check dates against authoritative references, especially for nuanced attribution.
+
+
+
+## Free-provider foundation (0.9.1)
+
+The existing calculator, symbolic mathematics, offline knowledge, SVG tools, research citations, notes and static code workspace are retained. The AI request now uses a persistent free-service pool with provider-specific budgets and automatic fallback. The existing four-step Cloudflare FLUX tool is retained and can fall back to free image services after its own allowance is exhausted.
+
+See [free-pool connection/setup details](docs/FREE_POOL.md) and [validation record](docs/FREE_POOL_VERIFICATION.md). Configure the single Worker secret `MIKEE_ADMIN_TOKEN` with a random token of at least 24 characters to unlock Settings → Connections. Provider keys can then be added there, encrypted server-side. No keys belong in chat, browser preferences or this repository.
+
+The existing `DailyBudget` class and migration remain for research budgeting. A second SQLite-backed `MIKEE_POOL` coordinator tracks per-provider request/token budgets, concurrency and cooldowns. Native visitor burst limits remain in place. Exhausting Cloudflare's chat/image allowance no longer blocks every other connected service.
+
+Model adapters are not automatically working accounts. Keys/free-account confirmation are required where applicable. Zero-payment endpoints can also be unavailable or rate limited. The pool never buys credits, pays a 402 request, enables billing or changes a subscription. Response details identify the service that actually answered.

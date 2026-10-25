@@ -53,6 +53,10 @@
       {
         "name": "DAILY_BUDGET",
         "class_name": "DailyBudget"
+      },
+      {
+        "name": "MIKEE_POOL",
+        "class_name": "MikeeCoordinator"
       }
     ]
   },
@@ -61,6 +65,12 @@
       "tag": "v1-daily-budget",
       "new_sqlite_classes": [
         "DailyBudget"
+      ]
+    },
+    {
+      "tag": "mikee-free-pool-v1",
+      "new_sqlite_classes": [
+        "MikeeCoordinator"
       ]
     }
   ]
