@@ -69,4 +69,4 @@ function calculate(source){
  return {value,formatted:Number(value.toPrecision(12)).toString(),expression:input};
 }
 root.OMNI_CALC={calculate,expressionFromCommand,arithmeticFromText};
-})(window);
+})(typeof window!=='undefined'?window:globalThis);

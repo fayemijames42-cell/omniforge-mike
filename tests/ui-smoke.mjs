@@ -75,10 +75,16 @@ try {
   await page.waitForFunction(() => window.OMNI_TEST.getProject()?.website.rawHtml.includes('background:navy'));
   await page.locator('#typingIndicator').waitFor({ state: 'hidden' });
   const before = await page.evaluate(() => window.OMNI_TEST.getProject().website.rawHtml);
-  await go('chat'); await page.locator('#prompt').fill('Return incomplete HTML fixture.'); await page.locator('#sendBtn').click();
+  await go('chat'); await page.locator('#prompt').fill('Update the website with incomplete HTML fixture.'); await page.locator('#sendBtn').click();
   await page.waitForFunction(() => window.OMNI_TEST.getProject().messages.at(-1).text.includes('incomplete HTML'));
   await page.locator('#typingIndicator').waitFor({ state: 'hidden' });
   assert.equal(await page.evaluate(() => window.OMNI_TEST.getProject().website.rawHtml), before);
+  time+=61000; // Move the fixture clock past the existing three-request minute allowance.
+  await page.locator('#prompt').fill('Explain how to create a website.'); await page.locator('#sendBtn').click();
+  await page.locator('#typingIndicator').waitFor({state:'hidden'});
+  await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.role==='assistant');
+  assert.equal(await page.evaluate(()=>window.OMNI_TEST.getProject().website.rawHtml),before);
+  assert.ok(await page.evaluate(()=>!window.OMNI_TEST.getProject().messages.at(-1).text.startsWith('Your website is updated')));
   await page.locator('#composerMode').selectOption('image'); await page.locator('#prompt').fill('A classroom illustration.'); await page.locator('#sendBtn').click();
   await page.waitForFunction(() => window.OMNI_TEST.getProject().assets.length === 1);
   await page.locator('#typingIndicator').waitFor({ state: 'hidden' });
@@ -104,5 +110,5 @@ try {
   await page.locator('#typingIndicator').waitFor({ state: 'hidden' });
   await page.screenshot({ path: resolve(root, '../mikee-mobile-qa.png'), fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS mobile UI: typing feedback, same-site edit, incomplete HTML preservation, image generation/save/placement/export, encrypted owner connection, audio draft; provider responses are fixtures. Calls:', fixtureCalls);
+  console.log('PASS mobile UI: typing feedback, same-site edit, incomplete HTML preservation, HTML explanation keeps the current project, image generation/save/placement/export, encrypted owner connection, audio draft; provider responses are fixtures. Calls:', fixtureCalls);
 } catch(error) {console.log('UI failure state',JSON.stringify(await page.evaluate(()=>({messages:window.OMNI_TEST?.getProject()?.messages?.slice(-2),assets:window.OMNI_TEST?.getProject()?.assets?.length,toast:document.querySelector('#toast')?.textContent,local:window.OMNI_OFFLINE_UI?.isOffline()}))),errors);throw error;} finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

@@ -103,3 +103,10 @@ See [free-pool connection/setup details](docs/FREE_POOL.md) and [validation reco
 The existing `DailyBudget` class and migration remain for research budgeting. A second SQLite-backed `MIKEE_POOL` coordinator tracks per-provider request/token budgets, concurrency and cooldowns. Native visitor burst limits remain in place. Exhausting Cloudflare's chat/image allowance no longer blocks every other connected service.
 
 Model adapters are not automatically working accounts. Keys/free-account confirmation are required where applicable. Zero-payment endpoints can also be unavailable or rate limited. The pool never buys credits, pays a 402 request, enables billing or changes a subscription. Response details identify the service that actually answered.
+
+
+## MIKEE assistant coordination — v0.10.0
+
+NEXUS now prepares compound questions, retains bounded earlier requirements and recent conversation, gathers at most two budgeted reference queries, and gives the model observed calculator results for compound mathematical explanations. Ordinary explanations cannot overwrite an existing website; unsupported citation markers are flagged without claiming a factual accuracy score. This update concentrates on MIKEE as one general-purpose assistant while retaining the existing tools and free-provider limits.
+
+Three real development API samples covered arithmetic/explanation, earlier-context recall and grounded answers from notes. They are limited acceptance checks, not production or comprehensive intelligence verification. See [implementation and verification](docs/NEXUS_ASSISTANT_V010.md).

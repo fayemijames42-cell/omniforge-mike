@@ -1,6 +1,6 @@
 /* Offline app shell only: never cache /api/chat or store private AI requests. */
-const CACHE='omniforge-shell-v1.8-free-provider-pool';
-const ASSETS=['/','/index.html','/src/style.css','/src/core.js','/src/workspace.js','/src/calculator.js','/src/symbolic.js','/src/offline.js','/src/offline-ui.js','/src/vector.js','/src/projectfiles.js','/src/knowledge.xml','/src/app.js','/src/pool.js','/vendor/jszip.min.js'];
+const CACHE='omniforge-shell-v1.9-nexus-context';
+const ASSETS=['/','/index.html','/src/style.css','/src/core.js','/src/context.js','/src/workspace.js','/src/calculator.js','/src/symbolic.js','/src/offline.js','/src/offline-ui.js','/src/vector.js','/src/projectfiles.js','/src/knowledge.xml','/src/app.js','/src/pool.js','/vendor/jszip.min.js'];
 self.addEventListener('install',event=>{
  event.waitUntil((async()=>{const cache=await caches.open(CACHE);await Promise.allSettled(ASSETS.map(async path=>{const response=await fetch(path,{cache:'reload'});if(response.ok)await cache.put(path,response)}));await self.skipWaiting()})());
 });

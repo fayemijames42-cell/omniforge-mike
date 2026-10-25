@@ -46,11 +46,12 @@ function replyTitle(text){
  const line=String(text||'').split(/\r?\n/).map(x=>x.replace(/^[\s#*>\-]+/,'').trim()).find(Boolean)||'';
  return clipped(line,MAX_TITLE).replace(/[.!?:]+$/,'')||'Saved Reply';
 }
-function route(message,selectedFocus='general',hasWebsite=false){
+function route(message,selectedFocus='general',hasWebsite=false,history){
  const text=String(message||'').toLowerCase().replace(/\s+/g,' ').trim();
+ const artifactAction=root.OMNI_CONTEXT?.websiteAction(text,hasWebsite,history);
  // Explicit construction language is required; saying "what is a website" is not a creation request.
- const newWebsite=/\b(create|build|design|make|generate|develop)\b.{0,90}\b(website|webpage|landing page|web app|html page|site)\b|\b(website|webpage|landing page|site)\b.{0,50}\b(create|build|design|make)\b/i.test(text);
- const editWebsite=!!hasWebsite&&(
+ const newWebsite=artifactAction?artifactAction==='website-create':/\b(create|build|design|make|generate|develop)\b.{0,90}\b(website|webpage|landing page|web app|html page|site)\b|\b(website|webpage|landing page|site)\b.{0,50}\b(create|build|design|make)\b/i.test(text);
+ const editWebsite=artifactAction?artifactAction==='website-edit':!!hasWebsite&&(
    /\b(edit|redesign|update|modify|fix|improve|change|add|remove|restyle|rework)\b.{0,90}\b(website|webpage|landing page|site|page|hero|header|footer|navigation|section|button|layout|theme)\b/i.test(text)||
    /\b(make it|improve it|change it|update it|add a|remove the|fix the|redesign it|restyle it)\b/i.test(text)
  );

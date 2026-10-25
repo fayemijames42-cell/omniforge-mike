@@ -117,7 +117,7 @@ function drawMessages(){for(const url of imagePreviewURLs)URL.revokeObjectURL(ur
  }
  if(m.role==='assistant'&&m.researchNote){
   const banner=document.createElement('div');banner.className='research-caveat';
-  const heading=document.createElement('strong');heading.textContent='Source verification unavailable for this reply';
+  const heading=document.createElement('strong');heading.textContent=m.sources?.length?'Research coverage note':'Source verification unavailable for this reply';
   const detail=document.createElement('p');detail.textContent=String(m.researchNote).slice(0,360);
   banner.append(heading,detail);node.append(banner);
  }
@@ -138,7 +138,7 @@ function drawMessages(){for(const url of imagePreviewURLs)URL.revokeObjectURL(ur
 }
 if(m.receipt)node.insertAdjacentHTML('beforeend',Pool.receipt(m.receipt));ui.chat.appendChild(node)}if(requestPending)renderPendingBubble();ui.chat.scrollTop=ui.chat.scrollHeight}
 async function preview(){const stamp=++previewToken;if(project?.codeWorkspace){try{const doc=F.previewDocument(project);ui.frame.sandbox='allow-scripts';ui.frame.srcdoc=doc;ui.frame.style.display='block';ui.previewEmpty.style.display='none';$('#previewPageName').textContent='3 local files · sandboxed';return}catch(error){fail(error);ui.frame.style.display='none';ui.previewEmpty.style.display='grid';return}}if(!project?.website||project.chatOnly){ui.frame.style.display='none';ui.previewEmpty.style.display='grid';$('#previewPageName').textContent='No website yet';return}try{const doc=C.renderSite(project,await C.assetMap(project));if(stamp!==previewToken)return;ui.frame.sandbox='allow-scripts';ui.frame.srcdoc=doc.replace(/<head([^>]*)>/i,`<head$1><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https:; font-src data:;">`);ui.frame.style.display='block';ui.previewEmpty.style.display='none';$('#previewPageName').textContent=project.website.pages?.length+' page(s) · '+project.website.layout; }catch(e){fail(e)}}
-async function showAll(){drawMessages();$('#activeArtifact').textContent=project?.name||'No active conversation';$('#undoBtn').disabled=!!project?.chatOnly||!(project?.history?.length);$('#exportBtn').disabled=!project||!!project.chatOnly;$('#zipBtn').disabled=!project||!!project.chatOnly;$('#fileHTML').disabled=!project||!!project.chatOnly;$('#fileZIP').disabled=!project||!!project.chatOnly;$('#fileJSON').disabled=!project;$('#exportChat').disabled=!project?.messages?.length;renderSources();document.querySelectorAll('.assistantName').forEach(x=>x.textContent=preferences.name);$('.status span').textContent=window.OMNI_OFFLINE_UI?.isOffline()?'LOCAL KNOWLEDGE · NO AI':preferences.mock?'LOCAL RULES — NOT AI':aiState;$('.status').title=preferences.mock?'Local rules only.':'A real reply is required before AI is marked verified.';if(activeView==='edit')renderEditor();if(activeView==='photos')renderPhotos();if(activeView==='notes')renderNotes();if(activeView==='files')renderCodeWorkspace();await preview()}
+async function showAll(){drawMessages();$('#activeArtifact').textContent=project?.name||'No active conversation';$('#undoBtn').disabled=!!project?.chatOnly||!(project?.history?.length);$('#exportBtn').disabled=!project||!!project.chatOnly;$('#zipBtn').disabled=!project||!!project.chatOnly;$('#fileHTML').disabled=!project||!!project.chatOnly;$('#fileZIP').disabled=!project||!!project.chatOnly;$('#fileJSON').disabled=!project;$('#exportChat').disabled=!project?.messages?.length;renderSources();document.querySelectorAll('.assistantName').forEach(x=>x.textContent=preferences.name);$('.status span').textContent=window.OMNI_OFFLINE_UI?.isOffline()?'LOCAL KNOWLEDGE · NO AI':preferences.mock?'LOCAL RULES — NOT AI':aiState;$('.status').title=preferences.mock?'Local rules only.':'Response details identify the service or tool that answered.';if(activeView==='edit')renderEditor();if(activeView==='photos')renderPhotos();if(activeView==='notes')renderNotes();if(activeView==='files')renderCodeWorkspace();await preview()}
 function msg(role,text,engine){return {id:uid(),at:Date.now(),role,text,engine}}
 
 function renderPendingBubble(){
@@ -297,18 +297,20 @@ async function send(text){
  try{
   if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.saveProject(project);await C.setPref('lastProjectId',project.id)}
   if(project.chatOnly&&!project.chatTitleSet){const name=autoChatTitle(text);if(name){project.name=name;project.chatTitleSet=true;project.updatedAt=Date.now()}}
-  const history=(project.messages||[]).filter(m=>['user','assistant'].includes(m.role)&&m.engine!=='ERROR').slice(-8).map(m=>({role:m.role,content:m.aiContent||m.text}));
-  const route=W.route(text,project.focus||'general',!project.chatOnly);
+  const history=window.OMNI_CONTEXT.selectHistory(project.messages);
+  const route=W.route(text,project.focus||'general',!project.chatOnly,project.messages);
   const currentHtml=(!project.chatOnly&&route.includeWebsite)?C.renderSite(project):'';if(currentHtml.length>24000)throw Error('This website exceeds the current AI editing limit (24,000 characters). Export a backup; manual tools remain available.');
   const userMessage=msg('user',text);userMessage.route=route.label;project.messages.push(userMessage);await C.saveProject(project);await refreshList();await showAll();
   let data;try{data=await Pool.request('/api/chat',{body:{message:text,history,currentHtml,provider:preferences.provider,focus:route.focus,sources:project.useSources===false?[]:(project.sources||[]).slice(0,3),...(pendingImage?{image:pendingImage}:{})},signal:activeAbort.signal})}catch(error){if(error.retryAfter)shortLimitReached=true;throw error;}
-  if(data.live!==true||typeof data.reply!=='string')throw Error('No verified provider response was received.');
-  aiState='AI RESPONSE VERIFIED';
-  const match=data.reply.match(/<!doctype html[\s\S]*?<\/html>/i)||data.reply.match(/<html[\s\S]*?<\/html>/i);
+  const toolOnly=data.toolOnly===true&&data.provider==='local-calculator';
+  if((data.live!==true&&!toolOnly)||typeof data.reply!=='string')throw Error('No real provider response or executed calculator result was received.');
+  aiState=toolOnly?'CALCULATED · NO AI':'MIKEE REPLIED';
+  const allowsWebsite=data.artifact?data.artifact.type==='website':['website-create','website-edit'].includes(route.action);
+  const match=allowsWebsite&&(data.reply.match(/<!doctype html[\s\S]*?<\/html>/i)||data.reply.match(/<html[\s\S]*?<\/html>/i));
   let answer=data.reply;
   if(match){project=C.change(project,p=>{p.website.rawHtml=match[0]}).project;project.chatOnly=false;answer='Your website is updated. Open Preview to try it, or export HTML. Continue chatting to make changes.';}
-  else if(/<!doctype html|<html/i.test(data.reply)){answer='The AI returned incomplete HTML. Your previous website is unchanged. Ask for a shorter complete website.';}
-  const m=msg('assistant',answer,'LIVE AI');m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount};clearVision();m.aiContent=data.reply;m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}project.messages.push(m);project.messages=project.messages.slice(-100);
+  else if(allowsWebsite&&/<!doctype html|<html/i.test(data.reply)){answer='The AI returned incomplete HTML. Your previous website is unchanged. Ask for a shorter complete website.';}
+  const m=msg('assistant',answer,toolOnly?'NEXUS CALCULATOR · NO AI':'LIVE AI');m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount,toolsUsed:data.orchestration?.toolsUsed,warnings:data.quality?.warnings};clearVision();m.aiContent=data.reply;m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}project.messages.push(m);project.messages=project.messages.slice(-100);
   await C.saveProject(project);await refreshList();await showAll();if(match&&innerWidth<=800)switchMobile('preview');
   }catch(e){
   const cancelled=activeAbort?.signal.aborted===true;

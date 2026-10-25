@@ -1,0 +1,231 @@
+{
+  "date": "2026-10-25",
+  "environment": "Development Worker and real external model API. Visitor limiter fixtures; actual production inference unverified.",
+  "provider": "Pollinations Classic",
+  "authentication": "none",
+  "newModelCalls": 3,
+  "note": "Limited samples; not a general accuracy benchmark. Responses contain only synthetic test data.",
+  "results": [
+    {
+      "status": 200,
+      "elapsedMs": 17908,
+      "reply": "18 × 24 equals 432.\n\n**How to find it**  \n• Think of 20 houses on a street, each with 18 windows.  \n• Multiply 20 × 18 = 360 (you can do 2 × 18 = 36, then add a zero).  \n• Now we need the remaining 4 houses: 4 × 18 = 72.  \n• Add the two parts: 360 + 72 = **432**.\n\n**Everyday example**  \nIf a class has 18 students and the teacher gives each student 24 stickers, the class will have 432 stickers in all.",
+      "model": "gpt-oss-20b",
+      "usage": {
+        "prompt_tokens": 786,
+        "completion_tokens": 224,
+        "total_tokens": 1010
+      },
+      "incomplete": false,
+      "provider": "pollinations",
+      "providerName": "Pollinations Classic",
+      "live": true,
+      "attempts": [],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false
+      },
+      "orchestration": {
+        "kind": "learn",
+        "parts": 4,
+        "contextTurns": 1,
+        "toolsUsed": [
+          "language-model",
+          "calculator"
+        ]
+      },
+      "id": "arithmetic-explanation",
+      "passed": true,
+      "input": {
+        "message": "Calculate 18*24, explain how to get the answer, and give one everyday example. Keep the answer under 90 words.",
+        "history": [
+          {
+            "role": "user",
+            "content": "Use British spelling and simple language for a Primary 3 learner."
+          }
+        ]
+      },
+      "assessment": "Manual review: correct arithmetic, worked method and example; 87 whitespace-delimited words."
+    },
+    {
+      "id": "early-context",
+      "status": 200,
+      "elapsedMs": 9703,
+      "passed": true,
+      "reply": "You gave the shop name Maple Kites and a budget of zero naira.",
+      "model": "gpt-oss-20b",
+      "usage": {
+        "prompt_tokens": 823,
+        "completion_tokens": 88,
+        "total_tokens": 911
+      },
+      "incomplete": false,
+      "provider": "pollinations",
+      "providerName": "Pollinations Classic",
+      "live": true,
+      "attempts": [],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false
+      },
+      "orchestration": {
+        "kind": "chat",
+        "parts": 2,
+        "contextTurns": 12,
+        "toolsUsed": [
+          "language-model"
+        ]
+      },
+      "initialStringCheck": false,
+      "assessment": "Whitespace-normalised result check plus manual review. Initial matcher did not cover narrow spaces or the wording not been recorded. No new model request.",
+      "input": {
+        "message": "What shop name and budget did I give earlier? Reply in one sentence.",
+        "history": [
+          {
+            "role": "user",
+            "content": "For this fictional project, the shop is named Maple Kites and the budget is zero naira. Use British English."
+          },
+          {
+            "role": "user",
+            "content": "Practice example 0 has been discussed."
+          },
+          {
+            "role": "assistant",
+            "content": "Practice example 1 has been discussed."
+          },
+          {
+            "role": "user",
+            "content": "Practice example 2 has been discussed."
+          },
+          {
+            "role": "assistant",
+            "content": "Practice example 3 has been discussed."
+          },
+          {
+            "role": "user",
+            "content": "Practice example 4 has been discussed."
+          },
+          {
+            "role": "assistant",
+            "content": "Practice example 5 has been discussed."
+          },
+          {
+            "role": "user",
+            "content": "Practice example 6 has been discussed."
+          },
+          {
+            "role": "assistant",
+            "content": "Practice example 7 has been discussed."
+          },
+          {
+            "role": "user",
+            "content": "Practice example 8 has been discussed."
+          },
+          {
+            "role": "assistant",
+            "content": "Practice example 9 has been discussed."
+          },
+          {
+            "role": "user",
+            "content": "Practice example 10 has been discussed."
+          },
+          {
+            "role": "assistant",
+            "content": "Practice example 11 has been discussed."
+          },
+          {
+            "role": "user",
+            "content": "Practice example 12 has been discussed."
+          },
+          {
+            "role": "assistant",
+            "content": "Practice example 13 has been discussed."
+          },
+          {
+            "role": "user",
+            "content": "Practice example 14 has been discussed."
+          },
+          {
+            "role": "assistant",
+            "content": "Practice example 15 has been discussed."
+          },
+          {
+            "role": "user",
+            "content": "Practice example 16 has been discussed."
+          },
+          {
+            "role": "assistant",
+            "content": "Practice example 17 has been discussed."
+          }
+        ]
+      }
+    },
+    {
+      "id": "grounded-notes",
+      "status": 200,
+      "elapsedMs": 22225,
+      "passed": true,
+      "reply": "From the notes:  \n- **Club Stock** gives 20 sheets.  \n- **Kit Instructions** says each kit needs 2 sheets, so 20 ÷ 2 = 10 kits.  \n\nMarkers: the notes state that marker availability “has not been recorded”【Kit Instructions L1】.",
+      "model": "gpt-oss-20b",
+      "usage": {
+        "prompt_tokens": 805,
+        "completion_tokens": 115,
+        "total_tokens": 920
+      },
+      "incomplete": false,
+      "provider": "pollinations",
+      "providerName": "Pollinations Classic",
+      "live": true,
+      "attempts": [],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false
+      },
+      "orchestration": {
+        "kind": "chat",
+        "parts": 4,
+        "contextTurns": 0,
+        "toolsUsed": [
+          "language-model",
+          "attached-notes"
+        ]
+      },
+      "initialStringCheck": false,
+      "assessment": "Whitespace-normalised result check plus manual review. Initial matcher did not cover narrow spaces or the wording not been recorded. No new model request.",
+      "input": {
+        "message": "Using only the attached notes, how many kite kits can we make from the paper, and do we have markers? Cite the note names. Keep the answer under 70 words.",
+        "sources": [
+          {
+            "name": "Club Stock",
+            "content": "This is a fictional craft club. Budget: zero naira. Paper available: 20 sheets."
+          },
+          {
+            "name": "Kit Instructions",
+            "content": "Each kite kit needs 2 sheets of paper. Marker availability has not been recorded."
+          }
+        ]
+      }
+    }
+  ]
+}

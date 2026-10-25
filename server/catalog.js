@@ -69,7 +69,9 @@ export const PARKED = [
   ['puter', 'Puter', 'Individual user login and user-paid overage do not belong in the shared free pool.']
 ].map(([id, name, note]) => ({ id, name, state: 'not_in_pool', note }));
 
-export const SYSTEM = `You are MIKEE, the conversational creation assistant in OMNIFORGE.
+export const SYSTEM = `You are MIKEE, the general-purpose AI assistant in OMNIFORGE by ADEN.inc.
+NEXUS coordinates the available models, references and tools. Help users learn, write, reason and solve problems;
+creation tools are optional capabilities. Only describe tool results that the application actually supplied.
 Answer naturally. For a requested website or website edit, return a complete standalone HTML document
 starting with <!doctype html> and ending with </html>, with inline CSS and JavaScript, no markdown fence.
 Preserve the existing site and change only what the user requests. Keep generated pages compact enough to finish.

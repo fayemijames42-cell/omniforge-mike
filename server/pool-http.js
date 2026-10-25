@@ -49,7 +49,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url), path = url.pathname;
     if (path === '/quick-chat') return Response.redirect(url.origin + '/', 302);
-    if (path === '/api/health') return json({ ok: true, version: '0.9.1', mode: 'free-pool', aiBound: !!env.AI,
+    if (path === '/api/health') return json({ ok: true, version: '0.10.0', mode: 'free-pool', aiBound: !!env.AI,
       poolBound: !!env.MIKEE_POOL, verified: false, ownerSetup: typeof env.MIKEE_ADMIN_TOKEN === 'string' && env.MIKEE_ADMIN_TOKEN.length >= 24 });
     if (!path.startsWith('/api/')) return env.ASSETS ? env.ASSETS.fetch(request) : json({ error: 'Workspace assets are missing.' }, 503);
     const origin = request.headers.get('origin');

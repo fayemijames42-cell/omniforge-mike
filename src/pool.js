@@ -19,7 +19,9 @@
   function receipt(data) {
     return '<details class="response-details"><summary>Response details</summary><p>' + E(data.providerName || data.provider || 'AI provider') +
       ' · ' + E(data.model || 'model not reported') + (data.fallbackCount ? ' · ' + E(String(data.fallbackCount)) + ' fallback(s)' : '') +
-      (data.attribution ? '<br>' + E(data.attribution) : '') + '</p></details>';
+      (data.attribution ? '<br>' + E(data.attribution) : '') + '</p>' +
+      (Array.isArray(data.toolsUsed)&&data.toolsUsed.length?'<p>Used: '+E(data.toolsUsed.slice(0,5).join(', '))+'</p>':'')+
+      (Array.isArray(data.warnings)?data.warnings.slice(0,2).map(w=>'<p>'+E(w)+'</p>').join(''):'')+'</details>';
   }
   const stateNames = { ready: 'Connected · ready to try', needs_key: 'API key needed', needs_binding: 'AI binding needed', paused: 'Paused',
     free_confirmation: 'Confirm free account', development_only: 'Development access only', budget_reached: 'App budget reached', cooldown: 'Waiting for service reset' };

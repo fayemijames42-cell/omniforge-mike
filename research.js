@@ -16,7 +16,7 @@ const QUESTION_PREFIX=/^(?:please |can you |could you |tell me |show me |give me
 const FOLLOWUP=/^(?:go on|continue|elaborate|explain more|why|how so|tell me more|more details)[.!? ]*$/i;
 // Users address their assistant naturally: "MIKEE, who invented the transistor?".
 // The old anchored classifier skipped this prefix and never retrieved sources.
-function normalizedQuestion(text){
+export function normalizedQuestion(text){
  let clean=String(text||'').trim();
  clean=clean.replace(/^(?:(?:hey|hi|hello|good morning|good afternoon|good evening)[\s,!:.-]+)?(?:mikee|mickey|mike|nexus)[\s,!:.-]+/i,'');
  clean=clean.replace(/^(?:(?:please\s+)?(?:can you|could you|would you|will you)\s+(?:(?:please\s+)?(?:tell me|explain to me|help me understand|show me|find out|check)\s+)?|(?:please\s+)?(?:tell me|i want to know|i'd like to know|i need to know)\s+)+/i,'');
@@ -35,13 +35,13 @@ export function interpretUserIntent(message,history=[]){
  const explicit=EXPLICIT.test(question),fresh=FRESH.test(text);
  const creative=CREATIVE.test(question)||BUILD.test(text);
  const privacySensitive=PRIVACY.test(text)||/\b(?:my|mine|our|ours|i am|i'm|i feel|i have)\b/i.test(text);
- const followUp=FOLLOWUP.test(question);
+ const prior=Array.isArray(history)&&history.some(m=>m?.role==='user'&&typeof m.content==='string');
+ const followUp=FOLLOWUP.test(question)||!!prior&&/\b(?:earlier|previous (?:answer|reply|message|example)|above|we discussed|i (?:gave|told|mentioned)|you (?:just )?(?:said|mentioned))\b/i.test(question);
  // A server-side lookup can send the search query to an external service.
  // Protect personal prompts; keep creative and mathematical requests local/model-only.
  let researchMode=privacySensitive||followUp?'none':explicit?'explicit':!creative&&fresh?'automatic':!creative&&AUTO_REFERENCE.test(question)?'automatic':'none';
  const goal=creative?'create-or-compute':/\b(?:compare|versus|vs\.?|difference between|better than)\b/i.test(question)?'compare':/^(?:explain|how|why|teach)\b/i.test(question)?'explain':/\b(?:fact.check|verify|is it true)\b/i.test(question)?'verify':'answer';
- const prior=Array.isArray(history)&&history.some(m=>m?.role==='user'&&typeof m.content==='string');
- return {goal,researchMode,fresh:followUp?false:fresh,query:searchQuery(question),followUp,contextAvailable:!!prior};
+ return {goal,researchMode,fresh:followUp?false:fresh,query:searchQuery(question),followUp,privacySensitive,contextAvailable:!!prior};
 }
 export function researchIntent(message){
  const intent=interpretUserIntent(message);
@@ -127,16 +127,23 @@ async function webSearch(query,key,fetcher){
   publishedAt:null
  })).filter(x=>x.title&&x.url&&x.excerpt);
 }
-export async function collectEvidence(query,env,fetcher=fetch){
- const intent=researchIntent(query);
+export async function collectEvidence(query,env,fetcher=fetch,options={}){
+ const intent=options.intent||researchIntent(query);
+ const requested=options.intent?intent.researchMode!=='none':intent.requested;
  const retrievedAt=new Date().toISOString();
- if(!intent.requested)return {requested:false,sources:[],retrievedAt,scope:'none'};
+ if(!requested)return {requested:false,sources:[],retrievedAt,scope:'none'};
  const hasWeb=typeof env?.TAVILY_API_KEY==='string'&&env.TAVILY_API_KEY.trim().length>10;
  if(intent.fresh&&!hasWeb)return {requested:true,sources:[],retrievedAt,scope:'encyclopedia-only',error:'Live, web-wide search is not configured yet. MIKEE cannot independently verify current or breaking information. Please connect an approved search provider first.'};
- try{
-  const sources=hasWeb?await webSearch(intent.query,env.TAVILY_API_KEY,fetcher):await encyclopedia(intent.query,fetcher);
-  return {requested:true,sources,retrievedAt,scope:hasWeb?'web-search':'wikipedia',error:sources.length?'':'No usable search evidence was found. Try a more specific topic.'};
- }catch(e){return {requested:true,sources:[],retrievedAt,scope:hasWeb?'web-search':'wikipedia',error:'Search retrieval failed. '+clean(e.message,150)}}
+ const queries=(Array.isArray(options.queries)&&options.queries.length?options.queries:[intent.query]).slice(0,2).map(q=>String(q).slice(0,200));
+ const results=await Promise.allSettled(queries.map(q=>hasWeb?webSearch(q,env.TAVILY_API_KEY,fetcher):encyclopedia(q,fetcher)));
+ const groups=results.map(r=>r.status==='fulfilled'?r.value:[]),sources=[],seen=new Set();
+ // Interleave results so the first query cannot crowd out a second requested topic.
+ for(let rank=0;rank<4&&sources.length<4;rank++)for(const group of groups){
+  const source=group[rank];if(source&&!seen.has(source.url)&&sources.length<4){seen.add(source.url);sources.push(source);}
+ }
+ const partial=groups.some(group=>!group.length);
+ const error=sources.length?'':results.some(r=>r.status==='rejected')?'Search retrieval failed. No usable sources were returned.':'No usable search evidence was found. Try a more specific topic.';
+ return {requested:true,sources,retrievedAt,scope:hasWeb?'web-search':'wikipedia',queryCount:queries.length,partial,error};
 }
 export function evidenceText(result){
  return (result.sources||[]).slice(0,4).map((s,i)=>
