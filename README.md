@@ -51,3 +51,7 @@ See [AI comparison / roadmap](docs/AI_COMPETITOR_BENCHMARK.md) for product lesso
 ## Verification levels
 
 **Code committed** ≠ **Cloudflare build success** ≠ **live UI tested**. A passing Workers Build runs JavaScript checks and automated tests but does not by itself verify that mobile browser notes/edit/export or inference succeeded on production.
+
+## Planned minimal mobile navigation
+
+Replace crowded mobile bottom tabs with an accessible, chat-first slide-out menu. Preserve all existing editing, exporting, and conversation functions, and keep the existing AI activity indicator free of extra inference calls.
