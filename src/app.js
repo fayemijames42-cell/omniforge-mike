@@ -224,6 +224,26 @@ async function sendCalculation(text,displayText=text){
  await C.saveProject(project);await refreshList();await showAll();
 }
 
+async function sendSymbolic(text){
+ // Execute only recognized, bounded symbolic maths: no Workers AI request or mock reasoning.
+ const request=window.OMNI_SYMBOLIC?.command(text);
+ if(!request)return;
+ $('#prompt').value='';
+ if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
+ if(project.chatOnly&&!project.chatTitleSet){project.name=(request.op==='solve'?'Equation: ':'Calculus: '+request.op+' ')+request.expr.slice(0,40);project.name=project.name.slice(0,60);project.chatTitleSet=true;project.updatedAt=Date.now()}
+ const user=msg('user',text);user.route='NEXUS symbolic maths · offline · no AI call';project.messages.push(user);
+ let reply;
+ try{
+  const answer=window.OMNI_SYMBOLIC.compute(request);
+  reply=answer.operation+'\nInput: '+answer.input+'\n\nResult: '+answer.result+'\n\nMethod:\n'+answer.steps.map((s,i)=>(i+1)+'. '+s).join('\n')+'\n\nComputed locally using a bounded polynomial engine. No AI request was made.';
+ }catch(e){
+  reply='Local symbolic maths cannot complete this expression: '+String(e.message||e)+'\n\nCurrently supports polynomial differentiation, indefinite integration (including x^-1), and linear/quadratic equations in x. For other functions or a detailed explanation, ask MIKEE in a separate Cloud AI question.';
+ }
+ project.messages.push(msg('assistant',reply,'NEXUS · LOCAL SYMBOLIC MATH'));
+ project.messages=project.messages.slice(-100);
+ aiState='LOCAL SYMBOLIC MATH · NO AI';
+ await C.saveProject(project);await refreshList();await showAll();
+}
 async function respondOffline(text,{existing=false,reason=''}={}){
  $('#prompt').value='';
  if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
@@ -243,6 +263,7 @@ async function respondOffline(text,{existing=false,reason=''}={}){
 async function send(text){
  text=text.trim();if(!text||requestPending)return;
  if(window.OMNI_CALC?.expressionFromCommand(text)!==null)return sendCalculation(text);
+ if(window.OMNI_SYMBOLIC?.command(text))return sendSymbolic(text);
  const imageRequest=imagePromptFromText(text);
  if(imageRequest!==null)return sendImage(text,imageRequest);
   const arithmetic=window.OMNI_CALC?.arithmeticFromText(text);
