@@ -70,17 +70,53 @@ async function jsonLimited(url,options={},fetcher=fetch){
   return JSON.parse(body);
  }finally{clearTimeout(timeout)}
 }
-async function encyclopedia(query,fetcher){
+/* Wikipedia has two documented read APIs. Try the REST endpoint once,
+ * then the legacy Action API if it is unavailable/empty. No model call, no
+ * search credentials, and never fetch arbitrary user-supplied URLs.
+ */
+const WIKI_HEADERS={
+ 'Accept':'application/json',
+ 'Api-User-Agent':'OMNIFORGE-Research/0.2 (https://omniforge-mike.fayemijames42.workers.dev/; Wikipedia reference)',
+ 'User-Agent':'OMNIFORGE-Research/0.2 (https://omniforge-mike.fayemijames42.workers.dev/; Wikipedia reference)'
+};
+function wikiSource(page){
+ const key=String(page.key||page.title||'').trim();
+ if(!key)return null;
+ const title=clean(page.title||key,130);
+ const url=urlCheck('https://en.wikipedia.org/wiki/'+encodeURIComponent(key.replace(/ /g,'_')));
+ const excerpt=clean([page.description,page.excerpt||page.snippet].filter(Boolean).join('. '),760);
+ return title&&url&&excerpt?{title,url,excerpt,publisher:'Wikipedia',publishedAt:null}:null;
+}
+async function wikiRest(query,fetcher){
  const u=new URL('https://en.wikipedia.org/w/rest.php/v1/search/page');
  u.searchParams.set('q',query);u.searchParams.set('limit','4');
- const data=await jsonLimited(u.toString(),{headers:{'Accept':'application/json','User-Agent':'OMNIFORGE-Research/0.1 (https://omniforge-mike.fayemijames42.workers.dev/; encyclopedia reference)' }},fetcher);
- const items=Array.isArray(data.pages)?data.pages:[];
- return items.slice(0,4).map(p=>({
-  title:clean(p.title||p.key,130),
-  url:urlCheck('https://en.wikipedia.org/wiki/'+encodeURIComponent(String(p.key||p.title||'').replace(/ /g,'_'))),
-  excerpt:clean([p.description,p.excerpt].filter(Boolean).join('. '),760),
-  publisher:'Wikipedia',publishedAt:null
- })).filter(x=>x.title&&x.url&&x.excerpt);
+ const data=await jsonLimited(u.toString(),{headers:WIKI_HEADERS},fetcher);
+ return (Array.isArray(data.pages)?data.pages:[]).slice(0,4).map(wikiSource).filter(Boolean);
+}
+async function wikiAction(query,fetcher){
+ // Official MediaWiki Action API supports search even where REST API
+ // is inaccessible from a particular network; response shape differs.
+ const u=new URL('https://en.wikipedia.org/w/api.php');
+ for(const [name,value] of Object.entries({
+  action:'query',list:'search',srsearch:query,srlimit:'4',
+  srnamespace:'0',srprop:'snippet',format:'json',formatversion:'2'
+ }))u.searchParams.set(name,value);
+ const data=await jsonLimited(u.toString(),{headers:WIKI_HEADERS},fetcher);
+ return (Array.isArray(data.query?.search)?data.query.search:[]).slice(0,4)
+  .map(p=>wikiSource({title:p.title,key:p.title,snippet:p.snippet})).filter(Boolean);
+}
+async function encyclopedia(query,fetcher){
+ let firstError='';
+ try{
+  const results=await wikiRest(query,fetcher);
+  if(results.length)return results;
+  firstError='REST search returned no usable sources';
+ }catch(error){firstError=String(error?.message||error).slice(0,120)}
+ try{
+  return await wikiAction(query,fetcher);
+ }catch(error){
+  throw Error('Both Wikipedia search methods were unavailable: '+firstError+'; '+String(error?.message||error).slice(0,120));
+ }
 }
 async function webSearch(query,key,fetcher){
  const data=await jsonLimited('https://api.tavily.com/search',{method:'POST',headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({query,search_depth:'basic',max_results:4,topic:'general',include_answer:false,include_raw_content:false,include_images:false,auto_parameters:false,safe_search:true})},fetcher);
