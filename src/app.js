@@ -115,6 +115,12 @@ function drawMessages(){for(const url of imagePreviewURLs)URL.revokeObjectURL(ur
   const stamp=document.createElement('small');stamp.textContent='Retrieved '+String(m.retrievedAt||'').slice(0,24)+'. Search snippets can contain errors or missing context.';
   section.append(stamp);node.append(section);
  }
+ if(m.role==='assistant'&&m.researchNote){
+  const banner=document.createElement('div');banner.className='research-caveat';
+  const heading=document.createElement('strong');heading.textContent='Source verification unavailable for this reply';
+  const detail=document.createElement('p');detail.textContent=String(m.researchNote).slice(0,360);
+  banner.append(heading,detail);node.append(banner);
+ }
  const vector=m.role==='assistant'&&m.engine==='WORKERS AI'?(m.svgMarkup?{svg:window.OMNI_VECTOR?.sanitize(m.svgMarkup),explanation:m.svgSummary||''}:m.text?.includes('<svg')?window.OMNI_VECTOR?.convertResponse(m.text):null):null;if(vector?.svg){const figure=document.createElement('figure');figure.className='vector-artifact';const caption=document.createElement('figcaption');caption.textContent='Vector illustration (SVG) · created from AI-generated code, not a raster image model';const img=document.createElement('img');img.src=window.OMNI_VECTOR.dataURI(vector.svg);img.alt='Generated vector illustration';img.loading='lazy';const button=document.createElement('button');button.type='button';button.textContent='↓ Save SVG';button.dataset.downloadSvg=m.id;figure.append(caption,img,button);node.querySelector('.body').textContent=vector.explanation||'MIKEE created a vector illustration. This is an SVG drawing, not photorealistic image generation.';node.append(figure);
  const upgrade=document.createElement('button');upgrade.type='button';upgrade.className='image-upgrade';upgrade.dataset.upgradeImage=m.id;upgrade.textContent='Create real AI image instead';node.append(upgrade);
  }if(m.imageId&&m.role==='assistant'){
@@ -310,7 +316,7 @@ async function send(text){
   let answer=data.reply;
   if(match){project=C.change(project,p=>{p.website.rawHtml=match[0]}).project;project.chatOnly=false;answer='Your website is updated. Open Preview to try it, or export HTML. Continue chatting to make changes.';}
   else if(/<!doctype html|<html/i.test(data.reply)){answer='The AI returned incomplete HTML. Your previous website is unchanged. Ask for a shorter complete website.';}
-  const m=msg('assistant',answer,'WORKERS AI');m.aiContent=data.reply;m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}project.messages.push(m);project.messages=project.messages.slice(-100);
+  const m=msg('assistant',answer,'WORKERS AI');m.aiContent=data.reply;m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}project.messages.push(m);project.messages=project.messages.slice(-100);
   await C.saveProject(project);await refreshList();await showAll();if(match&&innerWidth<=800)switchMobile('preview');
   }catch(e){
   const message=e?.name==='AbortError'?'Request timed out':String(e?.message||e);
