@@ -218,3 +218,8 @@ dialog,.settings-box{background:#181e1a;border-color:#5b685c}
 .research-sources li a{color:#bde9cd;text-decoration:underline;text-underline-offset:3px}
 .research-sources li small,.research-sources>small{color:#9bad9f;font-size:10px;display:block}
 @media(max-width:800px){.research-sources{font-size:11px}}
+
+/* Search provenance without implying an automatic lookup proves a fact. */
+.research-caveat{border:1px solid #776d49;background:#302c20;border-radius:9px;padding:10px 12px;margin-top:12px;color:#e9e1c4;line-height:1.5;font-size:11px}
+.research-caveat strong{display:block;font-size:11px;margin-bottom:4px;color:#f3eac8}
+.research-caveat p{margin:0;color:#dcd2b4}
