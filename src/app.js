@@ -113,7 +113,7 @@ function drawMessages(){for(const url of imagePreviewURLs)URL.revokeObjectURL(ur
   });
   section.append(list);
   const stamp=document.createElement('small');stamp.textContent='Retrieved '+String(m.retrievedAt||'').slice(0,24)+'. Search snippets can contain errors or missing context.';
-  section.append(stamp);node.append(section);
+  section.append(stamp);if(m.uncitedSources){const caution=document.createElement('small');caution.className='source-usage-caution';caution.textContent='Sources were retrieved, but this answer did not cite them. Please check the references before relying on specific claims.';section.append(caution)}node.append(section);
  }
  if(m.role==='assistant'&&m.researchNote){
   const banner=document.createElement('div');banner.className='research-caveat';
@@ -310,7 +310,7 @@ async function send(text){
   let answer=data.reply;
   if(match){project=C.change(project,p=>{p.website.rawHtml=match[0]}).project;project.chatOnly=false;answer='Your website is updated. Open Preview to try it, or export HTML. Continue chatting to make changes.';}
   else if(allowsWebsite&&/<!doctype html|<html/i.test(data.reply)){answer='The AI returned incomplete HTML. Your previous website is unchanged. Ask for a shorter complete website.';}
-  const m=msg('assistant',answer,toolOnly?'NEXUS CALCULATOR · NO AI':'LIVE AI');m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount,toolsUsed:data.orchestration?.toolsUsed,warnings:data.quality?.warnings};clearVision();m.aiContent=data.reply;m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}project.messages.push(m);project.messages=project.messages.slice(-100);
+  const m=msg('assistant',answer,toolOnly?'NEXUS CALCULATOR · NO AI':'LIVE AI');m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount,toolsUsed:data.orchestration?.toolsUsed,warnings:data.quality?.warnings};clearVision();m.aiContent=data.reply;m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';m.uncitedSources=data.quality?.sourceUse?.uncited===true;const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}project.messages.push(m);project.messages=project.messages.slice(-100);
   await C.saveProject(project);await refreshList();await showAll();if(match&&innerWidth<=800)switchMobile('preview');
   }catch(e){
   const cancelled=activeAbort?.signal.aborted===true;
