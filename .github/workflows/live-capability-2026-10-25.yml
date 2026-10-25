@@ -1,0 +1,33 @@
+name: One-time MIKEE live capability check
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/live-capability-2026-10-25.yml'
+permissions:
+  contents: read
+jobs:
+  live-capabilities:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Probe factual research and actual image generation without exposing image data
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const base='https://omniforge-mike.fayemijames42.workers.dev';
+          const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),180000);
+          const post=(path,data)=>fetch(base+path,{method:'POST',headers:{origin:base,'content-type':'application/json'},body:JSON.stringify(data),signal:controller.signal});
+          try {
+            const r=await post('/api/chat',{message:'Search the web for photosynthesis and give one concise explanation.'});
+            const data=await r.json();
+            console.log('LIVE_RESEARCH',JSON.stringify({status:r.status,live:!!data.live,provider:data.provider||null,sources:(data.sources||[]).length,note:data.research?.note||null,error:data.error||null}));
+            const image=await post('/api/image',{prompt:'A small blue geometric paper crane on a plain white background',provider:'auto'});
+            const result=await image.json();
+            console.log('LIVE_IMAGE',JSON.stringify({status:image.status,live:!!result.live,provider:result.provider||null,state:result.state||null,imageBytesBase64:result.image?.length||0,mime:result.mime||null,jobIdPresent:!!result.jobId,error:result.error||null}));
+            if(!r.ok||data.live!==true)process.exitCode=1;
+            if(!image.ok&&image.status!==202)process.exitCode=1;
+          } catch(error) {
+            console.error('LIVE_CAPABILITIES_PROBE_FAILED',String(error?.message||error));process.exitCode=1;
+          } finally {clearTimeout(timeout);}
+          NODE
