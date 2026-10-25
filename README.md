@@ -52,6 +52,6 @@ See [AI comparison / roadmap](docs/AI_COMPETITOR_BENCHMARK.md) for product lesso
 
 **Code committed** ≠ **Cloudflare build success** ≠ **live UI tested**. A passing Workers Build runs JavaScript checks and automated tests but does not by itself verify that mobile browser notes/edit/export or inference succeeded on production.
 
-## Planned minimal mobile navigation
+## Mobile workspace navigation (v1.2)
 
-Replace crowded mobile bottom tabs with an accessible, chat-first slide-out menu. Preserve all existing editing, exporting, and conversation functions, and keep the existing AI activity indicator free of extra inference calls.
+On phones, a top-left menu replaces the crowded bottom tab bar. Chat remains front and centre, while a slide-out workspace menu opens Preview, Edit, Photos, Notes, Files & backups, conversation search and management, Focus and Settings. Escape, close, outside tap and selecting a section dismiss the drawer. Desktop tabs remain as before. No extra Workers AI requests are made for this interface or its existing animated 'MIKEE is thinking…' activity indicator; no private model reasoning is shown.
