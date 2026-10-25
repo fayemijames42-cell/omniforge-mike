@@ -287,7 +287,7 @@ async function send(text){
  if(imageRequest!==null)return sendImage(text,imageRequest);
   const arithmetic=window.OMNI_CALC?.arithmeticFromText(text);
   if(!pendingImage&&arithmetic!==null&&arithmetic!==undefined)return sendCalculation('/calc '+arithmetic,text);
- if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false){if(navigator.onLine===false)window.OMNI_OFFLINE_UI?.setOffline(true);return respondOffline(text);}
+ if(window.OMNI_OFFLINE_UI?.isOffline())return respondOffline(text);if(navigator.onLine===false){aiState='NO INTERNET CONNECTION';fail(new Error('Internet connection appears offline. Cloud AI was not contacted. Your saved projects remain available; reconnect and retry.'));return;}
  if(preferences.mock)return sendLocal(text);
  $('#prompt').value='';
  let shortLimitReached=false;
@@ -316,10 +316,7 @@ async function send(text){
   const cancelled=activeAbort?.signal.aborted===true;
   const message=cancelled?'Request cancelled.':e?.name==='AbortError'?'Request timed out':String(e?.message||e);
   const fallback=!cancelled&&!shortLimitReached&&(!navigator.onLine||e?.name==='AbortError'||/quota|daily limit|neurons|rate.limit|limit exceeded|too many requests|Workers AI request failed|provider returned|AI binding|failed to fetch|network|unreadable response|AI request failed/i.test(message));
-  if(fallback&&project){
-   window.OMNI_OFFLINE_UI?.setOffline(true);
-   try{await respondOffline(text,{existing:true,reason:message})}catch(inner){project.messages.push(msg('assistant','Cloud AI unavailable, and local memory failed: '+inner.message,'ERROR'));await C.saveProject(project);await showAll()}
-  }else{aiState='AI REQUEST FAILED';if(project){project.messages.push(msg('assistant',message,'ERROR'));await C.saveProject(project);await showAll()}else fail(e)}
+  aiState='AI REQUEST FAILED';if(project){project.messages.push(msg('assistant',message+(fallback?' Cloud AI remains selected; retry after checking the connection or provider status.':''),'ERROR'));await C.saveProject(project);await showAll()}else fail(e)
  }finally{activeAbort=null;setPending(false);Pool.refresh().catch(()=>{})}
 }
 async function sendLocal(text){text=text.trim();if(!text)return;$('#sendBtn').disabled=true;try{const [tool,args]=C.actionFromPrompt(text,project);if(tool==='create_website'){const result=C.callTool(tool,null,args);result.messages=[msg('user',text)];await C.saveProject(result);project=result;await C.setPref('lastProjectId',project.id);project.messages.push(msg('assistant',`Website created locally: “${project.name}” (${project.website.pages.length} pages). Open Preview or Edit. This is a rule-based layout, not a live AI-generated website.`,preferences.mock?'MOCK — NOT LIVE AI':'RULE-BASED / NOT LIVE AI'));await C.saveProject(project);await refreshList()}
