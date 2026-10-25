@@ -47,5 +47,21 @@
         "period": 60
       }
     }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "DAILY_BUDGET",
+        "class_name": "DailyBudget"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-daily-budget",
+      "new_sqlite_classes": [
+        "DailyBudget"
+      ]
+    }
   ]
 }
