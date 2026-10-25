@@ -1,0 +1,52 @@
+name: One-time MIKEE production acceptance
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/live-acceptance-2026-10-25.yml'
+permissions:
+  contents: read
+jobs:
+  verify-live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Confirm current homepage, Worker bindings, status and one real AI response
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const base = 'https://omniforge-mike.fayemijames42.workers.dev';
+          async function call(path,init={},ms=24000) {
+            const controller = new AbortController();
+            const timer = setTimeout(()=>controller.abort(),ms);
+            try { return await fetch(base+path,{...init,signal:controller.signal,cache:'no-store'}); }
+            finally { clearTimeout(timer); }
+          }
+          let health = null, providerStatus = null, lastError = '';
+          for (let attempt=1; attempt<=12; attempt++) {
+            try {
+              const page = await call('/?acceptance='+Date.now());
+              const html = await page.text();
+              if (!page.ok || !html.includes('automaticProviderNotice')) throw Error('Updated homepage not deployed yet (HTTP '+page.status+').');
+              const h=await call('/api/health'); health=await h.json();
+              if (!h.ok || !health.poolBound || !health.aiBound || !health.budgetBound) throw Error('Required Worker bindings are unavailable.');
+              const p=await call('/api/providers');providerStatus=await p.json();
+              if(!p.ok || !Array.isArray(providerStatus.providers))throw Error('Public provider-status route failed.');
+              console.log('LIVE_HOMEPAGE_OK',page.status,'HEALTH_OK',JSON.stringify({version:health.version,poolBound:health.poolBound,aiBound:health.aiBound,budgetBound:health.budgetBound}));
+              console.log('LIVE_PROVIDER_ELIGIBILITY',JSON.stringify(providerStatus.providers.filter(x=>x.capabilities.includes('chat')).map(x=>({id:x.id,state:x.state,hasPriorResponse:!!x.verifiedAt}))));
+              break;
+            } catch(error) {
+              lastError=String(error.message);
+              console.log('DEPLOYMENT_CHECK',attempt,lastError);
+              if(attempt===12){console.error('LIVE_DEPLOYMENT_FAILED',lastError);process.exit(1);}
+              await new Promise(resolve=>setTimeout(resolve,10000));
+            }
+          }
+          const response=await call('/api/chat',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({message:'Who invented the transistor? Give a short factual answer.'})},115000);
+          let data;try{data=await response.json()}catch{console.error('LIVE_AI_FAILED: response was not valid JSON');process.exit(1)}
+          if(!response.ok||data.live!==true||typeof data.reply!=='string'||!data.reply.trim()){
+            console.error('LIVE_AI_FAILED',JSON.stringify({status:response.status,code:data.code||null,error:data.error||null,retryAfter:data.retryAfter||null,attemptReasons:(data.attempts||[]).map(x=>({provider:x.provider,reason:x.reason}))}));
+            process.exit(1);
+          }
+          console.log('LIVE_AI_SUCCESS',JSON.stringify({status:response.status,provider:data.provider,model:data.model,replyCharacters:data.reply.length,sources:(data.sources||[]).length,toolOnly:!!data.toolOnly}));
+          NODE
