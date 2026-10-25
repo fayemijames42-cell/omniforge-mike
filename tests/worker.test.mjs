@@ -2,7 +2,8 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import realWorker from '../worker.js';
 const allow={limit:async()=>({success:true})};
-const allGuards={CHAT_VISITOR_LIMIT:allow,CHAT_SHARED_LIMIT:allow,IMAGE_VISITOR_LIMIT:allow,IMAGE_SHARED_LIMIT:allow};
+const budgetAllow={getByName:()=>({fetch:async()=>new Response(JSON.stringify({allowed:true,attempts:1,remaining:69,cap:70}),{headers:{'content-type':'application/json'}})})};
+const allGuards={CHAT_VISITOR_LIMIT:allow,CHAT_SHARED_LIMIT:allow,IMAGE_VISITOR_LIMIT:allow,IMAGE_SHARED_LIMIT:allow,DAILY_BUDGET:budgetAllow};
 const worker={fetch(req,env){return realWorker.fetch(req,{...allGuards,...env})}};
 const req=(body,origin='https://mikee.test')=>new Request('https://mikee.test/api/chat',{method:'POST',headers:{'content-type':'application/json',origin},body:JSON.stringify(body)});
 let calls=0;const env={AI:{run:async(model,input)=>{calls++;assert.equal(model,'@cf/meta/llama-3.1-8b-instruct-fp8');assert.equal(input.messages.at(-1).content,'hello');return {response:'Test fixture response'}}}};
@@ -89,4 +90,35 @@ test('Server uses trusted IP for visitor key and constant key for shared allowan
  const e={AI:{run:async()=>({response:'ok'})},CHAT_VISITOR_LIMIT:limiter,CHAT_SHARED_LIMIT:limiter};
  const r=await realWorker.fetch(new Request('https://mikee.test/api/chat',{method:'POST',headers:{origin:'https://mikee.test','cf-connecting-ip':'192.0.2.8'},body:JSON.stringify({message:'test'})}),e);
  assert.equal(r.status,200);assert.deepEqual(keys,['192.0.2.8','public']);
+});
+
+test('Daily protection fails closed before inference if binding is absent',async()=>{
+ let calls=0;
+ const noBudget={AI:{run:async()=>{calls++;return {response:'never'}}},CHAT_VISITOR_LIMIT:allow,CHAT_SHARED_LIMIT:allow};
+ const r=await realWorker.fetch(req({message:'hello'}),noBudget);
+ assert.equal(r.status,503);assert.equal((await r.json()).protectionUnavailable,true);assert.equal(calls,0);
+});
+test('Daily chat cap returns 429 with reset and no model calls',async()=>{
+ let calls=0;
+ const rejected={getByName:()=>({fetch:async()=>Response.json({allowed:false,attempts:70,remaining:0,cap:70})})};
+ const e={...allGuards,DAILY_BUDGET:rejected,AI:{run:async()=>{calls++;return {response:'never'}}}};
+ const r=await realWorker.fetch(req({message:'hello'}),e),body=await r.json();
+ assert.equal(r.status,429);assert.equal(body.dailyLimit,true);assert.match(body.resetAt,/T00:00:00Z$/);assert.equal(calls,0);
+});
+test('Daily image cap returns 429 before expensive generation',async()=>{
+ let calls=0;
+ const e={...allGuards,DAILY_BUDGET:{getByName:()=>({fetch:async()=>Response.json({allowed:false,attempts:8})})},AI:{run:async()=>{calls++;return {image:'A'.repeat(200)}}}};
+ const request=new Request('https://mikee.test/api/image',{method:'POST',headers:{origin:'https://mikee.test'},body:JSON.stringify({prompt:'turtle in sand'})});
+ assert.equal((await realWorker.fetch(request,e)).status,429);assert.equal(calls,0);
+});
+test('Budget attempts are reserved before even a failing AI invocation',async()=>{
+ const order=[];
+ const e={...allGuards,DAILY_BUDGET:{getByName:()=>({fetch:async()=>{order.push('reserved');return Response.json({allowed:true,attempts:3})}})},AI:{run:async()=>{order.push('failed');throw Error('provider unavailable')}}};
+ const r=await realWorker.fetch(req({message:'hello'}),e);
+ assert.equal(r.status,502);assert.deepEqual(order,['reserved','failed']);
+});
+test('Chat response explicitly identifies provider and model',async()=>{
+ const e={AI:{run:async()=>({response:'Greetings'})}};
+ const r=await worker.fetch(req({message:'hello'}),e);
+ const data=await r.json();assert.equal(data.provider,'Cloudflare Workers AI');assert.equal(data.model,'@cf/meta/llama-3.1-8b-instruct-fp8');
 });
