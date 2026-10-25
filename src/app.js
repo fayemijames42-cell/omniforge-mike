@@ -72,7 +72,30 @@ async function addReferenceNotes(fileList){
 }
 async function refreshList(){all=await C.listProjects();ui.select.innerHTML=all.length?all.map(p=>`<option value="${E(p.id)}">${E(p.name||'Untitled')} · ${new Date(p.updatedAt).toLocaleDateString()}</option>`).join(''):'<option value="">No projects yet</option>';if(project)ui.select.value=project.id;$('#deleteProject').disabled=!project;$('#renameChat').disabled=!project}
 async function activate(projectId){project=projectId?await C.getProject(projectId):null;if(project)project=C.formatMigrated(project);selectedAsset=null;if(originalURL)URL.revokeObjectURL(originalURL);originalURL=null;await refreshList();await showAll();if(project)await C.setPref('lastProjectId',project.id)}
-function switchMobile(tab){mobileView=tab;const mobile=innerWidth<=800;const a=tab==='chat'?'chat':'result';$('.workarea').className='workarea mobile-'+a;document.querySelectorAll('[data-mobile]').forEach(b=>b.classList.toggle('active',b.dataset.mobile===tab));if(tab!=='chat')changeTab(tab==='preview'?'preview':tab);if(!mobile){$('.workarea').className='workarea'} }
+function setMobileDrawer(open,restoreFocus=true){
+ const layer=$('#mobileDrawerLayer');
+ if(innerWidth>800)open=false;
+ if(layer.hidden===!open)return;
+ layer.hidden=!open;
+ const menu=$('#mobileMenuButton');
+ menu.setAttribute('aria-expanded',String(open));
+ menu.setAttribute('aria-label',open?'Close workspace menu':'Open workspace menu');
+ if(open){$('#drawerFocus').value=$('#chatFocus').value;$('#closeMobileDrawer').focus()}
+ else if(restoreFocus&&innerWidth<=800)menu.focus();
+}
+function switchMobile(tab){
+ if(!['chat','preview','edit','photos','notes','files'].includes(tab))tab='chat';
+ mobileView=tab;
+ const mobile=innerWidth<=800;
+ $('.workarea').className=mobile?'workarea mobile-'+(tab==='chat'?'chat':'result'):'workarea';
+ document.querySelectorAll('[data-mobile]').forEach(b=>{
+  const active=b.dataset.mobile===tab;
+  b.classList.toggle('active',active);
+  if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
+ });
+ if(tab!=='chat')changeTab(tab);
+ setMobileDrawer(false);
+}
 function changeTab(tab){activeView=tab;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===tab));['preview','edit','photos','notes','files'].forEach(v=>{const el=$('#'+v+'Panel');el.classList.toggle('active',tab===v)});if(tab==='photos')renderPhotos();if(tab==='edit')renderEditor();if(tab==='notes')renderNotes();if(tab==='files')renderCodeWorkspace()}
 function drawMessages(){for(const url of imagePreviewURLs)URL.revokeObjectURL(url);imagePreviewURLs.clear();ui.chat.innerHTML='';const messages=project?.messages||[];ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><p class="creator-badge">OMNIFORGE · CREATED BY ADEN.inc</p><h1>What would you like to explore?</h1><p>Talk to <span class="assistantName">${E(preferences.name)}</span> about any subject. Learn, write, solve problems, plan projects, or create something new.</p><div class="local-note">Chat uses Cloudflare Workers AI. Conversations are saved in this browser. Your messages and relevant project text are sent to the AI provider. Photo editing uses local tools. For instant offline arithmetic, type <code>/calc (5+3)*2</code>.</div></div>`;return}for(const m of messages){const node=document.createElement('article');node.className='message '+(m.role==='user'?'user':'assistant');const copying=m.role==='assistant'?`<button class="copy-message" type="button" data-copy-id="${E(m.id||'')}" aria-label="Copy reply">Copy</button><button class="note-from-reply" type="button" data-save-note="${E(m.id||'')}" aria-label="Save reply as a note">Save note</button>${m.engine==='WORKERS AI'&&!/<html|<!doctype/i.test(m.text)?`<button class="note-from-reply" type="button" data-memory-id="${E(m.id||'')}" aria-label="Save reply as knowledge">Remember</button>`:''}`:'';const route=m.role==='user'&&m.route?`<span class="nexus-route" title="Local NEXUS routing; no extra AI call">· ${E(m.route)}</span>`:'';node.innerHTML=`<div class="by"><span>${m.role==='user'?'You':E(preferences.name)+' · '+(m.engine||'RULE-BASED / NOT LIVE AI')}</span>${route}${copying}</div><div class="body">${m.role==='user'?E(m.text):formatReply(m.svgSummary||m.text)}</div>`;const vector=m.role==='assistant'&&m.engine==='WORKERS AI'?(m.svgMarkup?{svg:window.OMNI_VECTOR?.sanitize(m.svgMarkup),explanation:m.svgSummary||''}:m.text?.includes('<svg')?window.OMNI_VECTOR?.convertResponse(m.text):null):null;if(vector?.svg){const figure=document.createElement('figure');figure.className='vector-artifact';const caption=document.createElement('figcaption');caption.textContent='Vector illustration (SVG) · created from AI-generated code, not a raster image model';const img=document.createElement('img');img.src=window.OMNI_VECTOR.dataURI(vector.svg);img.alt='Generated vector illustration';img.loading='lazy';const button=document.createElement('button');button.type='button';button.textContent='↓ Save SVG';button.dataset.downloadSvg=m.id;figure.append(caption,img,button);node.querySelector('.body').textContent=vector.explanation||'MIKEE created a vector illustration. This is an SVG drawing, not photorealistic image generation.';node.append(figure);
  const upgrade=document.createElement('button');upgrade.type='button';upgrade.className='image-upgrade';upgrade.dataset.upgradeImage=m.id;upgrade.textContent='Create real AI image instead';node.append(upgrade);
@@ -409,7 +432,34 @@ $('#sourceList').onclick=event=>queued(async()=>{
  notify('Reference note removed.');
 });
 $('#settingsButton').onclick=()=>$('#settingsDialog').showModal();$('#saveSettings').onclick=()=>queued(async()=>{preferences.name=($('#assistantNameInput').value.trim()||'MIKEE').slice(0,32);preferences.mock=$('#mockToggle').checked;await C.setPref('assistantName',preferences.name);await C.setPref('mock',preferences.mock);await showAll();notify('Settings saved')});
-document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>changeTab(b.dataset.view));document.querySelectorAll('[data-mobile]').forEach(b=>b.onclick=()=>switchMobile(b.dataset.mobile));window.addEventListener('resize',()=>switchMobile(mobileView));
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>changeTab(b.dataset.view));
+ document.querySelectorAll('[data-mobile]').forEach(b=>b.onclick=()=>switchMobile(b.dataset.mobile));
+ $('#mobileMenuButton').onclick=()=>setMobileDrawer($('#mobileDrawerLayer').hidden);
+ $('#closeMobileDrawer').onclick=()=>setMobileDrawer(false);
+ $('#mobileDrawerBackdrop').onclick=()=>setMobileDrawer(false);
+ document.querySelectorAll('[data-drawer-action]').forEach(b=>b.onclick=()=>{
+  const action=b.dataset.drawerAction;
+  setMobileDrawer(false);
+  const target={search:'#chatSearchBtn',rename:'#renameChat',settings:'#settingsButton',delete:'#deleteProject'}[action];
+  if(target)$(target).click();
+ });
+ $('#drawerFocus').onchange=e=>{
+  const focus=$('#chatFocus');focus.value=e.target.value;
+  focus.dispatchEvent(new Event('change',{bubbles:true}));
+  setMobileDrawer(false);
+ };
+ document.addEventListener('keydown',e=>{
+  const layer=$('#mobileDrawerLayer');
+  if(layer.hidden)return;
+  if(e.key==='Escape'){e.preventDefault();setMobileDrawer(false);return}
+  if(e.key==='Tab'){
+   const allowed=Array.from($('#mobileDrawer').querySelectorAll('button:not(:disabled),select:not(:disabled)'));
+   const first=allowed[0],last=allowed[allowed.length-1];
+   if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+   else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+  }
+ });
+ window.addEventListener('resize',()=>switchMobile(mobileView));
 for(const id of ['chatPhotoFiles','photoFiles'])$('#'+id).onchange=e=>queued(async()=>{await uploadFiles(e.target.files);e.target.value=''});
 $('#importFile').onchange=e=>queued(async()=>{const file=e.target.files[0];if(!file)return;const p=await C.importProject(file);await activate(p.id);switchMobile('preview');notify('Project imported. Changes are local to this device.');e.target.value=''});
 init();window.OMNI_TEST={getProject:()=>project,getUI:()=>({mobileView,activeView}),queue:()=>queue};
