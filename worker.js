@@ -123,7 +123,7 @@ export default {async fetch(request,env){const url=new URL(request.url);
      evidence=await collectEvidence(message,env,env.RESEARCH_FETCH||fetch,{intent:lookup,queries});
      if(evidence.partial&&evidence.sources.length)researchNote='Some requested topics returned no usable references. Treat the remaining explanation as general knowledge.';
      if(evidence?.requested&&!evidence.sources.length){
-      if(lookup.researchMode==='explicit')return json({error:evidence.error||'No usable sources were found. Try a more specific search.',researchUnavailable:true},503);
+      if(lookup.researchMode==='explicit'&&lookup.fresh)return json({error:evidence.error||'No usable current sources were found. Verification is unavailable.',researchUnavailable:true},503);
       researchNote='Automatic reference search did not retrieve usable sources. Answer from general knowledge only, acknowledge relevant uncertainty, and do not fabricate citations.';
      }
     }
