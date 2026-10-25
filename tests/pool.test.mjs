@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../server/pool-http.js';
+import worker from '../worker.js';
 import { MikeeCoordinator } from '../server/coordinator.js';
 import { PROFILES } from '../server/catalog.js';
 
@@ -11,7 +11,8 @@ const fixture = (text, model = 'fixture-model') => Response.json({ model, choice
 async function harness({ active = ['cloudflare'], env = {}, fetcher = async () => { throw Error('Unexpected network call'); } } = {}) {
   let time = Date.parse('2026-10-25T12:00:00Z'); const records = new Map();
   const storage = { get: async key => structuredClone(records.get(key)), put: async (key, value) => records.set(key, structuredClone(value)) };
-  const runtime = { ...env, AI: env.AI || { run: async () => ({ response: 'Fixture answer' }) } };
+  const limiter={limit:async()=>({success:true})};
+  const runtime = { CHAT_VISITOR_LIMIT:limiter, CHAT_SHARED_LIMIT:limiter, IMAGE_VISITOR_LIMIT:limiter, IMAGE_SHARED_LIMIT:limiter, DAILY_BUDGET:{getByName:()=>({fetch:async()=>Response.json({allowed:true})})}, ...env, AI: env.AI || { run: async () => ({ response: 'Fixture answer' }) } };
   const pool = new MikeeCoordinator({ storage }, runtime, { fetch: fetcher, now: () => time });
   await pool.ready;
   for (const profile of PROFILES) pool.data.config[profile.id] = { enabled: active.includes(profile.id), freeConfirmed: true };
@@ -24,6 +25,17 @@ test('health reports bindings, never claims an inference happened', async () => 
   let calls = 0; const env = { AI: { run: () => { calls++; } }, MIKEE_POOL: {} };
   const body = await (await worker.fetch(new Request('https://mikee.test/api/health'), env)).json();
   assert.equal(body.verified, false); assert.equal(body.poolBound, true); assert.equal(calls, 0);
+});
+test('Connection status reports real spacing and monthly reset times',async()=>{
+ const h=await harness();await h.send({message:'Hello'});
+ let p=(await h.pool.status()).providers.find(p=>p.id==='cloudflare');assert.equal(p.state,'cooldown');assert.ok(p.retryAt>Date.parse('2026-10-25T12:00:00Z'));
+ h.tick(61000);p=(await h.pool.status()).providers.find(p=>p.id==='cloudflare');assert.equal(p.state,'ready');
+ h.pool.ledger('cloudflare',Date.parse('2026-10-25T12:01:01Z')).monthTokens=5000000;
+ p=(await h.pool.status()).providers.find(p=>p.id==='cloudflare');assert.equal(p.state,'budget_reached');assert.equal(p.retryAt,Date.parse('2026-11-01T00:00:00Z'));
+});
+test('An oversized request gives a useful size error rather than an endless wait',async()=>{
+ const h=await harness();h.pool.data.config.cloudflare.limits={tokensMinute:100};
+ const response=await h.send({message:'hello'}),data=await response.json();assert.equal(response.status,413);assert.equal(data.code,'FREE_POOL_REQUEST_TOO_LARGE');assert.equal(h.pool.data.ledger.cloudflare.requests,0);
 });
 test('missing quota binding fails closed', async () => assert.equal((await worker.fetch(req({ message: 'hello' }), { AI: {} })).status, 503));
 test('rejects cross-origin requests before contacting the pool', async () => assert.equal((await worker.fetch(req({ message: 'hello' }, 'null'), {})).status, 403));
@@ -63,7 +75,7 @@ test('quota survives coordinator restarts and resets at the next UTC day', async
   const h = await harness(); h.pool.data.config.cloudflare.limits = { requestsDay: 1 };
   await h.send({ message: 'first' });
   const restarted = new MikeeCoordinator({ storage: h.storage }, h.env, { fetch: async () => { throw Error(); }, now: () => Date.parse('2026-10-25T13:00:00Z') });
-  assert.equal((await restarted.route({ message: 'after restart', provider: 'cloudflare' })).status, 429);
+  assert.equal((await restarted.route({ messages:[{role:'user',content:'after restart'}], provider: 'cloudflare' })).status, 429);
   h.tick(86400000); assert.equal((await h.send({ message: 'tomorrow' })).status, 200);
 });
 test('failed calls retain reservations and can never become fake replies', async () => {
@@ -168,7 +180,7 @@ test('short audio is forwarded to Whisper and returns a transcription only after
 test('unavailable persistent storage never enables untracked AI requests', async () => {
   let calls = 0;
   const pool = new MikeeCoordinator({ storage: { get: async () => undefined, put: async () => { throw Error('storage quota'); } } }, { AI: { run: () => { calls++; } } });
-  const result = await pool.fetch(new Request('https://internal/chat', { method: 'POST', body: JSON.stringify({ message: 'hello' }) }));
+  const result = await pool.fetch(new Request('https://internal/completion', { method: 'POST', body: JSON.stringify({ messages:[{role:'user',content:'hello'}] }) }));
   assert.equal(result.status, 503); assert.equal(calls, 0);
 });
 test('serves existing assets and redirects the legacy quick-chat to the unified workspace', async () => {

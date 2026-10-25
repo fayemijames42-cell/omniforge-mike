@@ -1,112 +1,61 @@
 # OMNIFORGE · MIKEE / NEXUS
 
-**Created by ADEN.inc** — creator credit supplied for the project. This is a branding attribution, not a claim of verified company incorporation or registered trademark.
+OMNIFORGE by ADEN.inc is a conversation-first AI workspace. MIKEE is the assistant; NEXUS prepares context, references and supported tool results. Connected language models generate explanations, writing and code. Website creation is one capability of the assistant.
 
-**Conversation-first, general-purpose AI workspace** running on Cloudflare Workers AI. Website creation is an *optional* capability; a new chat is not automatically a website.
+Public app: https://omniforge-mike.fayemijames42.workers.dev/
 
-**Deployed Worker:** https://omniforge-mike.fayemijames42.workers.dev/
-**Connected source repository:** https://github.com/fayemijames42-cell/omniforge-mike
+## Current implementation — v0.11.0
 
-## Real vs local capabilities
+| Capability | Current behavior |
+| --- | --- |
+| Conversation | Real inference through the persistent free-service coordinator, with bounded earlier requirements and recent turns. |
+| Website creation/editing | Complete HTML accepted into the current project; incomplete output preserves the previous version. |
+| Code workspace | Three editable files, actual combined-document preview/export, saved edits and Undo. AI website edits update the same active document. |
+| Images | Cloudflare FLUX, Pollinations Classic and queued AI Horde adapters; completed images are saved as local project assets. Availability depends on the provider and its free allowance. |
+| Photo tools | Local crop, resize, rotation and image adjustments. Explicit photo analysis needs a connected compatible vision provider. |
+| Audio | Transcription adapter for Groq/Gemini; a compatible free account key is required. The user reviews the transcript before sending it. |
+| Mathematics | Bounded local arithmetic, polynomial calculus and linear/quadratic equations. Compound arithmetic explanations can use an observed calculator result. |
+| References | Keyless Wikipedia REST/Action lookup; optional Tavily for broader/current search. At most two separately budgeted queries and four returned source excerpts. |
+| Notes and local knowledge | Local notes, a 36-topic starter reference pack and user-imported XML. Local retrieval is explicitly labelled and is not an offline neural model. |
+| Backup | ZIP/JSON restore preserves saved source, current notes/chat, images and image references. Active code files are exported consistently. Undo history is omitted from portable backups. |
 
-- **Live provider:** MIKEE uses the Workers AI `AI` binding and `@cf/meta/llama-3.1-8b-instruct-fp8`. UI status shows “AI RESPONSE VERIFIED” only after a successful provider response. `/api/health` only checks that the binding exists; it is not an inference test.
-- **Local NEXUS routing:** Deterministic task classification gives website requests, explanations, writing and code help suitable response styles with **zero additional model calls**. It is not an autonomous multi-agent system. A manual focus selection takes priority.
-- **Conversation library:** Separate saved chats, local topic-based names, rename, search across titles and messages, and Markdown transcript export.
-- **Source notes:** Optional short text/Markdown/CSV/JSON excerpts can be included in the next Workers AI request. Nothing is sent automatically merely by attaching them.
-- **Local editable Notes:** Each chat can hold up to 20 notes of 16,000 characters each. Save any AI reply using **Save note**, open **Notes**, edit it, save, undo an edit, export .md/.txt. Notes are stored in browser IndexedDB and are not sent to Workers AI unless pasted into a message.
-- **Website Studio:** Website-generation prompts may produce full standalone HTML, sandboxed preview, revisions, exports and a limited structured editor.
-- **Photo editing:** Local Canvas adjustments; photos remain on device.
+A retrieved source is not a verified claim. Citation checks identify source markers actually used by the response; `factChecked` remains false. Provider bindings and successful deployments are also distinct from live inference.
 
-## Free-plan engineering rules
+## How the application fits together
 
-Cloudflare Workers AI is not an unlimited free model. Free plan availability and daily neuron limits are determined by Cloudflare (see [official pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)). This code does **not** include a paid provider, automatic upgrade, user-paid services or a paid API key. The public chat endpoint can be used by anyone with its URL, so it should not be described as a protected multi-user product.
+- `worker.js`: the single public chat path, input validation, native visitor limits, reference-search accounting and NEXUS synthesis.
+- `server/nexus.js`: bounded context, compound-request preparation, observed calculator evidence and artifact/citation checks.
+- `server/coordinator.js`: persistent provider reservations, cooldowns, encrypted owner keys and image-job coordination.
+- `server/providers.js` and `server/catalog.js`: fixed provider endpoints, approved models and conservative free-service caps.
+- `src/core.js`, `src/backup.js`, `src/projectfiles.js`: local saved projects, faithful backups and the actual editable document.
+- `build.mjs` and `sw.js`: matching content-versioned assets and an atomic offline-shell update. A failed installation keeps the previous complete cache.
 
-- No extra model calls for NEXUS task routing or local note creation. No automatic AI chat-title call.
-- Existing website HTML is sent only for recognized editing requests, reducing token usage and limiting unrelated sharing of website content.
-- AI requests have capped length, history and output tokens.
-- Missing bindings and failed model requests produce errors; rule-based fallback never impersonates a real AI reply.
-- Never invent current web search, real-world publication, video or image generation.
-- No persistent cloud sync or uploaded files except bounded opt-in reference excerpts.
-- **Back up your work.** Browser storage can be lost when the browser/site data is cleared. Use exports before deleting old work.
+There is no alternate mock chatbot, keyword-based website generator, or second public chat implementation. `/quick-chat` redirects to the main workspace. A website previously saved by the old quick-chat page is imported into the project database once; its original local-storage copy is retained.
 
-## Build and tests
+## Free-only connections
 
-Use Node.js 22+:
+Cloudflare uses the existing `AI` binding. Anonymous providers may be available without keys; they are best-effort services with their own restrictions. Other installed adapters remain inactive until a legitimate free account is connected and confirmed. Fifteen connection profiles do not mean fifteen active models or combined model weights.
 
-```bash
-npm clean-install
-npm run check
-npm test
+For owner-managed keys, set the Cloudflare Worker secret `MIKEE_ADMIN_TOKEN` to at least 24 random characters. Settings → Connections can generate an owner token. Unlock with that token, then add each provider's key directly to Connections and confirm paid billing/top-ups are disabled. Provider secrets are encrypted server-side, never returned by status responses, and are absent from project backups. Do not commit credentials.
+
+The coordinator stops at its budgets, respects upstream limits and avoids paid fallbacks. Deployment does not reset existing usage or keys. See [connection details](docs/FREE_POOL.md).
+
+## Development and validation
+
+```sh
+npm ci
 npm run build
+npm run deploy
 ```
 
-Deployment is configured via `wrangler.jsonc` with the `AI` and `ASSETS` bindings and `npm run deploy`. A successful GitHub push may trigger Cloudflare Builds for the connected repository.
+The build runs syntax checks and the automated suite before generating `public/`. Browser workflow tests in `tests/ui-smoke.mjs` are optional development tests with explicitly identified model fixtures. They require an installed Playwright/Chromium test environment; no browser dependency is shipped to the phone.
 
-## What remains unimplemented
+The current audit adds integration coverage for streamed input limits, actual project/code synchronization, backup/restore fidelity, image remapping, safe blob cleanup, update installation, recovery after connection errors and offline reload. Preserve both existing Durable Object bindings and migration tags in `wrangler.jsonc`; they contain accounting state, not obsolete scaffold.
 
-Automated browsing, live cited research, cross-device sync, server-side document creation, true PDF extraction, AI image/video generation, autonomous agent actions, and general diagram/engineering simulation tools. Generated websites are not automatically published. The free-tier plan is not guaranteed to support unlimited inference.
+See [audit and acceptance record](docs/INTEGRATION_AUDIT_2026-10-25.md), [offline reference behavior](docs/OFFLINE_REFERENCE.md), and [the public-beta answer-quality gate](docs/MIKEE_QUALITY_GATE.md). Earlier version notes and research documents are historical records, not alternate installation instructions.
 
-See [AI comparison / roadmap](docs/AI_COMPETITOR_BENCHMARK.md) for product lessons and [V0.6 delivery notes](docs/NEXUS_V06_NOTES_AND_ROUTING.md) for verification.
+## Storage and scope
 
-## Verification levels
+Conversations, notes, projects and photos live in this browser on this device. Export backups for portability. Clearing browser data can remove them. Local storage is not an account-wide cloud sync system. Saved edits and portable backups preserve the current document; unsaved text in an editor must be saved before exporting.
 
-**Code committed** ≠ **Cloudflare build success** ≠ **live UI tested**. A passing Workers Build runs JavaScript checks and automated tests but does not by itself verify that mobile browser notes/edit/export or inference succeeded on production.
-
-## Mobile workspace navigation (v1.2)
-
-On phones, a top-left menu replaces the crowded bottom tab bar. Chat remains front and centre, while a slide-out workspace menu opens Preview, Edit, Photos, Notes, Files & backups, conversation search and management, Focus and Settings. Escape, close, outside tap and selecting a section dismiss the drawer. Desktop tabs remain as before. No extra Workers AI requests are made for this interface or its existing animated 'MIKEE is thinking…' activity indicator; no private model reasoning is shown.
-
-## V1.3 provisional shared daily AI protection
-
-Every real Workers AI inference is gated twice: existing approximate 60-second per-visitor and per-location burst limits, then a centralized daily request-attempt reservation stored in a SQLite-backed Cloudflare Durable Object. All Cloudflare locations use the same instance per UTC day, preventing simultaneous requests from silently bypassing the shared daily count. Initial guest beta ceilings are **70 chat attempts and 8 FLUX image attempts per UTC day across all visitors combined**. These are conservative *trial* ceilings, **not** measured neuron caps or permanent individual allocations. Limits reset when the UTC day changes; both successful and failed provider calls consume one reservation. Requests rejected for invalid input do not.
-
-The Worker returns HTTP 429 with `dailyLimit: true` and the next UTC reset timestamp when a ceiling is reached, while local tools remain available. If the budget binding/storage is missing or broken, real AI calls fail closed with HTTP 503; there is no unprotected bypass. The public API does not expose private quota management controls. Replies include `provider` and `model` fields; MIKEE's chat displays the model on new replies, while the local calculator remains explicitly labeled local. Provider identity is not evidence of model accuracy. To calibrate, compare counts in the Cloudflare dashboard with *actual Neuron consumption* during a controlled testing day. The request counts do not measure model tokens or Neurons and cannot guarantee that the free allocation is never exceeded. Do not enable paid billing.
-
-This change does not introduce user accounts, synchronized storage, or a security audit. For now, invite a handful of trusted testers, avoid sensitive uploads, and manually export ZIP backups before clearing browser data.
-
-## v1.4: locally verified mathematics
-
-MIKEE routes explicit calculus/equation requests to NEXUS's deterministic polynomial mathematics without requesting a Cloudflare AI inference. Examples: `Differentiate 3x^3 + 5x^2 - 7x + 2`, `Integrate x^2`, `Solve x^2 - 5x + 6 = 0`. The local result includes rules and limited per-term steps, plus a visible `NEXUS · LOCAL SYMBOLIC MATH` label. No model inference, live search, or simulated free-form general reasoning is involved. It supports variable x, bounded polynomial expressions (and x^-1), plus linear/quadratic real equation solving; unsupported transcendental functions, multivariable expressions and higher-degree equations produce an explicit unsupported message instead of an invented answer. A dedicated test suite exercises supported and unsafe cases. The module is packaged into the PWA shell for offline use; use an explicit natural-language maths request, or `/math differentiate x^2` or `/math solve 2x+3=11`.
-
-## v1.5 — deliberate retrieval-backed research (partial internet access)
-
-The existing Workers AI chat endpoint now understands explicit requests such as `Search the web for how solar cells work` or `Find online sources about diode circuits`. It retrieves up to four source snippets from Wikimedia's public encyclopedia search (requires no credentials) and includes their HTTPS source links and retrieval time in the answer. Source snippets are untrusted data; MIKEE must label unsupported claims and must not treat them as independently verified facts. Research uses one ordinary Workers AI inference after retrieval—not one inference per result—and a distinct server-side daily budget of 24 research attempts to protect public source APIs.
-
-**Optional general web search for current events:** Create a **free** Tavily Researcher account (currently 1,000 credits per month with no credit card required); store the key as the Cloudflare Worker secret `TAVILY_API_KEY` via `npx wrangler secret put TAVILY_API_KEY`. The key must NEVER be put in browser code. No secret is set by this commit. Once connected, the backend can query broad web results from Tavily at most once per research request. The app does not make a paid API request automatically, and no external search provider is activated without a key. When a user requests current/breaking information before general web search is configured, MIKEE explicitly reports it cannot verify that material rather than hallucinating it. This is NOT unrestricted browsing, a full crawler, search-engine indexing, automatic fact checking, or a daily model-training service.
-
-Responses now include `research` and a bounded `sources` array when evidence was retrieved. The conversation displays clickable URLs under the response. They may help users check claims themselves, but search snippets alone cannot guarantee the claims are verified. Privacy: queries for research are sent to the search provider (Wikipedia; Tavily when configured). Users should not send sensitive details for research.
-
-### Web research testing (v1.5)
-
-The new `tests/research.test.mjs` verifies fixed-host Wikimedia retrieval, mocked optional Tavily queries, HTTPS source filtering, no model call when current search is unavailable, and a single Workers AI invocation for source-grounded answers. Mocked tests do not use external search credits or Cloudflare Neurons. Test first with `Search the web for photosynthesis`; the result should include Wikipedia source links. General web search for changing information needs the optional Tavily free API key. Wikipedia reference lookup alone is not full internet browsing or independent fact verification.
-
-## v1.6: automatic intent recognition and source lookup
-
-MIKEE no longer requires the user to type `search the web` for a high-confidence factual lookup. The worker first uses a **bounded, deterministic** classifier to decide whether the request is a creative task, mathematics, conversation, a stable factual question, or a time-sensitive question. Only selected stable factual questions (for example `What is a diode?`, `Explain how solar panels work`, `Who invented the transistor?`) automatically retrieve keyless Wikipedia result excerpts. The local classifier does **not** call an additional model, so only the ordinary response uses Neurons. It does not transmit personal questions to the external search provider by default. Explicit source searches still work as before.
-
-Known limits: An encyclopedic snippet does not establish truth; new information from multiple authoritative sites is not available until an optional general-web search provider has been configured. For current facts with no general-web provider, MIKEE may give stable background but is instructed not to invent current answers; the reply visibly says it was *not verified online*. Automatic lookup errors or exhaustion of the small daily research budget also show that warning rather than silently claiming web research. Explicit requests for live research or sources fail visibly when unable to retrieve them. Research returns zero to four links and retrieval timestamps when actually available. The model still makes mistakes; users should verify consequential information.
-
-The change is intentionally small: a deterministic routing rule is **not** equivalent to model reasoning, understanding everything, complete web browsing, or independently verifying every source. There is still no account synchronization or paid search API. The Worker remains on the same free hosting plan and per-day AI limits.
-
-### v1.7: addressed research questions and visible evidence status
-
-Previously a user saying `MIKEE, who invented the transistor, and how did its invention change electronics?` did not activate automatic research: the simple intent matcher expected `Who invented` to be at the very beginning. The lookup now safely ignores a leading MIKEE/Mickey/NEXUS address and common polite requests, and reduces multipart queries to a focused topic (e.g. `transistor`). Source-backed responses include an actual citation list, and each live AI message displays either the number of retrieved sources or `no web sources` in the metadata. If the Wikipedia API fails or the small research budget is exhausted, the answer must visibly state that its facts were not web-verified. **Do not equate source snippets with verified history**: check dates against authoritative references, especially for nuanced attribution.
-
-
-
-## Free-provider foundation (0.9.1)
-
-The existing calculator, symbolic mathematics, offline knowledge, SVG tools, research citations, notes and static code workspace are retained. The AI request now uses a persistent free-service pool with provider-specific budgets and automatic fallback. The existing four-step Cloudflare FLUX tool is retained and can fall back to free image services after its own allowance is exhausted.
-
-See [free-pool connection/setup details](docs/FREE_POOL.md) and [validation record](docs/FREE_POOL_VERIFICATION.md). Configure the single Worker secret `MIKEE_ADMIN_TOKEN` with a random token of at least 24 characters to unlock Settings → Connections. Provider keys can then be added there, encrypted server-side. No keys belong in chat, browser preferences or this repository.
-
-The existing `DailyBudget` class and migration remain for research budgeting. A second SQLite-backed `MIKEE_POOL` coordinator tracks per-provider request/token budgets, concurrency and cooldowns. Native visitor burst limits remain in place. Exhausting Cloudflare's chat/image allowance no longer blocks every other connected service.
-
-Model adapters are not automatically working accounts. Keys/free-account confirmation are required where applicable. Zero-payment endpoints can also be unavailable or rate limited. The pool never buys credits, pays a 402 request, enables billing or changes a subscription. Response details identify the service that actually answered.
-
-
-## MIKEE assistant coordination — v0.10.0
-
-NEXUS now prepares compound questions, retains bounded earlier requirements and recent conversation, gathers at most two budgeted reference queries, and gives the model observed calculator results for compound mathematical explanations. Ordinary explanations cannot overwrite an existing website; unsupported citation markers are flagged without claiming a factual accuracy score. This update concentrates on MIKEE as one general-purpose assistant while retaining the existing tools and free-provider limits.
-
-Three real development API samples covered arithmetic/explanation, earlier-context recall and grounded answers from notes. They are limited acceptance checks, not production or comprehensive intelligence verification. See [implementation and verification](docs/NEXUS_ASSISTANT_V010.md).
+This release does not claim a complete school syllabus database, universal factual accuracy, arbitrary server-side execution, or that every authenticated provider has been tested. Production acceptance must record actual provider responses separately from deterministic tests and deployment checks.

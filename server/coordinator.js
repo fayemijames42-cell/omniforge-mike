@@ -1,4 +1,5 @@
-import { PROFILES, BY_ID, PARKED, buildMessages, estimateTokens } from './catalog.js';
+import {VERSION} from './config.js';
+import { PROFILES, BY_ID, PARKED, estimateTokens } from './catalog.js';
 import { ProviderError, chatCall, transcribeCall, cloudflareImage, pollinationsImage, startHorde, checkHorde, gatewayPrice } from './providers.js';
 
 export const json = (value, status = 200, extra = {}) => new Response(JSON.stringify(value), {
@@ -131,17 +132,22 @@ export class MikeeCoordinator {
   async status(owner = false) {
     return this.locked(() => {
       const now = this.now();
-      return { mode: 'free-pool', version: '0.9.1', verified: false,
+      return { mode: 'free-pool', version: VERSION, verified: false,
         ownerSetup: typeof this.env.MIKEE_ADMIN_TOKEN === 'string' && this.env.MIKEE_ADMIN_TOKEN.length >= 24,
         providers: PROFILES.map(profile => {
           const q = this.ledger(profile.id, now), cfg = this.config(profile), eligibility = this.eligible(profile);
           const limits = this.limits(profile);
-          const exhausted = q.requests >= limits.requestsDay || q.tokens >= limits.tokensDay || q.monthTokens >= limits.tokensMonth || q.monthMicros >= 4000000;
-          const state = eligibility !== 'ready' ? eligibility : exhausted ? 'budget_reached' : q.cooldown > now ? 'cooldown' : 'ready';
+          const dayExhausted=q.requests>=limits.requestsDay||q.tokens>=limits.tokensDay;
+          const monthExhausted=q.monthTokens>=limits.tokensMonth||q.monthMicros>=4000000;
+          const exhausted=dayExhausted||monthExhausted;
+          const spacing=q.last?q.last+limits.gapMs:0;
+          const minute=q.recent.length>=limits.requestsMinute||q.recent.reduce((n,x)=>n+x.tokens,0)>=limits.tokensMinute?(q.recent[0]?.at||now)+60000:0;
+          const retryAt=Math.max(q.cooldown||0,q.busyUntil||0,spacing,minute,dayExhausted?nextDay(now):0,monthExhausted?nextMonth(now):0);
+          const state=eligibility!=='ready'?eligibility:exhausted?'budget_reached':retryAt>now?'cooldown':'ready';
           return { id: profile.id, name: profile.name, capabilities: profile.capabilities, state,
             model: this.model(profile, 'chat'), models: profile.models, note: profile.note, signup: profile.signup,
             enabled: cfg.enabled !== false, hasKey: this.hasKey(profile), freeConfirmed: profile.public || cfg.freeConfirmed === true || eligibility === 'ready',
-            verifiedAt: q.verifiedAt || null, retryAt: q.cooldown > now ? q.cooldown : exhausted ? nextDay(now) : null,
+            verifiedAt: q.verifiedAt || null, retryAt: eligibility==='ready'&&retryAt>now?retryAt:null,
             ...(owner ? { limits, usage: { requestsDay: q.requests, tokensDay: q.tokens, tokensMonth: q.monthTokens, reservedCreditDollars: q.monthMicros / 1000000, audioJobsDay: q.audioJobs }, reason: q.reason ? cleanReason(q.reason) : null } : {}) };
         }), parked: PARKED };
     });
@@ -180,6 +186,8 @@ export class MikeeCoordinator {
     });
   }
   unavailable(attempts, retryAt) {
+    const eligible=attempts.filter(x=>!['needs_key','needs_binding','paused','free_confirmation','development_only'].includes(x.reason));
+    if(eligible.length&&eligible.every(x=>x.reason==='request_too_large'))return json({error:'This request is too large for the connected free services. Shorten the message or current document; nothing was truncated.',code:'FREE_POOL_REQUEST_TOO_LARGE',attempts},413);
     const now = this.now(), retryAfter = Math.max(1, Math.ceil(((retryAt || now + 60000) - now) / 1000));
     const hasReady = attempts.some(x => !['needs_key', 'needs_binding', 'paused', 'free_confirmation', 'development_only'].includes(x.reason));
     return json({ error: hasReady ? 'The connected free services are busy or out of allowance. Your project is saved. Please try again later.' :
@@ -187,12 +195,13 @@ export class MikeeCoordinator {
       code: hasReady ? 'FREE_POOL_WAIT' : 'FREE_POOL_NOT_CONNECTED', attempts, retryAfter }, hasReady ? 429 : 503, { 'retry-after': String(retryAfter) });
   }
   async route(data, capability = 'chat', audio) {
+    if(capability!=='transcribe'&&(!Array.isArray(data.messages)||!data.messages.length))return json({error:'A prepared conversation is required.'},400);
     if (!await this.globalPermit()) return this.unavailable([{ reason: 'daily_budget' }], nextDay(this.now()));
     const requested = data.provider || 'auto';
     if (requested !== 'auto' && !BY_ID[requested]) return json({ error: 'Unknown provider.' }, 400);
     let candidates = PROFILES.filter(p => p.capabilities.includes(capability) && (requested === 'auto' || requested === p.id));
     if (capability === 'transcribe') candidates = candidates.sort((a, b) => (a.id === 'groq' ? -1 : b.id === 'groq' ? 1 : 0));
-    const messages = capability === 'transcribe' ? null : data.messages || buildMessages(data, capability);
+    const messages = capability === 'transcribe' ? null : data.messages;
     const maxTokens = Math.min(3000,Math.max(500,Number(data.maxTokens)||3000)), attempts = [], started = this.now(); let calls = 0, retryAt = 0;
     for (const profile of candidates) {
       if (calls >= 5 || this.now() - started > 75000) break;
@@ -295,7 +304,6 @@ export class MikeeCoordinator {
         if (request.method === 'PUT') return await this.updateConfig(await request.json());
       }
       if (path === '/completion') {const data=await request.json();return await this.route(data,data.image?'vision':'chat');}
-      if (path === '/chat') { const data = await request.json(); return await this.route(data, data.image ? 'vision' : 'chat'); }
       if (path === '/image') return await this.image(await request.json());
       if (path.startsWith('/image/')) return await this.job(path.split('/')[2], request.method === 'DELETE');
       if (path === '/transcribe') {

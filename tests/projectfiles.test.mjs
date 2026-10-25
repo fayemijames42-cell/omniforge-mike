@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 const runtime={window:{},Date,Math,JSON,Error,Number,String,Set};
 vm.createContext(runtime);
+vm.runInContext(readFileSync(new URL('../src/core.js',import.meta.url),'utf8'),runtime);
 vm.runInContext(readFileSync(new URL('../src/projectfiles.js',import.meta.url),'utf8'),runtime);
 const F=runtime.window.OMNI_FILES;
 const newProject=()=>({codeWorkspace:F.fresh('My Project'),updatedAt:0});
@@ -29,7 +30,7 @@ test('Untrusted imported code has strict size and filename validation',()=>{
  assert.throws(()=>F.validate({codeWorkspace:{files:{'index.html':'x'}}}),/Missing/);
 });
 test('Preview code is embedded with a deny-by-default content security policy',()=>{
- const html=F.previewDocument(newProject());
+ const html=runtime.window.OMNI.sandboxHTML(F.exportDocument(newProject()));
  assert.match(html,/default-src 'none'/);
  assert.match(html,/connect-src 'none'/);
  assert.match(html,/form-action 'none'/);

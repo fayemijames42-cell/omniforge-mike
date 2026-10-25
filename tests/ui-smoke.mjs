@@ -17,7 +17,7 @@ if (process.env.MIKEE_QA_CHROMIUM) {
 let time = Date.now(), fixtureCalls = 0;
 const storageData = new Map();
 const storage = { get: async key => structuredClone(storageData.get(key)), put: async (key, value) => storageData.set(key, structuredClone(value)) };
-const doc = navy => '<!doctype html><html><head><title>Elegant Fashion</title><style>body{background:' + (navy ? 'navy' : 'white') + ';color:gold}</style></head><body><main><h1>Elegant Fashion</h1><p>Clothes made for you.</p></main></body></html>';
+const doc = navy => '<!doctype html><html><head><title>Elegant Fashion</title><style>body{background:' + (navy ? 'navy' : 'white') + ';color:gold}</style></head><body><main><h1>Elegant Fashion</h1><p>Clothes made for you.</p><button id="fixture-action">Try example</button><output id="fixture-output"></output></main><script>document.querySelector("#fixture-action").onclick=()=>{document.querySelector("#fixture-output").textContent="It works"};</script></body></html>';
 const answer = messages => {
   const last = messages.at(-1).content;
   if (Array.isArray(last)) return 'Fixture photo analysis.';
@@ -88,11 +88,31 @@ try {
   await page.locator('#composerMode').selectOption('image'); await page.locator('#prompt').fill('A classroom illustration.'); await page.locator('#sendBtn').click();
   await page.waitForFunction(() => window.OMNI_TEST.getProject().assets.length === 1);
   await page.locator('#typingIndicator').waitFor({ state: 'hidden' });
+  await go('edit');await page.locator('#editActualCode').click();await page.waitForFunction(()=>!!window.OMNI_TEST.getProject().codeWorkspace);
   await go('photos');
   await page.locator('.asset-tile').click(); await page.locator('#addPhoto').click();
   await page.waitForFunction(() => window.OMNI_TEST.getProject().website.rawHtml.includes('omniforge-asset://'));
   const exported = await page.evaluate(async () => window.OMNI.renderSite(window.OMNI_TEST.getProject(), await window.OMNI.assetMap(window.OMNI_TEST.getProject())));
   assert.ok(exported.includes('data:image/png;base64,'));
+
+  const backups=await page.evaluate(async()=>{
+   const C=window.OMNI,p=window.OMNI_TEST.getProject(),before=C.renderSite(p,await C.assetMap(p));
+   const zip=await C.exportZIP(p),restored=await C.importProject(new File([zip],'roundtrip.zip'));
+   const json=await C.exportJSON(p),fromJSON=await C.importProject(new File([json],'roundtrip.json'));
+   const image=restored.messages.find(m=>m.imageId);
+   return {originalId:p.id,restoredId:restored.id,jsonId:fromJSON.id,zipEqual:C.renderSite(restored,await C.assetMap(restored))===before,jsonEqual:C.renderSite(fromJSON,await C.assetMap(fromJSON))===before,imageRemapped:image?.imageId===restored.assets[0].id&&image.imageId!==p.assets[0].id,blobPresent:!!await C.getBlob(image.imageId)};
+  });
+  assert.equal(backups.zipEqual,true);assert.equal(backups.jsonEqual,true);assert.equal(backups.imageRemapped,true);assert.equal(backups.blobPresent,true);
+  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>!!window.OMNI_TEST&&!!window.MIKEE_POOL.catalog());
+  await page.locator('#projectSelect').selectOption(backups.restoredId);await page.waitForFunction(id=>window.OMNI_TEST.getProject()?.id===id,backups.restoredId);
+  await go('preview');await page.frameLocator('#siteFrame').locator('#fixture-action').click();await page.frameLocator('#siteFrame').locator('#fixture-output').getByText('It works').waitFor();
+  const css=await page.frameLocator('#siteFrame').locator('body').evaluate(el=>getComputedStyle(el).backgroundColor);assert.equal(css,'rgb(0, 0, 128)');
+  await page.evaluate(async originalId=>{
+   const C=window.OMNI,p=await C.getProject(originalId),shared=C.clone(p);shared.id=C.uuid();await C.saveProject(shared);
+   const asset=p.assets[0].id;await C.deleteProject(originalId);if(!await C.getBlob(asset))throw Error('Deleted a shared blob');
+   await C.deleteProject(shared.id);if(await C.getBlob(asset))throw Error('Left an orphaned blob');
+  },backups.originalId);
+
   await settings(); await page.locator('.connections-section > summary').click();
   await page.locator('#ownerToken').fill(env.MIKEE_ADMIN_TOKEN); await page.locator('#unlockOwner').click();
   await page.locator('#ownerLock').waitFor({ state: 'visible' });
@@ -108,7 +128,19 @@ try {
   await page.locator('#audioFile').setInputFiles({ name: 'fixture.webm', mimeType: 'audio/webm', buffer: Buffer.from('fixture audio') });
   await page.waitForFunction(() => document.querySelector('#prompt').value === 'Fixture audio transcript ready for review.');
   await page.locator('#typingIndicator').waitFor({ state: 'hidden' });
+
+  await page.locator('#prompt').fill('What is a diode?');
+  await page.route('**/api/chat',route=>route.abort('failed'));
+  await page.locator('#sendBtn').click();await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.engine==='ERROR');
+  assert.equal(await page.evaluate(()=>window.OMNI_OFFLINE_UI.isOffline()),false);
+  await page.unroute('**/api/chat');time+=61000;
+  await page.locator('#prompt').fill('Say connection restored.');await page.locator('#sendBtn').click();await page.locator('#typingIndicator').waitFor({state:'hidden'});
+  await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.engine==='LIVE AI');
+  const callsBeforeOffline=fixtureCalls;await page.evaluate(()=>navigator.serviceWorker.ready);await page.context().setOffline(true);
+  await page.reload({waitUntil:'load'});await page.waitForFunction(()=>!!window.OMNI_TEST?.getProject());
+  await page.locator('#prompt').fill('/calc 19+28');await page.locator('#sendBtn').click();await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.text.includes('Result: 47'));
+  assert.equal(fixtureCalls,callsBeforeOffline);await page.context().setOffline(false);
   await page.screenshot({ path: resolve(root, '../mikee-mobile-qa.png'), fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS mobile UI: typing feedback, same-site edit, incomplete HTML preservation, HTML explanation keeps the current project, image generation/save/placement/export, encrypted owner connection, audio draft; provider responses are fixtures. Calls:', fixtureCalls);
+  console.log('PASS mobile UI: typing feedback, same-site edit, incomplete HTML preservation, HTML explanation keeps the current project, image generation/save/placement/export, encrypted owner connection, audio draft, faithful ZIP/JSON restore, live restored JavaScript/CSS, image remapping, safe blob cleanup, temporary failure recovery and offline reload; provider responses are fixtures. Calls:', fixtureCalls);
 } catch(error) {console.log('UI failure state',JSON.stringify(await page.evaluate(()=>({messages:window.OMNI_TEST?.getProject()?.messages?.slice(-2),assets:window.OMNI_TEST?.getProject()?.assets?.length,toast:document.querySelector('#toast')?.textContent,local:window.OMNI_OFFLINE_UI?.isOffline()}))),errors);throw error;} finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

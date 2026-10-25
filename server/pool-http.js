@@ -16,14 +16,14 @@ async function readBody(request, limit) {
   for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
   return result;
 }
-async function bodyJSON(request, limit = 800000) {
-  if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return { error: json({ error: 'Send JSON.' }, 415) };
+export async function bodyJSON(request, limit = 800000, requireType = true) {
+  if (requireType && !request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return { error: json({ error: 'Send JSON.' }, 415) };
   const bytes = await readBody(request, limit);
   if (bytes === null) return { error: json({ error: 'Request too large.' }, 413) };
   try {
     const data = JSON.parse(new TextDecoder().decode(bytes));
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw Error();
-    return { data };
+    return { data, bytes: bytes.length };
   } catch { return { error: json({ error: 'A valid JSON object is required.' }, 400) }; }
 }
 export function validImage(value) {
@@ -48,13 +48,9 @@ function forward(stub, path, method, body, authorization) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url), path = url.pathname;
-    if (path === '/quick-chat') return Response.redirect(url.origin + '/', 302);
-    if (path === '/api/health') return json({ ok: true, version: '0.10.0', mode: 'free-pool', aiBound: !!env.AI,
-      poolBound: !!env.MIKEE_POOL, verified: false, ownerSetup: typeof env.MIKEE_ADMIN_TOKEN === 'string' && env.MIKEE_ADMIN_TOKEN.length >= 24 });
-    if (!path.startsWith('/api/')) return env.ASSETS ? env.ASSETS.fetch(request) : json({ error: 'Workspace assets are missing.' }, 503);
     const origin = request.headers.get('origin');
     if (origin && origin !== url.origin) return json({ error: 'Cross-origin requests are not allowed.' }, 403);
-    const known = ['/api/chat', '/api/providers', '/api/image', '/api/transcribe', '/api/admin/providers'].includes(path) || /^\/api\/image\/[a-f0-9-]{36}$/.test(path);
+    const known = ['/api/providers', '/api/image', '/api/transcribe', '/api/admin/providers'].includes(path) || /^\/api\/image\/[a-f0-9-]{36}$/.test(path);
     if (!known) return json({ error: 'Not found.' }, 404);
     if (path.startsWith('/api/admin/') && !await ownerAuthorized(request, env)) return json({ error: 'Owner access required. Configure MIKEE_ADMIN_TOKEN as a Worker secret to manage connections.' }, 401);
     const stub = pool(env);
@@ -67,15 +63,6 @@ export default {
           const parsed = await bodyJSON(request, 6000); if (parsed.error) return parsed.error;
           return await forward(stub, '/admin/providers', 'PUT', parsed.data, request.headers.get('authorization'));
         }
-      }
-      if (path === '/api/chat' && request.method === 'POST') {
-        const parsed = await bodyJSON(request); if (parsed.error) return parsed.error;
-        const data = parsed.data;
-        if (typeof data.message !== 'string' || !data.message.trim() || data.message.length > 6000) return json({ error: 'Send a message between 1 and 6,000 characters.' }, 400);
-        if (data.currentHtml != null && (typeof data.currentHtml !== 'string' || data.currentHtml.length > 24000)) return json({ error: 'AI editing accepts up to 24,000 HTML characters. Your site was not truncated.' }, 413);
-        if (data.image != null && !validImage(data.image)) return json({ error: 'Attach a JPEG, PNG or WebP image smaller than 375 KB.' }, 400);
-        const history = Array.isArray(data.history) ? data.history.slice(-8).filter(m => ['user', 'assistant'].includes(m?.role) && typeof m.content === 'string').map(m => ({ role: m.role, content: m.content })) : [];
-        return await forward(stub, '/chat', 'POST', { message: data.message.trim(), history, currentHtml: data.currentHtml || '', provider: data.provider || 'auto', ...(data.image ? { image: data.image } : {}) });
       }
       if (path === '/api/image' && request.method === 'POST') {
         const parsed = await bodyJSON(request, 6000); if (parsed.error) return parsed.error;
