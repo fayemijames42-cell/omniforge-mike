@@ -7,7 +7,7 @@
     "build": "npm run check && npm test && node build.mjs",
     "deploy": "wrangler deploy",
     "check": "node --check worker.js && node --check src/app.js && node --check src/core.js && node --check src/workspace.js && node --check src/calculator.js && node --check src/symbolic.js && node --check src/offline.js && node --check src/offline-ui.js && node --check sw.js && node --check src/vector.js && node --check src/projectfiles.js",
-    "test": "node tests/core-tests.mjs && node --test tests/worker.test.mjs tests/workspace.test.mjs tests/calculator.test.mjs tests/symbolic.test.mjs tests/offline.test.mjs tests/vector.test.mjs tests/projectfiles.test.mjs"
+    "test": "node tests/core-tests.mjs && node --test tests/worker.test.mjs tests/research.test.mjs tests/workspace.test.mjs tests/calculator.test.mjs tests/symbolic.test.mjs tests/offline.test.mjs tests/vector.test.mjs tests/projectfiles.test.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
