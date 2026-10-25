@@ -156,3 +156,19 @@ test('The same model receives earlier learner constraints and the current follow
  let messages;await run({message:'Give another practice example.',history},{AI:{run:async(_m,p)=>{messages=p.messages;return {response:'Fixture example.'};}}});
  assert.ok(messages.some(m=>m.content.includes('Grade 7, Alberta')));assert.equal(messages.at(-1).content,'Give another practice example.');
 });
+
+test('Referenced answer must actually cite retrieved sources',()=>{
+ const plan=planRequest({message:'Who invented the transistor?'});
+ const result=reviewAnswer('The device was invented at Bell Labs in 1947.',plan,[{title:'Bell Labs'}]);
+ assert.equal(result.quality.sourceUse.uncited,true);
+ assert.equal(result.quality.sourceUse.retrieved,1);
+ assert.equal(result.quality.factChecked,false);
+ assert.match(result.quality.warnings.join(' '),/did not cite/i);
+});
+test('Valid citation markers are counted without claiming factual verification',()=>{
+ const plan=planRequest({message:'Explain the transistor.'});
+ const result=reviewAnswer('A transistor can amplify signals [1].',plan,[{title:'Electronics'}]);
+ assert.equal(result.quality.sourceUse.uncited,false);
+ assert.deepEqual(result.quality.sourceUse.cited,[1]);
+ assert.equal(result.quality.factChecked,false);
+});
