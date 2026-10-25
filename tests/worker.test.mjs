@@ -87,7 +87,7 @@ test('Image quota rejects model invocation before FLUX runs',async()=>{
 });
 test('Server uses trusted IP for visitor key and constant key for shared allowance',async()=>{
  const keys=[],limiter={limit:async p=>{keys.push(p.key);return {success:true}}};
- const e={AI:{run:async()=>({response:'ok'})},CHAT_VISITOR_LIMIT:limiter,CHAT_SHARED_LIMIT:limiter};
+ const e={AI:{run:async()=>({response:'ok'})},CHAT_VISITOR_LIMIT:limiter,CHAT_SHARED_LIMIT:limiter,DAILY_BUDGET:budgetAllow};
  const r=await realWorker.fetch(new Request('https://mikee.test/api/chat',{method:'POST',headers:{origin:'https://mikee.test','cf-connecting-ip':'192.0.2.8'},body:JSON.stringify({message:'test'})}),e);
  assert.equal(r.status,200);assert.deepEqual(keys,['192.0.2.8','public']);
 });
