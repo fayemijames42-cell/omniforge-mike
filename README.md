@@ -1,5 +1,7 @@
 # OMNIFORGE · MIKEE / NEXUS
 
+**Created by ADEN.inc** — creator credit supplied for the project. This is a branding attribution, not a claim of verified company incorporation or registered trademark.
+
 **Conversation-first, general-purpose AI workspace** running on Cloudflare Workers AI. Website creation is an *optional* capability; a new chat is not automatically a website.
 
 **Deployed Worker:** https://omniforge-mike.fayemijames42.workers.dev/

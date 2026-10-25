@@ -157,3 +157,8 @@ dialog,.settings-box{background:#181e1a;border-color:#5b685c}
 .code-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .code-tools button{background:#303e33;border:1px solid #637566;border-radius:8px;color:#f3f7f2;padding:8px 10px;font-size:12px}
 #codeDiffOutput{overflow:auto;max-height:300px;white-space:pre-wrap;background:#090e0b;padding:12px;border-radius:8px;color:#c8e6c5}
+
+/* ADEN.inc creator identity — quiet, readable and mobile-friendly. */
+.creator-badge{font-size:10px;letter-spacing:.13em;font-weight:750;color:#bfcbc0;margin:4px 0 10px;text-transform:uppercase}
+.creator-about{font-size:12px;border-top:1px solid #47544a;margin-top:14px;padding-top:12px}
+@media(max-width:400px){.brand small{font-size:9px;letter-spacing:.055em}}
