@@ -4,15 +4,36 @@
  * may be enabled explicitly by a Worker secret for broader web/current search.
  * Search results are EVIDENCE, not proof or automatically verified facts.
  */
-const SIGNAL=/\b(search (?:the )?(?:web|internet|online)|browse (?:the )?(?:web|internet)|look (?:it )?up online|look up|web search|find (?:online )?sources|check (?:online|the web)|fact.check|verify (?:this|that|the|whether)|according to (?:current|latest) sources|latest|today|yesterday|this week|breaking news|up.to.date|most recent|right now|current (?:news|price|president|weather|events|research|status|information))\b/i;
-const FRESH=/\b(latest|today|yesterday|this week|breaking|right now|up.to.date|most recent|current (?:news|price|president|weather|events|status|information)|202[6-9] news)\b/i;
-const CHECK=/^\s*(?:search (?:the )?(?:web|internet|online)(?: for)?|browse (?:the )?(?:web|internet)(?: for)?|look up|find online sources (?:for|about)|verify|fact.check)\s*[:,-]?\s*/i;
-export function researchIntent(message){
+/* Deterministic, no-model intent triage. Avoid transmitting private chat to search providers. */
+const EXPLICIT=/\b(search (?:the )?(?:web|internet|online)|browse (?:the )?(?:web|internet)|look (?:it )?up online|look up|web search|find (?:online )?sources|check (?:online|the web)|fact.check|verify (?:this|that|the|whether)|cite (?:your |the )?sources|provide (?:reliable )?sources|according to (?:current|latest) sources)\b/i;
+const FRESH=/\b(latest|breaking news|most recent|right now|up.to.date|today'?s? (?:news|weather|price|rate|results|events)|this week(?:'s)? (?:news|events)|current (?:news|price|president|prime minister|ceo|weather|exchange rate|rules|laws|regulations|events|research|status|information|date|time|version|release|statistics|leader)|who (?:is|are) (?:the )?(?:current|new|present)|(?:stock|exchange) (?:price|rate) (?:today|now)|weather (?:today|tomorrow|now|this week)|price of .{2,70} (?:today|now))\b/i;
+const AUTO_REFERENCE=/^(?:who (?:invented|discovered|founded|developed|created)\b|when (?:was|did) .{2,110}\b(?:invented|discovered|founded|created|built|happen|occur|start)\b|where (?:was|were) .{3,75}\b(?:invented|discovered|founded|born|located)\b|what (?:is|are) (?:a |an |the )?[a-z-]{4,}\b|how (?:does|do|is|are) (?:a |an |the )?[a-z-]{3,}(?: .{1,50})? (?:work|function|produced|made|formed)\b|explain (?:how|why) (?:a |an |the )?[a-z-]{3,})/i;
+const PRIVACY=/\b(?:my (?:password|phone|account|address|email|medical|health|school|conversation|personal|family)|confidential|secret|private key|api key|access token|credit card|pin number|passport number|log(?:-| )?in|sign(?:-| )?in|matriculation number|medical records)\b/i;
+const BUILD=/\b(?:create|build|design|generate|redesign|develop|edit|fix)\b.{0,90}\b(?:website|webpage|app|landing page|site)\b/i;
+const CREATIVE=/^(?:(?:please|can you|could you) +)?(?:write|draft|create|generate|compose|design|imagine|brainstorm|translate|rewrite|summarize|correct|proofread|solve|differentiate|integrate|calculate|evaluate|draw)\b/i;
+const STRIP=/^\s*(?:search (?:the )?(?:web|internet|online)(?: for)?|browse (?:the )?(?:web|internet)(?: for)?|look up|find online sources (?:for|about)|verify|fact.check)\s*[:,-]?\s*/i;
+const QUESTION_PREFIX=/^(?:please |can you |could you |tell me |show me |give me |what is |what are |who was |who is |who invented |who discovered |when was |where was |how does |how do |how is |explain how |explain why |the meaning of )+/i;
+const FOLLOWUP=/^(?:go on|continue|elaborate|explain more|why|how so|tell me more|more details)[.!? ]*$/i;
+function searchQuery(text){
+ const plain=String(text||'').replace(STRIP,'').replace(QUESTION_PREFIX,'').replace(/^[\s]*(?:a|an|the)\s+/i,'').replace(/[?!.]+$/,'').replace(/\s+/g,' ').trim();
+ return plain.slice(0,200)||String(text||'').slice(0,200);
+}
+export function interpretUserIntent(message,history=[]){
  const text=String(message||'').slice(0,2400).trim();
- const requested=SIGNAL.test(text);
- const fresh=FRESH.test(text);
- // A web query should reflect the user's actual words, without irrelevant instructions.
- return {requested,fresh,query:text.replace(CHECK,'').slice(0,200).trim()||text.slice(0,200)};
+ const explicit=EXPLICIT.test(text),fresh=FRESH.test(text);
+ const creative=CREATIVE.test(text)||BUILD.test(text);
+ const privacySensitive=PRIVACY.test(text)||/\b(?:my|mine|our|ours|i am|i'm|i feel|i have)\b/i.test(text);
+ const followUp=FOLLOWUP.test(text);
+ // A server-side lookup can send the search query to an external service.
+ // Protect personal prompts; keep creative and mathematical requests local/model-only.
+ let researchMode=privacySensitive||followUp?'none':explicit?'explicit':!creative&&fresh?'automatic':!creative&&AUTO_REFERENCE.test(text)?'automatic':'none';
+ const goal=creative?'create-or-compute':/\b(?:compare|versus|vs\.?|difference between|better than)\b/i.test(text)?'compare':/^(?:explain|how|why|teach)\b/i.test(text)?'explain':/\b(?:fact.check|verify|is it true)\b/i.test(text)?'verify':'answer';
+ const prior=Array.isArray(history)&&history.some(m=>m?.role==='user'&&typeof m.content==='string');
+ return {goal,researchMode,fresh:followUp?false:fresh,query:searchQuery(text),followUp,contextAvailable:!!prior};
+}
+export function researchIntent(message){
+ const intent=interpretUserIntent(message);
+ return {requested:intent.researchMode!=='none',fresh:intent.fresh,query:intent.query};
 }
 function clean(value,n=600){
  return String(value||'').replace(/<[^>]*>/g,' ').replace(/&(?:amp|quot|lt|gt|nbsp|#39);/gi,x=>({'&amp;':'&','&quot;':'"','&lt;':'<','&gt;':'>','&nbsp;':' ','&#39;':"'"}[x.toLowerCase()]||' ')).replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,n);
