@@ -112,7 +112,7 @@ export default {async fetch(request,env){const url=new URL(request.url);
    }else{
     const researchLimit=await guardDailyBudget(env,'research');
     if(researchLimit){
-     if(lookup.researchMode==='explicit')return researchLimit;
+     if(lookup.researchMode==='explicit'&&lookup.fresh)return researchLimit;
      researchNote='The automatic research budget has been reached. No external sources were consulted. Do not claim this answer was researched.';
     }else{
      const queries=lookup.queries.slice(0,2);
