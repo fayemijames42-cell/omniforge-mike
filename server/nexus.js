@@ -54,14 +54,21 @@ export function reviewAnswer(reply,plan,sources=[]){
  const artifact=plan.website?{type:'website',complete:!!html}:{type:'text'};
  if(plan.website&&!html)warnings.push('The website response is incomplete. The previous project must be kept.');
  const checkCitations=sources.length>0&&plan.artifact==='text'&&plan.kind!=='code';
+ const validCitations=new Set(),invalidCitations=new Set();
  if(checkCitations){
-  const invalid=[];
-  // Do not rewrite code blocks or array expressions while checking citations.
+  // Source markers in literal code are not citations. Avoid modifying code or arrays.
   text=text.split(/(```[\s\S]*?```|`[^`\n]*`)/g).map((part,index)=>index%2?part:part.replace(/(^|[^\w])\[(\d{1,3})\]/g,(all,prefix,n)=>{
-   if(Number(n)>=1&&Number(n)<=sources.length)return all;
-   invalid.push(Number(n));return prefix;
+   const id=Number(n);
+   if(id>=1&&id<=sources.length){validCitations.add(id);return all;}
+   invalidCitations.add(id);return prefix;
   })).join('');
-  if(invalid.length)warnings.push('Unsupported citation markers were removed. Check the supplied sources before relying on the affected claims.');
+  if(invalidCitations.size)warnings.push('Unsupported citation markers were removed. Check the supplied sources before relying on the affected claims.');
+  // Search results in the prompt alone do not mean a model grounded its answer.
+  if(!validCitations.size&&text.trim().length>40)warnings.push('Sources were retrieved, but this answer did not cite any of them. Do not treat it as source-verified.');
  }
- return {reply:text,artifact,quality:{checks:['artifact-format',...(checkCitations?['citation-identifiers']:[])],warnings,factChecked:false}};
+ const sourceUse={retrieved:sources.length,cited:[...validCitations].sort((a,b)=>a-b),uncited:checkCitations&&validCitations.size===0};
+ return {reply:text,artifact,quality:{
+  checks:['artifact-format',...(checkCitations?['citation-identifiers','source-usage']:[])],
+  warnings,factChecked:false,sourceUse
+ }};
 }
