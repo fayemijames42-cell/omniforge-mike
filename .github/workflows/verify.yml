@@ -30,3 +30,26 @@ jobs:
         run: npm run build
       - name: Check the Worker bundle without deploying
         run: npx wrangler deploy --dry-run
+
+  browser-smoke:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: build
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - name: Install locked application dependencies
+        run: npm ci
+      - name: Install temporary headless browser runner
+        run: npm install --no-save --package-lock=false playwright@1.56.1
+      - name: Install Chromium test browser
+        run: npx playwright install --with-deps chromium
+      - name: Build local browser assets
+        run: node build.mjs
+      - name: Verify mobile UI, provider selection, artifact exports and recovery
+        run: node tests/ui-smoke.mjs
