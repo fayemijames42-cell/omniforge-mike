@@ -136,3 +136,31 @@ test('Request intent distinguishes factual lookup from personal data and creativ
  for(const [q,bool] of expected)assert.equal(researchIntent(q).requested,bool,q);
  assert.equal(researchIntent('Who is the current president of Nigeria?').fresh,true);
 });
+
+test('Directly addressed MIKEE historical question triggers automatic retrieval and citations',async()=>{
+ let fetched=0,modelCalls=0,query='';
+ const env={...base,RESEARCH_FETCH:async(url)=>{
+  fetched++;query=new URL(url).searchParams.get('q');
+  return Response.json({pages:[{title:'Transistor',key:'Transistor',
+   description:'Semiconductor component',excerpt:'The transistor was invented at Bell Labs in 1947.'}]});
+ },AI:{run:async(_model,input)=>{
+  modelCalls++;
+  assert.match(input.messages[0].content,/CURRENT RETRIEVAL/);
+  return {response:'Bardeen and Brattain developed the first working point-contact transistor at Bell Labs. [1]'};
+ }}};
+ const userPrompt='MIKEE, who invented the transistor, and how did the invention change electronics?';
+ const r=await realWorker.fetch(request(userPrompt),env),data=await r.json();
+ assert.equal(r.status,200);
+ assert.equal(query,'transistor');
+ assert.equal(fetched,1);
+ assert.equal(modelCalls,1);
+ assert.equal(data.research.mode,'automatic');
+ assert.equal(data.sources.length,1);
+ assert.equal(data.sources[0].title,'Transistor');
+});
+test('MIKEE polite requests and private requests use the right path',()=>{
+ for(const text of ['Hey MIKEE, who invented the transistor?','Can you tell me who invented the transistor?','MIKEE, explain how solar panels work.'])
+  assert.equal(researchIntent(text).requested,true,text);
+ for(const text of ['MIKEE, what is my email address?','MIKEE, create a website for my business.','I have an important medical appointment'])
+  assert.equal(researchIntent(text).requested,false,text);
+});
