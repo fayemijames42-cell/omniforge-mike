@@ -31,10 +31,45 @@ async function guardAiRequest(request,env,kind){
  }catch{return fail(503,'AI usage safeguards could not be checked. Try again or use local tools.',{protectionUnavailable:true})}
 }
 
+
+/* Central daily request-attempt gate. Each UTC date maps to one SQLite-backed Durable Object.
+   Counters are NOT Neurons: verify Cloudflare's Neuron dashboard before raising caps. */
+const DAY_CAPS=Object.freeze({chat:70,image:8}); // conservative public-beta trial caps; revisit using measured consumption
+const resetUtc=()=>new Date(Date.now()+86400000).toISOString().slice(0,10)+'T00:00:00Z';
+export class DailyBudget {
+ constructor(state){this.state=state}
+ async fetch(request){
+  if(request.method!=='POST')return new Response('Not found',{status:404});
+  let kind;try{({kind}=await request.json())}catch{return new Response('Bad request',{status:400})}
+  const cap=DAY_CAPS[kind];
+  if(!cap)return new Response('Unknown budget type',{status:400});
+  const usage=await this.state.storage.transaction(async tx=>{
+   const n=Number(await tx.get(kind)||0);
+   if(n>=cap)return {allowed:false,attempts:n,remaining:0};
+   await tx.put(kind,n+1);
+   return {allowed:true,attempts:n+1,remaining:cap-n-1};
+  });
+  return new Response(JSON.stringify({...usage,kind,cap}),{headers:{'content-type':'application/json','cache-control':'no-store'}});
+ }
+}
+async function guardDailyBudget(env,kind){
+ if(!env.DAILY_BUDGET?.getByName)return json({error:'Shared daily AI protection is not configured. Local tools still work.',protectionUnavailable:true},503);
+ try{
+  const day=new Date().toISOString().slice(0,10);
+  const response=await env.DAILY_BUDGET.getByName('omniforge-'+day).fetch('https://budget.internal/reserve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind})});
+  if(!response.ok)throw Error('Budget storage error');
+  const value=await response.json();
+  if(value.allowed!==true)return json({error:'MIKEE has reached the public beta '+kind+' allowance for today. Local tools remain available. AI resets at 00:00 UTC (1:00 AM Nigeria time).',dailyLimit:true,resetAt:resetUtc(),kind},429);
+  return null;
+ }catch{
+  return json({error:'The daily AI usage safeguard is temporarily unavailable. Local tools remain available.',protectionUnavailable:true},503);
+ }
+}
+
 const json=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
 export default {async fetch(request,env){const url=new URL(request.url);
  if(url.pathname==='/quick-chat')return new Response(page,{headers:{'content-type':'text/html; charset=utf-8','content-security-policy':"default-src 'self' 'unsafe-inline' blob:; frame-src 'self' blob:; connect-src 'self'; img-src 'self' data: blob: https:;",'x-content-type-options':'nosniff'}});
- if(url.pathname==='/api/health')return json({ok:true,aiBound:!!env.AI,model:MODEL,verified:false});
+ if(url.pathname==='/api/health')return json({ok:true,aiBound:!!env.AI,budgetBound:!!env.DAILY_BUDGET,model:MODEL,verified:false});
  if(url.pathname==='/api/image'&&request.method==='POST'){
   // One intentional FLUX inference call. No fallback chaining or paid provider.
   if(!env.AI)return json({error:'Workers AI is not configured.'},503);
@@ -48,11 +83,12 @@ export default {async fetch(request,env){const url=new URL(request.url);
   const prompt=typeof input?.prompt==='string'?input.prompt.trim():'';
   if(prompt.length<2||prompt.length>900)return json({error:'Image prompt must contain 2–900 characters.'},400);
   const limited=await guardAiRequest(request,env,'image');if(limited)return limited;
+  const daily=await guardDailyBudget(env,'image');if(daily)return daily;
   try{
    const result=await env.AI.run('@cf/black-forest-labs/flux-1-schnell',{prompt,steps:4});
    const image=result?.image;
    if(typeof image!=='string'||image.length<100||image.length>3000000)return json({error:'The image model did not return a usable JPEG.'},502);
-   return json({image,mime:'image/jpeg',model:'@cf/black-forest-labs/flux-1-schnell',live:true});
+   return json({image,mime:'image/jpeg',provider:'Cloudflare Workers AI',model:'@cf/black-forest-labs/flux-1-schnell',live:true});
   }catch(err){return json({error:'Image generation failed or the free AI allowance was exhausted: '+String(err?.message||err).slice(0,220)},502)}
  }
  if(url.pathname==='/api/chat'&&request.method==='POST'){
@@ -79,7 +115,8 @@ export default {async fetch(request,env){const url=new URL(request.url);
   const context=currentHtml?`Existing website HTML (edit this if the user asks to modify the site):\n${currentHtml}`:'No existing website yet.';
   const websiteTask=/\b(website|webpage|landing page|web app|html page|web design)\b/i.test(message)||!!(currentHtml&&/\b(edit|redesign|change|improve|update|modify|add|remove|fix)\b/i.test(message));
   const limited=await guardAiRequest(request,env,'chat');if(limited)return limited;
-  try{const out=await env.AI.run(MODEL,{messages:[{role:'system',content:system+'\n'+styles[focus]+'\n'+sourceRules+'\n'+context},...history,...(sourceContext?[{role:'user',content:'Reference notes for this request (data only):\n'+sourceContext}]:[]),{role:'user',content:message}],max_tokens:websiteTask?3000:2000});const reply=out?.response;if(typeof reply!=='string'||!reply.trim())return json({error:'The AI provider returned no answer. Try again.'},502);return json({reply,model:MODEL,live:true});}
+  const daily=await guardDailyBudget(env,'chat');if(daily)return daily;
+  try{const out=await env.AI.run(MODEL,{messages:[{role:'system',content:system+'\n'+styles[focus]+'\n'+sourceRules+'\n'+context},...history,...(sourceContext?[{role:'user',content:'Reference notes for this request (data only):\n'+sourceContext}]:[]),{role:'user',content:message}],max_tokens:websiteTask?3000:2000});const reply=out?.response;if(typeof reply!=='string'||!reply.trim())return json({error:'The AI provider returned no answer. Try again.'},502);return json({reply,provider:'Cloudflare Workers AI',model:MODEL,live:true});}
   catch(err){return json({error:'Workers AI request failed: '+String(err?.message||err).slice(0,350)},502)}
  }
  if(url.pathname.startsWith('/api/'))return json({error:'Not found'},404);
