@@ -162,3 +162,50 @@ dialog,.settings-box{background:#181e1a;border-color:#5b685c}
 .creator-badge{font-size:10px;letter-spacing:.13em;font-weight:750;color:#bfcbc0;margin:4px 0 10px;text-transform:uppercase}
 .creator-about{font-size:12px;border-top:1px solid #47544a;margin-top:14px;padding-top:12px}
 @media(max-width:400px){.brand small{font-size:9px;letter-spacing:.055em}}
+
+
+/* Mobile v1.2: uncluttered chat-first workspace, no additional AI calls. */
+.mobile-menu-button{display:none}
+.mobile-drawer-layer[hidden]{display:none!important}
+.mobile-drawer-layer{position:fixed;inset:0;z-index:80;display:flex}
+.mobile-drawer-backdrop{position:absolute;inset:0;border:0;border-radius:0;background:rgba(0,0,0,.72);width:100%;height:100%;cursor:pointer}
+.mobile-drawer{position:relative;display:flex;flex-direction:column;background:#151b17;border-right:1px solid #47594a;color:#f1f6f0;width:min(86vw,330px);height:100%;padding:calc(14px + env(safe-area-inset-top)) 12px calc(14px + env(safe-area-inset-bottom));box-shadow:12px 0 36px #0009}
+.drawer-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 10px 14px;border-bottom:1px solid #354139}
+.drawer-heading strong{display:block;font-size:20px;letter-spacing:-.03em}
+.drawer-heading small{display:block;color:#b1c1b5;font-size:10px;letter-spacing:.08em;margin-top:2px}
+.drawer-close{border:1px solid #4d5d50;background:#242f27;color:#f4f8f4;min-width:40px;min-height:40px;border-radius:10px}
+.drawer-scroll{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:18px}
+.drawer-section-label{font-size:10px;letter-spacing:.14em;font-weight:700;color:#94a999;margin:22px 11px 10px}
+.drawer-links{display:grid;gap:5px}
+.drawer-links button{display:flex;gap:13px;align-items:center;width:100%;min-height:47px;text-align:left;padding:10px 14px;border:1px solid transparent;border-radius:11px;background:transparent;color:#e0e9e1;font-size:14px}
+.drawer-links button>span:first-child{font-size:18px;min-width:21px;text-align:center}
+.drawer-links button.active,.drawer-links button[aria-current=page]{background:#2e3a31;border-color:#536657;font-weight:700;color:#fff}
+.drawer-links button:hover{background:#29342c}
+.drawer-links .drawer-danger{color:#e8b2b0}
+.drawer-focus{display:block;color:#aebdae;font-size:10px;letter-spacing:.12em;font-weight:700;margin:24px 11px 0}
+.drawer-focus select{display:block;margin-top:8px;width:100%;background:#222b25;color:#f2f6ef;border:1px solid #536255;border-radius:10px;padding:11px;font-size:14px}
+.drawer-privacy{margin:26px 10px 0;padding:13px;border:1px solid #445246;border-radius:11px;background:#202922;color:#b9c9bc;font-size:11px;line-height:1.6}
+@media(max-width:800px){
+ .mobile-menu-button{display:grid;place-items:center;flex:0 0 40px;min-height:40px;border:1px solid #4b5d50;border-radius:10px;background:#252e27;color:#f4f8f4;font-size:22px;padding:0}
+ .masthead{padding-inline:9px;gap:8px}
+ .masthead #settingsButton{display:none}
+ .masthead .status{max-width:116px;overflow:hidden;text-overflow:ellipsis}
+ .brand{gap:7px}
+ .projectbar #chatSearchBtn,.projectbar #renameChat,.projectbar #deleteProject{display:none}
+ .projectbar{gap:10px;padding-inline:10px}
+ .projectbar select{max-width:none}
+ .pane-title .focus-control{display:none}
+ .pane-title{padding:11px 14px}
+ .chat-stream{padding:13px 12px}
+ .mobile-nav{display:none!important}
+ .result-pane{padding-bottom:env(safe-area-inset-bottom)}
+ .composer{margin-bottom:max(9px,env(safe-area-inset-bottom))}
+ .source-actions{padding-inline:11px}
+}
+@media(max-width:380px){
+ .masthead .status{max-width:86px;font-size:9px}
+ .brand strong{font-size:11px}
+ .brand small{font-size:8px}
+ .mark{width:30px;height:30px}
+}
+@media(min-width:801px){.mobile-drawer-layer{display:none!important}}
