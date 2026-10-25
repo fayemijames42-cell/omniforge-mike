@@ -1,0 +1,32 @@
+name: Verify OMNIFORGE
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - name: Use the tested package manager
+        run: npm install --global npm@11.9.0
+      - name: Install the locked dependencies
+        run: npm ci
+      - name: Validate and build the application
+        run: npm run build
+      - name: Check the Worker bundle without deploying
+        run: npx wrangler deploy --dry-run
