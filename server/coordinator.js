@@ -190,8 +190,8 @@ export class MikeeCoordinator {
     if(eligible.length&&eligible.every(x=>x.reason==='request_too_large'))return json({error:'This request is too large for the connected free services. Shorten the message or current document; nothing was truncated.',code:'FREE_POOL_REQUEST_TOO_LARGE',attempts},413);
     const now = this.now(), retryAfter = Math.max(1, Math.ceil(((retryAt || now + 60000) - now) / 1000));
     const hasReady = attempts.some(x => !['needs_key', 'needs_binding', 'paused', 'free_confirmation', 'development_only'].includes(x.reason));
-    return json({ error: hasReady ? 'The connected free services are busy or out of allowance. Your project is saved. Please try again later.' :
-      'No connected free service can handle this task yet. Open Settings → Connections to see what is ready.',
+    return json({ error: hasReady ? 'MIKEE tried the connected free AI services, but none can answer right now. Your project is saved. MIKEE will choose a service automatically when you try again.' :
+      'MIKEE has no connected free AI service for this task. Provider selection is automatic; only the owner needs to configure API connections.',
       code: hasReady ? 'FREE_POOL_WAIT' : 'FREE_POOL_NOT_CONNECTED', attempts, retryAfter }, hasReady ? 429 : 503, { 'retry-after': String(retryAfter) });
   }
   async route(data, capability = 'chat', audio) {

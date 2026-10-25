@@ -27,15 +27,20 @@
     free_confirmation: 'Confirm free account', development_only: 'Development access only', budget_reached: 'App budget reached', cooldown: 'Waiting for service reset' };
   function render() {
     if (!catalog) return;
-    const select = $('#aiProviderSelect'), selected = select.value || 'auto';
-    select.innerHTML = '<option value="auto">MIKEE Auto · free services</option>' + catalog.providers.filter(p => p.capabilities.includes('chat')).map(p =>
-      '<option value="' + E(p.id) + '">' + E(p.name) + ' · ' + E(stateNames[p.state] || p.state) + '</option>').join('');
-    select.value = [...select.options].some(o => o.value === selected) ? selected : 'auto';
-    const configured = catalog.providers.filter(p => ['ready', 'cooldown', 'budget_reached'].includes(p.state)).length;
-    $('#poolSummary').textContent = configured + ' service(s) connected. Auto uses an available free service and waits when all allowances are exhausted.';
+    const chat = catalog.providers.filter(p => p.capabilities.includes('chat'));
+    const ready = chat.filter(p => p.state === 'ready').length;
+    const connected = chat.filter(p => ['ready', 'cooldown', 'budget_reached'].includes(p.state)).length;
+    $('#poolSummary').textContent = ready
+      ? 'Automatic AI routing · ' + ready + ' free chat service(s) ready now.'
+      : connected ? 'Automatic AI routing · connected services are busy or at their free limits.'
+        : 'Automatic AI routing · no free chat service is connected yet. The owner can manage connections below.';
     $('#ownerSetup').hidden = catalog.ownerSetup;
     $('#ownerUnlock').hidden = !!ownerToken;
     $('#ownerLock').hidden = !ownerToken;
+    if (!ownerToken) {
+      $('#connectionList').innerHTML = '<p class="muted">MIKEE switches services automatically. Only the owner needs to configure individual API connections.</p>';
+      return;
+    }
     $('#connectionList').innerHTML = catalog.providers.map(p => {
       const usable = !!ownerToken;
       const usage = p.usage ? '<p class="muted">App reservations today: ' + p.usage.requestsDay + ' / ' + p.limits.requestsDay + ' calls · ' + p.usage.tokensDay.toLocaleString() + ' / ' + p.limits.tokensDay.toLocaleString() + ' tokens. Includes failed calls.</p>' : '';
@@ -81,7 +86,7 @@
       button.disabled = true; $('#connectionNotice').textContent = 'Working…';
       try {
         if (button.dataset.testConnection) {
-          const reply = await request('/api/chat', { body: { message: 'Say Ready in one short sentence.', provider: id } });
+          const reply = await request('/api/chat', { owner: true, body: { message: 'Say Ready in one short sentence.', provider: id } });
           $('#connectionNotice').textContent = 'Real response verified from ' + reply.providerName + ': ' + reply.reply;
         } else {
           await request('/api/admin/providers', { method: 'PUT', owner: true, body: {

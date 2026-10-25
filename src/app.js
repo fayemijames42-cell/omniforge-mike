@@ -1,5 +1,5 @@
 /* OMNIFORGE mobile UI - local/manual MVP. No fabricated AI or hosted uploads. */
-(function(){'use strict';const C=window.OMNI,W=window.OMNI_WORKSPACE,F=window.OMNI_FILES,Pool=window.MIKEE_POOL;const $=s=>document.querySelector(s);let project=null,all=[],activeView='preview',mobileView=innerWidth>800?'preview':'chat',preferences={name:'MIKEE',provider:'auto'},selectedAsset=null,originalURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message',pendingImage=null,activeAbort=null,imageJob=null;
+(function(){'use strict';const C=window.OMNI,W=window.OMNI_WORKSPACE,F=window.OMNI_FILES,Pool=window.MIKEE_POOL;const $=s=>document.querySelector(s);let project=null,all=[],activeView='preview',mobileView=innerWidth>800?'preview':'chat',preferences={name:'MIKEE'},selectedAsset=null,originalURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message',pendingImage=null,activeAbort=null,imageJob=null,providerRetryUntil=0;
 const ui={chat:$('#chatStream'),chips:$('#chips'),edit:$('#editControls'),grid:$('#assetGrid'),photoEditor:$('#photoEditor'),frame:$('#siteFrame'),previewEmpty:$('#previewEmpty'),select:$('#projectSelect')};
 const E=C.esc, uid=C.uuid, K=window.OMNI_KNOWLEDGE;const imagePreviewURLs=new Set();function notify(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>t.style.display='none',3600)}
 function fail(e){const msg=e?.name==='QuotaExceededError'?'Device storage is full. Export a backup, remove unused photos, then try again.':e?.message||String(e);notify(msg);console.warn('OMNIFORGE action failed:',e)}
@@ -290,7 +290,7 @@ async function send(text){
  if(imageRequest!==null)return sendImage(text,imageRequest);
   const arithmetic=window.OMNI_CALC?.arithmeticFromText(text);
   if(!pendingImage&&arithmetic!==null&&arithmetic!==undefined)return sendCalculation('/calc '+arithmetic,text);
- if(window.OMNI_OFFLINE_UI?.isOffline())return respondOffline(text);if(navigator.onLine===false){aiState='NO INTERNET CONNECTION';fail(new Error('Internet connection appears offline. Cloud AI was not contacted. Your saved projects remain available; reconnect and retry.'));return;}
+ if(window.OMNI_OFFLINE_UI?.isOffline())return respondOffline(text);if(providerRetryUntil>Date.now()){notify('Free AI services are cooling down. MIKEE will automatically try again in '+Math.ceil((providerRetryUntil-Date.now())/1000)+' seconds.');return;}if(navigator.onLine===false){aiState='NO INTERNET CONNECTION';fail(new Error('Internet connection appears offline. Cloud AI was not contacted. Your saved projects remain available; reconnect and retry.'));return;}
  $('#prompt').value='';
  aiState='MIKEE IS GENERATING…';
  setPending(true,text);activeAbort=new AbortController();
@@ -302,10 +302,10 @@ async function send(text){
   const route=W.route(text,project.focus||'general',!project.chatOnly,project.messages);
   const currentHtml=(!project.chatOnly&&route.includeWebsite)?C.renderSite(project):'';if(currentHtml.length>24000)throw Error('This website exceeds the current AI editing limit (24,000 characters). Export a backup; manual tools remain available.');
   const userMessage=msg('user',text);userMessage.route=route.label;project.messages.push(userMessage);await C.saveProject(project);await refreshList();await showAll();
-  const data=await Pool.request('/api/chat',{body:{message:text,history,currentHtml,provider:preferences.provider,focus:route.focus,sources:project.useSources===false?[]:(project.sources||[]).slice(0,3),...(pendingImage?{image:pendingImage}:{})},signal:activeAbort.signal});
+  const data=await Pool.request('/api/chat',{body:{message:text,history,currentHtml,provider:'auto',focus:route.focus,sources:project.useSources===false?[]:(project.sources||[]).slice(0,3),...(pendingImage?{image:pendingImage}:{})},signal:activeAbort.signal});
   const toolOnly=data.toolOnly===true&&data.provider==='local-calculator';
   if((data.live!==true&&!toolOnly)||typeof data.reply!=='string')throw Error('No real provider response or executed calculator result was received.');
-  aiState=toolOnly?'CALCULATED · NO AI':'MIKEE REPLIED';
+  providerRetryUntil=0;aiState=toolOnly?'CALCULATED · NO AI':'MIKEE REPLIED';
   const allowsWebsite=data.artifact?data.artifact.type==='website':['website-create','website-edit'].includes(route.action);
   const match=allowsWebsite&&(data.reply.match(/<!doctype html[\s\S]*?<\/html>/i)||data.reply.match(/<html[\s\S]*?<\/html>/i));
   let answer=data.reply;
@@ -316,8 +316,8 @@ async function send(text){
   }catch(e){
   const cancelled=activeAbort?.signal.aborted===true;
   const message=cancelled?'Request cancelled.':e?.name==='AbortError'?'Request timed out':String(e?.message||e);
-  const fallback=!cancelled&&(!navigator.onLine||e?.name==='AbortError'||/quota|daily limit|neurons|rate.limit|limit exceeded|too many requests|Workers AI request failed|provider returned|AI binding|failed to fetch|network|unreadable response|AI request failed/i.test(message));
-  aiState='AI REQUEST FAILED';if(project){project.messages.push(msg('assistant',message+(fallback?' Cloud AI remains selected; retry after checking the connection or provider status.':''),'ERROR'));await C.saveProject(project);await showAll()}else fail(e)
+  if(!cancelled&&e?.code==='FREE_POOL_WAIT'&&Number.isFinite(Number(e.retryAfter)))providerRetryUntil=Date.now()+Math.min(300000,Math.max(1000,Number(e.retryAfter)*1000));
+  aiState='AI REQUEST FAILED';if(project){project.messages.push(msg('assistant',message,'ERROR'));await C.saveProject(project);await showAll()}else fail(e)
  }finally{activeAbort=null;setPending(false);Pool.refresh().catch(()=>{})}
 }
 async function doUndo(){if(!project)return;project=C.undo(project);project.messages.push(msg('assistant','Reverted the last website version. Photos remain in the project asset library.','LOCAL TOOL'));await C.saveProject(project);await showAll();notify('Previous website version restored')}
@@ -432,7 +432,7 @@ async function transcribeFile(file){
 }
 
 
-async function init(){try{await C.openDB();await C.migrateLegacySite();preferences={name:(await C.pref('assistantName'))||'MIKEE',provider:(await C.pref('provider'))||'auto'};$('#assistantNameInput').value=preferences.name;const items=await C.listProjects(),last=await C.pref('lastProjectId'),target=items.some(p=>p.id===last)?last:items[0]?.id;await activate(target||null);switchMobile(mobileView);await Pool.mount();if(!Array.from($('#aiProviderSelect').options).some(o=>o.value===preferences.provider)){preferences.provider='auto';await C.setPref('provider','auto');}$('#aiProviderSelect').value=preferences.provider;$('#storageState').textContent=`Saved projects: ${items.length} · Current storage: this browser on this device`;}catch(e){fail(e);ui.chat.innerHTML=`<p style="padding:20px;color:#f7c0af">Browser storage is unavailable (${E(e.message)}). Open this page on Chrome using HTTPS or localhost. No changes will be saved.</p>`}}
+async function init(){try{await C.openDB();await C.migrateLegacySite();preferences={name:(await C.pref('assistantName'))||'MIKEE'};await C.setPref('provider','auto');$('#assistantNameInput').value=preferences.name;const items=await C.listProjects(),last=await C.pref('lastProjectId'),target=items.some(p=>p.id===last)?last:items[0]?.id;await activate(target||null);switchMobile(mobileView);await Pool.mount();$('#storageState').textContent=`Saved projects: ${items.length} · Current storage: this browser on this device`;}catch(e){fail(e);ui.chat.innerHTML=`<p style="padding:20px;color:#f7c0af">Browser storage is unavailable (${E(e.message)}). Open this page on Chrome using HTTPS or localhost. No changes will be saved.</p>`}}
 $('#composer').addEventListener('submit',e=>{e.preventDefault();(()=>{const submitted=$('#prompt').value;if(!requestPending)queued(()=>send(submitted));})()});$('#prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#composer').requestSubmit()}});ui.chips.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{queued(()=>send(b.dataset.prompt))});
 $('#newProject').onclick=()=>queued(async()=>{const p=C.makeProject('New Chat');p.chatOnly=true;await C.saveProject(p);await activate(p.id);switchMobile('chat');notify('New conversation ready. The title will be chosen from your topic.')});$('#deleteProject').onclick=()=>queued(async()=>{if(!project)return;const name=project.name,id=project.id;if(!confirm(`Delete “${name}”? This cannot be undone. Export a ZIP backup first if you need one.`))return;await C.deleteProject(id);const next=(await C.listProjects())[0];await activate(next?.id||null);notify('Project and unused photo data deleted.')});$('#renameChat').onclick=()=>queued(async()=>{if(!project)return;const input=prompt('Rename this chat:',project.name);if(input===null)return;const title=input.trim().replace(/\s+/g,' ').slice(0,60);if(!title)return;project.name=title;project.chatTitlePinned=true;project.updatedAt=Date.now();await C.saveProject(project);await refreshList();await showAll();notify('Chat renamed')});ui.select.onchange=e=>queued(()=>activate(e.target.value));$('#undoBtn').onclick=()=>queued(doUndo);
 $('#chatSearchBtn').onclick=()=>queued(async()=>{await renderChatSearch();$('#chatSearchDialog').showModal();$('#chatSearchInput').focus()});
@@ -480,7 +480,7 @@ $('#sourceList').onclick=event=>queued(async()=>{
  await C.saveProject(project);renderSources();
  notify('Reference note removed.');
 });
-$('#settingsButton').onclick=()=>{$('#settingsDialog').showModal();Pool.refresh().catch(()=>{})};$('#saveSettings').onclick=()=>queued(async()=>{preferences.name=($('#assistantNameInput').value.trim()||'MIKEE').slice(0,32);preferences.provider=$('#aiProviderSelect').value||'auto';await C.setPref('provider',preferences.provider);await C.setPref('assistantName',preferences.name);await showAll();notify('Settings saved')});
+$('#settingsButton').onclick=()=>{$('#settingsDialog').showModal();Pool.refresh().catch(()=>{})};$('#saveSettings').onclick=()=>queued(async()=>{preferences.name=($('#assistantNameInput').value.trim()||'MIKEE').slice(0,32);await C.setPref('provider','auto');await C.setPref('assistantName',preferences.name);await showAll();notify('Settings saved')});
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>changeTab(b.dataset.view));
  document.querySelectorAll('[data-mobile]').forEach(b=>b.onclick=()=>switchMobile(b.dataset.mobile));
  $('#mobileMenuButton').onclick=()=>setMobileDrawer($('#mobileDrawerLayer').hidden);
