@@ -216,7 +216,7 @@ export class MikeeCoordinator {
           continue;
         }
         reservation = grant.reservation; calls++;
-        const timeout = Math.max(1000, Math.min(20000, 85000 - (this.now() - started)));
+        const timeout = Math.max(1000, Math.min(maxTokens >= 3000 ? 45000 : 30000, 85000 - (this.now() - started)));
         const result = capability === 'transcribe'
           ? await transcribeCall({ fetcher: this.fetcher, profile, key, model, ...audio, timeout })
           : await chatCall({ fetcher: this.fetcher, env: this.env, profile, key, model, messages, maxTokens, timeout });
