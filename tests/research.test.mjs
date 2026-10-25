@@ -58,8 +58,81 @@ test('MIKEE web-backed chat returns references and uses exactly one model call',
  const payload=await r.json();
  assert.equal(r.status,200);assert.equal(payload.research.scope,'wikipedia');assert.equal(payload.sources.length,2);assert.equal(hits,1);
 });
-test('MIKEE refuses to pretend live current research is connected',async()=>{
- let hits=0;const env={...base,AI:{run:async()=>{hits++;return {response:'not allowed'}}}};
- const r=await realWorker.fetch(request('What is the latest breaking technology news today?'),env);
+test('Unconfigured automatic current questions answer cautiously without claiming web verification',async()=>{
+ let hits=0,lookups=0,system='';
+ const e={...base,RESEARCH_FETCH:async()=>{lookups++;throw Error('Should not be called')},AI:{run:async(_m,input)=>{hits++;system=input.messages[0].content;return {response:'I cannot confirm the latest change from live sources.'}}}};
+ const r=await realWorker.fetch(request('What is the latest breaking technology news today?'),e);
+ const payload=await r.json();
+ assert.equal(r.status,200);assert.equal(hits,1);assert.equal(lookups,0);
+ assert.match(system,/live web search is unavailable/i);
+ assert.equal(payload.research.scope,'none');
+ assert.match(payload.research.note,/current facts cannot be verified/i);
+ assert.equal(payload.sources,undefined);
+});
+test('Explicit fresh-web research without a provider fails honestly before AI',async()=>{
+ let hits=0;const env={...base,AI:{run:async()=>{hits++;return {response:'incorrect'}}}};
+ const r=await realWorker.fetch(request('Search the web for the latest AI news today'),env);
  assert.equal(r.status,503);assert.equal((await r.json()).researchUnavailable,true);assert.equal(hits,0);
+});
+test('MIKEE automatically looks up ordinary factual questions',async()=>{
+ let lookups=0,aiCalls=0;
+ const e={...base,RESEARCH_FETCH:async(url)=>{
+   lookups++;assert.match(String(url),/search\/page/);
+   return Response.json({pages:[{key:'Diode',title:'Diode',description:'Semiconductor device',excerpt:'A diode conducts current primarily in one direction.'}]});
+  },AI:{run:async(_model,input)=>{
+   aiCalls++;assert.match(input.messages[0].content,/CURRENT RETRIEVAL/);
+   return {response:'A diode is an electronic component. [1]'};
+  }}};
+ const r=await realWorker.fetch(request('What is a diode?'),e);
+ const payload=await r.json();
+ assert.equal(r.status,200);assert.equal(lookups,1);assert.equal(aiCalls,1);
+ assert.equal(payload.research.mode,'automatic');
+ assert.equal(payload.sources[0].title,'Diode');
+});
+test('No automatic network research for private questions or requests to build websites',async()=>{
+ const sent=[];
+ const env={...base,RESEARCH_FETCH:async()=>{throw Error('Unexpected search')},
+ AI:{run:async(_model,input)=>{sent.push(input);return {response:'A relevant answer'}}}};
+ for(const q of ['What is my email address?','Create a website for a Lagos shop','Write a story about the current president','How do I measure current through a resistor?','Go on']){
+  const r=await realWorker.fetch(request(q),env);
+  assert.equal(r.status,200,q);assert.equal((await r.json()).sources,undefined,q);
+ }
+ assert.equal(sent.length,5);
+ assert.equal(sent[1].max_tokens,3000);
+ assert.equal(sent[3].max_tokens,2000);
+});
+test('Automatic evidence retrieval failure permits clearly unverified model reply',async()=>{
+ let hits=0;
+ const e={...base,RESEARCH_FETCH:async()=>new Response('error',{status:500}),
+ AI:{run:async(_m,input)=>{hits++;assert.match(input.messages[0].content,/did not retrieve usable sources/i);return {response:'General background only.'}}}};
+ const r=await realWorker.fetch(request('What is a diode?'),e);
+ assert.equal(r.status,200);assert.equal(hits,1);
+ assert.equal((await r.json()).research.scope,'none');
+});
+test('Automatic research budget exhaustion does not block normal chat',async()=>{
+ let aiCalls=0,network=0;
+ const env={...base,DAILY_BUDGET:{getByName:()=>({fetch:async(_url,req)=>{
+  const {kind}=JSON.parse(req.body);return Response.json({allowed:kind==='chat'});
+ }})},RESEARCH_FETCH:async()=>{network++;throw Error('No search')},
+ AI:{run:async(_m,input)=>{aiCalls++;assert.match(input.messages[0].content,/budget has been reached/i);return {response:'Unverified explanation'};}}};
+ const r=await realWorker.fetch(request('What is a diode?'),env);
+ assert.equal(r.status,200);assert.equal(aiCalls,1);assert.equal(network,0);
+ assert.match((await r.json()).research.note,/budget has been reached/i);
+});
+
+
+test('Request intent distinguishes factual lookup from personal data and creative tasks',()=>{
+ const expected=[
+ ['What is a diode?',true],['Explain how solar panels work',true],
+ ['Who invented the transistor?',true],['What is calculus?',true],
+ ['How do I measure current through a resistor?',false],
+ ['Write a website about solar panels',false],
+ ['Search the web for photosynthesis',true],
+ ['What is my email address?',false],
+ ['I feel tired today',false],
+ ['Continue',false],
+ ['Who is the current president of Nigeria?',true]
+ ];
+ for(const [q,bool] of expected)assert.equal(researchIntent(q).requested,bool,q);
+ assert.equal(researchIntent('Who is the current president of Nigeria?').fresh,true);
 });
