@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-28",
+  "base": "https://omniforge-mike.fayemijames42.workers.dev/",
+  "sourceCommit": "b8d597710f916f8b3971b8d92ed3e24a3d53382a",
+  "version": "0.11.1",
+  "checks": {
+    "upgradePreservedExistingConversation": true,
+    "officialVisibleBranding": true,
+    "naturalLanguageMichelleRasterRouting": true,
+    "realImageDisplayed": true,
+    "imageSurvivedReload": true,
+    "imageAvailableInPhotosEditor": true,
+    "imageDownloadDecoded": true
+  },
+  "image": {
+    "provider": "Cloudflare FLUX",
+    "model": "@cf/black-forest-labs/flux-1-schnell",
+    "format": "JPEG",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 494538,
+    "sha256": "c73ce19a5d01528c843e47665569a7deff78947f9e5339ce31dcec4601d4d032"
+  },
+  "limitations": "Synthetic test data. Does not verify vision-model analysis, neural image editing or every image provider."
+}

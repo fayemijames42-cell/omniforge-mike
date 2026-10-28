@@ -204,7 +204,7 @@ export class MikeeCoordinator {
     const messages = capability === 'transcribe' ? null : data.messages;
     const maxTokens = Math.min(3000,Math.max(500,Number(data.maxTokens)||3000)), attempts = [], started = this.now(); let calls = 0, retryAt = 0;
     for (const profile of candidates) {
-      if (calls >= 5 || this.now() - started > 75000) break;
+      if (calls >= Math.min(5,Math.max(1,Number(data.maxProviderCalls)||5)) || this.now() - started > 75000) break;
       const model = this.model(profile, capability);
       let tokens = capability === 'transcribe' ? profile.id === 'gemini' ? 16000 : 2000 : estimateTokens(messages, maxTokens);
       let reservation;

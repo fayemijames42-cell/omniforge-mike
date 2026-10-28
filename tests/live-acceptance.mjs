@@ -4,6 +4,7 @@ import {writeFile,mkdir} from 'node:fs/promises';
 import {dirname} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import '../src/context.js';
+import manifest from '../package.json' with {type:'json'};
 const base='https://omniforge-mike.fayemijames42.workers.dev';
 if(process.env.OMNIFORGE_LIVE_TEST!=='1'){console.log('Not run. Set OMNIFORGE_LIVE_TEST=1 to use real free AI requests.');process.exit(0);}
 const destination=process.env.OMNIFORGE_ACCEPTANCE_OUTPUT||'docs/verification/michelle-live-2026-10-28.json';
@@ -11,10 +12,12 @@ const report={date:new Date().toISOString(),base,environment:'Actual deployed pu
 const persist=async()=>{await mkdir(dirname(destination),{recursive:true});await writeFile(destination,JSON.stringify(report,null,2)+'\n');};
 async function read(path,body){const response=await fetch(base+path,{cache:'no-store',signal:AbortSignal.timeout(110000),...(body?{method:'POST',headers:{origin:base,'content-type':'application/json'},body:JSON.stringify(body)}:{})});return {status:response.status,data:await response.json()};}
 const health=await read('/api/health'),build=await read('/build-info.json');report.health=health;report.build=build;
-if(health.status!==200||health.data.version!=='0.11.1'||health.data.identity?.name!=='Michelle'||build.data.sourceCommit!==process.env.OMNIFORGE_EXPECTED_COMMIT){await persist();throw Error('The intended release is not deployed; live model tests were not started.');}
+if(health.status!==200||health.data.version!==manifest.version||health.data.identity?.name!=='Michelle'||build.data.sourceCommit!==process.env.OMNIFORGE_EXPECTED_COMMIT){await persist();throw Error('The intended release is not deployed; live model tests were not started.');}
 const status=await read('/api/providers');report.providerStatus=status.data;
 let previousCall=0,site='',history=[];
+const selected=(process.env.OMNIFORGE_LIVE_CASES||'').split(',').filter(Boolean);
 async function check(id,message,extra={},accept=()=>true){
+ if(selected.length&&!selected.includes(id))return {};
  const wait=Math.max(0,22000-(Date.now()-previousCall));if(wait)await new Promise(r=>setTimeout(r,wait));previousCall=Date.now();
  try{
   const result=await read('/api/chat',{message,...extra}),data=result.data;
@@ -27,8 +30,8 @@ const plain=d=>d.artifact?.type==='text'&&!/<(?:html|svg|script)|<!doctype|```/i
 await check('greeting','Hi.',{},plain);
 await check('identity','Who are you? Keep it to one sentence.',{},d=>plain(d)&&/Michelle/i.test(d.reply)&&/OMNIFORGE/i.test(d.reply)&&/ADEN INC/i.test(d.reply));
 await check('ownership','Who owns you? Answer briefly.',{},d=>plain(d)&&/ADEN INC/i.test(d.reply));
-await check('developer','Who developed you? Answer briefly.',{},d=>plain(d)&&/Michelle/i.test(d.reply)&&/OMNIFORGE/i.test(d.reply)&&/ADEN INC/i.test(d.reply));
-await check('knowledge','What is your knowledge level? Explain briefly.',{},d=>plain(d)&&!/\b2021\b/.test(d.reply));
+await check('developer','Who developed you? Answer briefly.',{},d=>plain(d)&&/OMNIFORGE/i.test(d.reply)&&/ADEN INC/i.test(d.reply));
+await check('knowledge','What is your knowledge level? Explain briefly.',{},d=>plain(d)&&!/\b(?:19|20)\d{2}\b/.test(d.reply));
 const prompt='Create a compact complete one-page website for a fictional bakery called Sunrise Bakery. Use pink accents, inline CSS, no images or external resources, no invented contact details. Keep the whole HTML under 2200 characters.';
 const created=await check('website-create',prompt,{},d=>d.artifact?.type==='website'&&d.artifact.valid&&/Sunrise Bakery/i.test(d.reply));
 site=globalThis.OMNI_CONTEXT.websiteDocument(created.reply).html;

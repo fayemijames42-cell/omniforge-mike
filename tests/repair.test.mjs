@@ -129,3 +129,25 @@ test('Preview security policy precedes scripts even in malformed saved documents
  assert.ok(guarded.indexOf('Content-Security-Policy')<guarded.indexOf('<script>'));
  assert.match(guarded,/connect-src 'none'/);
 });
+test('An actual live model self-description cannot invent a 2024 cutoff',()=>{
+ const result=reviewAnswer('I am an AI assistant developed for OMNIFORGE. My knowledge level is up to 2024, as of my last update. I can help with science and writing.',planRequest({message:'What is your knowledge level?'}));
+ assert.doesNotMatch(result.reply,/2024/);assert.match(result.reply,/verified training cutoff is not supplied/);assert.match(result.reply,/science and writing/);assert.ok(result.quality.checks.includes('knowledge-metadata'));
+});
+test('Unsupported self-reported dates are corrected without removing ordinary historical facts or code',()=>{
+ const plan=planRequest({message:'Explain your training limitations.'});
+ for(const reply of ['My training data ends in 2021.','I was trained on information through December 2023.','My knowledge cutoff is April 2024.'])assert.doesNotMatch(reviewAnswer(reply,plan).reply,/2021|2023|2024/);
+ const history='The transistor was invented in 1947.';assert.equal(reviewAnswer(history,plan).reply,history);
+ const code='```js\nconst sample="My knowledge cutoff is 2021.";\n```';assert.equal(reviewAnswer(code,planRequest({message:'Write JavaScript code.'})).reply,code);
+});
+test('An unsolicited artifact gets one budgeted model recovery with saved-project facts',async()=>{
+ const seen=[],allow={limit:async()=>({success:true})};let clock=Date.now();
+ const env=await withTestPool({CHAT_VISITOR_LIMIT:allow,CHAT_SHARED_LIMIT:allow,AI:{run:async(_m,input)=>{seen.push(input.messages);clock+=2000;return {response:seen.length===1?html:'We created the Sunrise Bakery website.'};}}});
+ env.POOL_FIXTURE.now=()=>clock;
+ const response=await worker.fetch(request({message:'What website did we just create?',history:previous,projectContext:C.projectSummary({name:'Sunrise Bakery Website'},html)}),env);
+ const data=await response.json();assert.equal(response.status,200);assert.equal(seen.length,2);assert.match(data.reply,/Sunrise Bakery/);assert.doesNotMatch(data.reply,/<html/);
+ assert.equal(data.orchestration.modelAttempts,2);assert.ok(data.quality.checks.includes('format-recovery'));
+ assert.ok(seen[1].some(m=>String(m.content).startsWith('ACTIVE LOCALLY SAVED PROJECT SUMMARY')));
+ assert.ok(!seen[1].some(m=>m.content==='Create a website for Sunrise Bakery.'));
+ assert.equal(seen[1].at(-1).content,'What website did we just create?');
+ assert.equal(env.POOL_FIXTURE.data.ledger.cloudflare.requests,2);
+});

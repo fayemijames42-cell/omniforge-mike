@@ -57,6 +57,14 @@ export function planGuidance(plan){
 }
 export function reviewAnswer(reply,plan,sources=[]){
  let text=String(reply||''),warnings=[];
+ // No configured provider supplies verified training-cutoff metadata. A model's
+ // self-description is not that metadata, even if the date sounds plausible.
+ let correctedCutoff=false;
+ if(!plan.website&&!['code','vector'].includes(plan.kind))text=text.replace(/[^.!?\n]*\b(?:my (?:knowledge|training|last update)|knowledge cut[ -]?off|training data|I (?:was |am |have been )?(?:trained|updated))\b[^.!?\n]*(?:[.!?]|$)/gi,sentence=>{
+  if(!/\b(?:19|20)\d{2}\b/.test(sentence))return sentence;
+  correctedCutoff=true;return ' A verified training cutoff is not supplied by the connected provider, so I cannot give an exact cutoff date.';
+ }).trim();
+ if(correctedCutoff)warnings.push('An unsupported model training-date claim was corrected using the available metadata.');
  const document=context.websiteDocument(text);
  const artifact=plan.website?{type:'website',complete:document.complete,valid:document.valid}:{type:'text'};
  if(plan.website)warnings.push(...document.issues);
@@ -75,7 +83,7 @@ export function reviewAnswer(reply,plan,sources=[]){
  }
  const sourceUse={retrieved:sources.length,cited:[...validCitations].sort((a,b)=>a-b),uncited:checkCitations&&validCitations.size===0};
  return {reply:text,artifact,quality:{
-  checks:['artifact-format',...(checkCitations?['citation-identifiers','source-usage']:[])],
+  checks:['artifact-format',...(correctedCutoff?['knowledge-metadata']:[]),...(checkCitations?['citation-identifiers','source-usage']:[])],
   warnings,factChecked:false,sourceUse
  }};
 }

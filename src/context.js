@@ -22,7 +22,7 @@ const websiteReference=message=>/\b(?:website|webpage|landing page|current (?:si
 const websiteCheckRequest=message=>/^(?:check|test|verify|inspect|review|audit)\b.{0,90}\b(?:website|webpage|site|page)\b/i.test(taskText(message))&&!/\b(?:explain|how to|how can|how do)\b/i.test(message);
 function selectHistory(items){
  const valid=(Array.isArray(items)?items:[]).slice(-100).filter(m=>['user','assistant'].includes(m?.role)&&m.engine!=='ERROR'&&typeof raw(m)==='string'&&body(m).trim());
- const entries=valid.map((m,index)=>({index,role:m.role,content:m.artifactType==='website'||/<!doctype html|<html[\s>]/i.test(body(m))?'[Earlier website output; use the current project when editing.]':body(m).slice(0,1800)}));
+ const entries=valid.map((m,index)=>({index,role:m.role,content:m.artifactType==='website'||/<!doctype html|<html[\s>]/i.test(body(m))?'[Earlier website output; that turn is complete. Only the latest request authorizes changes.]':body(m).slice(0,1800)}));
  const anchors=entries.filter(m=>m.role==='user').slice(0,2), chosen=new Map();
  let used=0;
  // Preserve early user requirements as actual quoted turns, never an invented summary.

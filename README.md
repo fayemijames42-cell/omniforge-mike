@@ -4,7 +4,7 @@ OMNIFORGE by ADEN INC. is a conversation-first AI workspace. MICHELLE is the ass
 
 Public app: https://omniforge-mike.fayemijames42.workers.dev/
 
-## Current implementation — v0.11.1
+## Current implementation — v0.11.2
 
 | Capability | Current behavior |
 | --- | --- |
@@ -87,3 +87,5 @@ Conversation, explicit programming, website actions and raster requests have dis
 Ask “Check whether the website is working” to run the available **local static source checks**. These check document boundaries, obvious server/browser runtime mixing, title and mobile viewport. They do not establish interactive correctness, accessibility, external link availability or deployment.
 
 `/api/health` reports release and identity. `/build-info.json` identifies the built frontend and source commit, bypassing the offline cache. These metadata routes do not assert that every provider works. The read-only CI verifies the full Node suite, Wrangler bundling and the mobile browser workflow without live model calls. Completed one-time October 25 probe workflows were removed; their commits and run logs remain in GitHub history.
+
+Self-reported training dates are not treated as verified metadata. Unexpected website output during ordinary conversation can receive one bounded, budget-accounted real-model recovery; unrecoverable output remains a visible error and never overwrites a website.

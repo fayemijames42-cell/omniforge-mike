@@ -194,6 +194,10 @@ try {
   await page.reload({waitUntil:'load'});await page.waitForFunction(()=>!!window.OMNI_TEST?.getProject());
   await page.locator('#prompt').fill('/calc 19+28');await page.locator('#sendBtn').click();await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.text.includes('Result: 47'));
   assert.equal(fixtureCalls,callsBeforeOffline);await page.context().setOffline(false);
+  time+=61000;await page.locator('#newProject').click();await page.waitForFunction(()=>!window.OMNI_TEST.getProject()?.messages.length);
+  await page.locator('#composerMode').selectOption('image');await page.locator('#prompt').fill('A flying cow.');await page.locator('#sendBtn').click();
+  await page.waitForFunction(()=>window.OMNI_TEST.getProject()?.assets.length===1);await page.locator('#typingIndicator').waitFor({state:'hidden'});
+  await go('photos');await page.locator('.asset-tile').click();await page.locator('#addPhoto').waitFor({state:'visible'});assert.equal(await page.locator('#addPhoto').isDisabled(),true);
   await page.screenshot({ path: resolve(root, '../mikee-mobile-qa.png'), fullPage: true });
   assert.deepEqual(errors, []);
   console.log('PASS mobile UI: Michelle identity with legacy preferences, typing feedback, website edits, ordinary chat and Express code preserve the site, active-project recall, static diagnostics, failed saves and concurrent edits preserve newer work, incomplete HTML protection, image failure without a placeholder, image generation/save/placement/export, encrypted owner connection, audio draft, faithful ZIP/JSON restore, restored JavaScript/CSS, image remapping, safe blob cleanup, network recovery and offline reload; provider responses are fixtures. Calls:', fixtureCalls);

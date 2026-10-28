@@ -2,7 +2,7 @@
 
 OMNIFORGE · Powered by MICHELLE · Owned by ADEN INC.
 
-Release candidate: **0.11.1**. Repository: `fayemijames42-cell/omniforge-mike`. Starting revision: `1c77b2563126001f2356cfc8664ec45decbbc955`.
+Release candidate: **0.11.2**. Repository: `fayemijames42-cell/omniforge-mike`. Starting revision: `1c77b2563126001f2356cfc8664ec45decbbc955`.
 
 This report separates reproduced failures, local verification and actual production observations. It is not a claim of universal model accuracy or unlimited free capacity.
 
@@ -36,7 +36,7 @@ API-key configuration still requires legitimate free accounts and owner setup. T
 ## Verification performed
 
 - Starting baseline: **157 automated tests passed**; the latest starting revision had successful build, mobile CI and Cloudflare checks.
-- Release candidate: **189 automated tests passed**, including new request/identity/context, provider fallback, invalid raster and CSP regressions.
+- Release candidate: **192 automated tests passed**, including new request/identity/context, provider fallback, invalid raster and CSP regressions.
 - Real Chromium mobile integration at **360 × 780** uses explicitly labelled provider fixtures. It checks official identity after reload, ordinary chat and programming without site replacement, creation/editing, static diagnostics, failed persistence, concurrent manual edits, incomplete code, image failure/success, atomic image rollback, photo placement, encrypted owner setup, audio draft review, ZIP/JSON fidelity, actual restored inline JavaScript/CSS, shared-image cleanup, network recovery and offline reload.
 - `npm run build` runs syntax checks, all Node tests and content-versioned asset generation. A public build manifest reports version, frontend content hash and source commit and is excluded from the service-worker cache.
 - Wrangler dry run checks the actual bundle and the unchanged `AI`, asset, rate-limit and SQLite bindings.
@@ -46,7 +46,7 @@ API-key configuration still requires legitimate free accounts and owner setup. T
 
 | Feature | Status | Evidence or limitation |
 | --- | --- | --- |
-| Conversation, identity, website creation/editing | NOT TESTED in production for this candidate yet | 189 local tests and expanded mobile fixtures pass; production acceptance follows deployment. |
+| Conversation, identity, website creation/editing | NOT TESTED in production for this candidate yet | 192 local tests and expanded mobile fixtures pass; production acceptance follows deployment. |
 | Local diagnostics, persistence, photos, Undo, notes, search, export/restore | WORKING in local browser tests | Static diagnostics expressly do not test every interaction or publish anything. |
 | Cloudflare text and image integrations | PARTIALLY WORKING | Both bindings and prior real responses are visible in current production status. Candidate's real acceptance remains pending. |
 | Automatic fallback and quota enforcement | WORKING in deterministic integration tests | Same prepared context verified across a failing primary and succeeding fallback. Anonymous fallback availability in production is best effort. |
@@ -71,7 +71,17 @@ The two completed October 25 one-shot live probe workflows were removed, retaini
 
 ## Deployment and production acceptance
 
-**Pending at candidate preparation.** This section will be updated with commit identifiers, Cloudflare build result, actual responses, image/UI evidence and remaining failures after publication. The existing live app is not declared repaired on the basis of a green build alone.
+Initial repair commit: `b8d597710f916f8b3971b8d92ed3e24a3d53382a` (0.11.1). Cloudflare build `0652fe0d-e35f-4204-a255-fd7041ec91a4` succeeded, version `22a6d315-3b71-4ed1-b257-a115bfd863be`. Both GitHub build and mobile-browser checks also succeeded. The public health and build manifest matched the intended version and exact commit.
+
+The first real acceptance pass used 12 actual Cloudflare Llama responses. Its original strict string checks recorded 8/12. Manual review found that the developer answer correctly named ADEN INC. and OMNIFORGE without repeating Michelle, and that the website edit preserved the bakery and changed its background to navy shade `#03055B`, rather than the checker's exact keyword/hex alternatives. These are checker limitations, not model failures. Conversely, the original cutoff checker only excluded 2021 and missed an unsupported 2024 claim. The raw results are retained with this correction explicitly documented.
+
+Two substantive model defects remained: an invented training date, and a project-recall question producing website HTML. The HTML guard protected the saved project but a retry prompt to the user was insufficient. Release 0.11.2 adds a metadata-based self-description check and at most one automatic real-model format recovery, charged to the same persistent budgets. Recovery keeps the exact latest request and active-project facts while removing stale artifact instructions, and is constrained by elapsed time and one provider call. Regression tests cover the actual observed date claim and correct, budgeted project-recall recovery.
+
+The research probe retrieved no usable sources and answered from general knowledge without citations. It did not claim successful browsing. Encyclopedia research is therefore **PARTIALLY WORKING / live retrieval unavailable in this observation**, not fully verified. General current-web search is still unconfigured. Remaining model errors and external-service limitations are not hidden by the successful deployment.
+
+The real browser separately generated a flying cow through **Cloudflare FLUX**, decoded and displayed its **1024 × 1024 JPEG**, saved it locally, retained it after reload, opened it in Photos and downloaded the file. The downloaded 494,538-byte JPEG passed image decoding; SHA-256: `c73ce19a5d01528c843e47665569a7deff78947f9e5339ce31dcec4601d4d032`. This was actual raster inference, not an SVG fixture. Old pre-upgrade conversation text was retained unchanged, while current labels switched to MICHELLE.
+
+Corrected release deployment and targeted live acceptance are pending below; the platform is not declared fully repaired while those checks remain outstanding.
 
 `tests/live-acceptance.mjs` is explicit opt-in, uses the existing public free allowances and records actual results. It is not called by the normal build or CI. It checks intended source commit/version before spending model requests, spaces requests, never supplies credentials or changes provider settings, and records failures instead of manufacturing results.
 
@@ -105,3 +115,13 @@ The two completed October 25 one-shot live probe workflows were removed, retaini
 - `tests/worker.test.mjs`
 - `tests/workspace.test.mjs`
 - `worker.js`
+
+
+### Additional repairs found during production acceptance
+
+- Unsupported first-person training-date claims are checked against the fact that no verified cutoff metadata is supplied. The honest unknown-date statement replaces the unsupported clause; useful surrounding explanation is retained. This is a bounded self-description check, not general fact verification.
+- Unexpected conversational artifacts get one guarded, quota-accounted model recovery; invalid code still cannot replace a website.
+- “Add to this website” is disabled for an image-only conversation until a website actually exists, preventing a false placement-success message.
+- Current connection and quality documentation uses MICHELLE; compatible historical filenames and infrastructure identifiers remain unchanged.
+
+Additional evidence and updated current documentation: `docs/FREE_POOL.md`, `docs/MIKEE_QUALITY_GATE.md`, `docs/verification/michelle-live-2026-10-28.json`, `docs/verification/michelle-browser-2026-10-28.json`.

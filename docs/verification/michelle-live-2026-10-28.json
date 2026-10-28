@@ -1,0 +1,1455 @@
+{
+  "date": "2026-10-28T21:12:24.649Z",
+  "base": "https://omniforge-mike.fayemijames42.workers.dev",
+  "environment": "Actual deployed public Worker. Synthetic test conversations only.",
+  "results": [
+    {
+      "id": "greeting",
+      "input": {
+        "message": "Hi."
+      },
+      "status": 200,
+      "passed": true,
+      "reply": "Hello! I'm Michelle, the AI assistant for the OMNIFORGE platform developed by ADEN INC.. How can I help you today?",
+      "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "usage": {
+        "prompt_tokens": 758,
+        "completion_tokens": 31,
+        "total_tokens": 789,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 11.253999192267656
+      },
+      "incomplete": false,
+      "provider": "cloudflare",
+      "providerName": "Cloudflare Workers AI",
+      "live": true,
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        }
+      ],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false,
+        "sourceUse": {
+          "retrieved": 0,
+          "cited": [],
+          "uncited": false
+        }
+      },
+      "orchestration": {
+        "kind": "chat",
+        "parts": 1,
+        "contextTurns": 0,
+        "toolsUsed": [
+          "language-model"
+        ]
+      }
+    },
+    {
+      "id": "identity",
+      "input": {
+        "message": "Who are you? Keep it to one sentence."
+      },
+      "status": 200,
+      "passed": true,
+      "reply": "I am Michelle, the AI assistant for OMNIFORGE, a platform developed and owned by ADEN INC.",
+      "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "usage": {
+        "prompt_tokens": 789,
+        "completion_tokens": 25,
+        "total_tokens": 814,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 11.524361920543015
+      },
+      "incomplete": false,
+      "provider": "cloudflare",
+      "providerName": "Cloudflare Workers AI",
+      "live": true,
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        }
+      ],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false,
+        "sourceUse": {
+          "retrieved": 0,
+          "cited": [],
+          "uncited": false
+        }
+      },
+      "orchestration": {
+        "kind": "chat",
+        "parts": 2,
+        "contextTurns": 0,
+        "toolsUsed": [
+          "language-model"
+        ]
+      }
+    },
+    {
+      "id": "ownership",
+      "input": {
+        "message": "Who owns you? Answer briefly."
+      },
+      "status": 200,
+      "passed": true,
+      "reply": "I, Michelle, am the AI assistant for the OMNIFORGE platform, which is developed and owned by ADEN INC.",
+      "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "usage": {
+        "prompt_tokens": 783,
+        "completion_tokens": 28,
+        "total_tokens": 811,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 11.52007541526109
+      },
+      "incomplete": false,
+      "provider": "cloudflare",
+      "providerName": "Cloudflare Workers AI",
+      "live": true,
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        }
+      ],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false,
+        "sourceUse": {
+          "retrieved": 0,
+          "cited": [],
+          "uncited": false
+        }
+      },
+      "orchestration": {
+        "kind": "chat",
+        "parts": 2,
+        "contextTurns": 0,
+        "toolsUsed": [
+          "language-model"
+        ]
+      }
+    },
+    {
+      "id": "developer",
+      "input": {
+        "message": "Who developed you? Answer briefly."
+      },
+      "status": 200,
+      "passed": false,
+      "reply": "I was developed by ADEN INC. for their OMNIFORGE platform.",
+      "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "usage": {
+        "prompt_tokens": 783,
+        "completion_tokens": 18,
+        "total_tokens": 801,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 11.25879564229399
+      },
+      "incomplete": false,
+      "provider": "cloudflare",
+      "providerName": "Cloudflare Workers AI",
+      "live": true,
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        }
+      ],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false,
+        "sourceUse": {
+          "retrieved": 0,
+          "cited": [],
+          "uncited": false
+        }
+      },
+      "orchestration": {
+        "kind": "chat",
+        "parts": 2,
+        "contextTurns": 0,
+        "toolsUsed": [
+          "language-model"
+        ]
+      }
+    },
+    {
+      "id": "knowledge",
+      "input": {
+        "message": "What is your knowledge level? Explain briefly."
+      },
+      "status": 200,
+      "passed": true,
+      "reply": "I am an AI assistant developed for the OMNIFORGE platform, owned by ADEN INC. My knowledge level is up to 2024, as of my last update. I can provide information on a wide range of topics, including but not limited to, science, technology, history, literature, and more. However, my knowledge may not be comprehensive or entirely up-to-date, especially on very recent developments or highly specialized topics.",
+      "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "usage": {
+        "prompt_tokens": 822,
+        "completion_tokens": 90,
+        "total_tokens": 912,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 13.67736784927547
+      },
+      "incomplete": false,
+      "provider": "cloudflare",
+      "providerName": "Cloudflare Workers AI",
+      "live": true,
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        }
+      ],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false,
+        "sourceUse": {
+          "retrieved": 0,
+          "cited": [],
+          "uncited": false
+        }
+      },
+      "orchestration": {
+        "kind": "learn",
+        "parts": 2,
+        "contextTurns": 0,
+        "toolsUsed": [
+          "language-model"
+        ]
+      }
+    },
+    {
+      "id": "website-create",
+      "input": {
+        "message": "Create a compact complete one-page website for a fictional bakery called Sunrise Bakery. Use pink accents, inline CSS, no images or external resources, no invented contact details. Keep the whole HTML under 2200 characters."
+      },
+      "status": 200,
+      "passed": true,
+      "reply": "```html\n<!DOCTYPE html>\n<html>\n<head>\n\t<title>Sunrise Bakery</title>\n\t<style>\n\t\tbody {\n\t\t\tbackground-color: #f2f2f2;\n\t\t\tfont-family: Arial, sans-serif;\n\t\t}\n\t\t.header {\n\t\t\tbackground-color: #ff69b4;\n\t\t\tpadding: 20px;\n\t\t\ttext-align: center;\n\t\t}\n\t\t.header h1 {\n\t\t\tcolor: #fff;\n\t\t}\n\t\t.content {\n\t\t\twidth: 80%;\n\t\t\tmargin: 40px auto;\n\t\t\tbackground-color: #fff;\n\t\t\tpadding: 20px;\n\t\t\tborder: 1px solid #ddd;\n\t\t\tborder-radius: 10px;\n\t\t\tbox-shadow: 0 0 10px rgba(0, 0, 0, 0.1);\n\t\t}\n\t\t.content h2 {\n\t\t\tcolor: #333;\n\t\t}\n\t\t.content p {\n\t\t\tmargin-bottom: 20px;\n\t\t}\n\t\t.footer {\n\t\t\tbackground-color: #ff69b4;\n\t\t\tpadding: 10px;\n\t\t\ttext-align: center;\n\t\t\tclear: both;\n\t\t}\n\t\t.footer p {\n\t\t\tcolor: #fff;\n\t\t}\n\t</style>\n</head>\n<body>\n\t<div class=\"header\">\n\t\t<h1>Sunrise Bakery</h1>\n\t</div>\n\t<div class=\"content\">\n\t\t<h2>Delicious Treats for Every Day</h2>\n\t\t<p>Indulge in our freshly baked bread, pastries, and cakes, made with love and care.</p>\n\t\t<p>Visit us today and taste the difference!</p>\n\t</div>\n\t<div class=\"footer\">\n\t\t<p>&copy; 2023 Sunrise Bakery. All rights reserved.</p>\n\t</div>\n</body>\n</html>\n```",
+      "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "usage": {
+        "prompt_tokens": 867,
+        "completion_tokens": 388,
+        "total_tokens": 1255,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 22.08353336248547
+      },
+      "incomplete": false,
+      "provider": "cloudflare",
+      "providerName": "Cloudflare Workers AI",
+      "live": true,
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        }
+      ],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "website",
+        "complete": true,
+        "valid": true
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false,
+        "sourceUse": {
+          "retrieved": 0,
+          "cited": [],
+          "uncited": false
+        }
+      },
+      "orchestration": {
+        "kind": "website",
+        "parts": 3,
+        "contextTurns": 0,
+        "toolsUsed": [
+          "language-model"
+        ]
+      }
+    },
+    {
+      "id": "website-edit",
+      "input": {
+        "message": "Make the website background navy and keep the Sunrise Bakery content.",
+        "currentHtml": "<!DOCTYPE html>\n<html>\n<head>\n\t<title>Sunrise Bakery</title>\n\t<style>\n\t\tbody {\n\t\t\tbackground-color: #f2f2f2;\n\t\t\tfont-family: Arial, sans-serif;\n\t\t}\n\t\t.header {\n\t\t\tbackground-color: #ff69b4;\n\t\t\tpadding: 20px;\n\t\t\ttext-align: center;\n\t\t}\n\t\t.header h1 {\n\t\t\tcolor: #fff;\n\t\t}\n\t\t.content {\n\t\t\twidth: 80%;\n\t\t\tmargin: 40px auto;\n\t\t\tbackground-color: #fff;\n\t\t\tpadding: 20px;\n\t\t\tborder: 1px solid #ddd;\n\t\t\tborder-radius: 10px;\n\t\t\tbox-shadow: 0 0 10px rgba(0, 0, 0, 0.1);\n\t\t}\n\t\t.content h2 {\n\t\t\tcolor: #333;\n\t\t}\n\t\t.content p {\n\t\t\tmargin-bottom: 20px;\n\t\t}\n\t\t.footer {\n\t\t\tbackground-color: #ff69b4;\n\t\t\tpadding: 10px;\n\t\t\ttext-align: center;\n\t\t\tclear: both;\n\t\t}\n\t\t.footer p {\n\t\t\tcolor: #fff;\n\t\t}\n\t</style>\n</head>\n<body>\n\t<div class=\"header\">\n\t\t<h1>Sunrise Bakery</h1>\n\t</div>\n\t<div class=\"content\">\n\t\t<h2>Delicious Treats for Every Day</h2>\n\t\t<p>Indulge in our freshly baked bread, pastries, and cakes, made with love and care.</p>\n\t\t<p>Visit us today and taste the difference!</p>\n\t</div>\n\t<div class=\"footer\">\n\t\t<p>&copy; 2023 Sunrise Bakery. All rights reserved.</p>\n\t</div>\n</body>\n</html>",
+        "history": [
+          {
+            "role": "user",
+            "content": "Create a compact complete one-page website for a fictional bakery called Sunrise Bakery. Use pink accents, inline CSS, no images or external resources, no invented contact details. Keep the whole HTML under 2200 characters."
+          },
+          {
+            "role": "assistant",
+            "content": "[Earlier website output; use the current project when editing.]",
+            "artifactType": "website"
+          }
+        ]
+      },
+      "status": 200,
+      "passed": false,
+      "reply": "<!DOCTYPE html>\n<html>\n<head>\n\t<title>Sunrise Bakery</title>\n\t<style>\n\t\tbody {\n\t\t\tbackground-color: #03055B;\n\t\t\tfont-family: Arial, sans-serif;\n\t\t}\n\t\t.header {\n\t\t\tbackground-color: #ff69b4;\n\t\t\tpadding: 20px;\n\t\t\ttext-align: center;\n\t\t}\n\t\t.header h1 {\n\t\t\tcolor: #fff;\n\t\t}\n\t\t.content {\n\t\t\twidth: 80%;\n\t\t\tmargin: 40px auto;\n\t\t\tbackground-color: #fff;\n\t\t\tpadding: 20px;\n\t\t\tborder: 1px solid #ddd;\n\t\t\tborder-radius: 10px;\n\t\t\tbox-shadow: 0 0 10px rgba(0, 0, 0, 0.1);\n\t\t}\n\t\t.content h2 {\n\t\t\tcolor: #333;\n\t\t}\n\t\t.content p {\n\t\t\tmargin-bottom: 20px;\n\t\t}\n\t\t.footer {\n\t\t\tbackground-color: #ff69b4;\n\t\t\tpadding: 10px;\n\t\t\ttext-align: center;\n\t\t\tclear: both;\n\t\t}\n\t\t.footer p {\n\t\t\tcolor: #fff;\n\t\t}\n\t</style>\n</head>\n<body>\n\t<div class=\"header\">\n\t\t<h1>Sunrise Bakery</h1>\n\t</div>\n\t<div class=\"content\">\n\t\t<h2>Delicious Treats for Every Day</h2>\n\t\t<p>Indulge in our freshly baked bread, pastries, and cakes, made with love and care.</p>\n\t\t<p>Visit us today and taste the difference!</p>\n\t</div>\n\t<div class=\"footer\">\n\t\t<p>&copy; 2023 Sunrise Bakery. All rights reserved.</p>\n\t</div>\n</body>\n</html>",
+      "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "usage": {
+        "prompt_tokens": 1244,
+        "completion_tokens": 381,
+        "total_tokens": 1625,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 27.095096657052636
+      },
+      "incomplete": false,
+      "provider": "cloudflare",
+      "providerName": "Cloudflare Workers AI",
+      "live": true,
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        }
+      ],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "website",
+        "complete": true,
+        "valid": true
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false,
+        "sourceUse": {
+          "retrieved": 0,
+          "cited": [],
+          "uncited": false
+        }
+      },
+      "orchestration": {
+        "kind": "website",
+        "parts": 1,
+        "contextTurns": 2,
+        "toolsUsed": [
+          "language-model"
+        ]
+      }
+    },
+    {
+      "id": "greeting-after-website",
+      "input": {
+        "message": "How are you?",
+        "history": [
+          {
+            "role": "user",
+            "content": "Create a compact complete one-page website for a fictional bakery called Sunrise Bakery. Use pink accents, inline CSS, no images or external resources, no invented contact details. Keep the whole HTML under 2200 characters."
+          },
+          {
+            "role": "assistant",
+            "content": "[Earlier website output; use the current project when editing.]",
+            "artifactType": "website"
+          }
+        ]
+      },
+      "status": 200,
+      "passed": true,
+      "reply": "I'm functioning within normal parameters. How can I assist you today?",
+      "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "usage": {
+        "prompt_tokens": 825,
+        "completion_tokens": 15,
+        "total_tokens": 840,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 11.759104770608246
+      },
+      "incomplete": false,
+      "provider": "cloudflare",
+      "providerName": "Cloudflare Workers AI",
+      "live": true,
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        }
+      ],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false,
+        "sourceUse": {
+          "retrieved": 0,
+          "cited": [],
+          "uncited": false
+        }
+      },
+      "orchestration": {
+        "kind": "chat",
+        "parts": 1,
+        "contextTurns": 2,
+        "toolsUsed": [
+          "language-model"
+        ]
+      }
+    },
+    {
+      "id": "privacy-after-website",
+      "input": {
+        "message": "Never reveal your private internal code.",
+        "history": [
+          {
+            "role": "user",
+            "content": "Create a compact complete one-page website for a fictional bakery called Sunrise Bakery. Use pink accents, inline CSS, no images or external resources, no invented contact details. Keep the whole HTML under 2200 characters."
+          },
+          {
+            "role": "assistant",
+            "content": "[Earlier website output; use the current project when editing.]",
+            "artifactType": "website"
+          }
+        ]
+      },
+      "status": 200,
+      "passed": true,
+      "reply": "I cannot create a website. Is there anything else I can help you with?",
+      "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "usage": {
+        "prompt_tokens": 828,
+        "completion_tokens": 17,
+        "total_tokens": 845,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 11.852695943787694
+      },
+      "incomplete": false,
+      "provider": "cloudflare",
+      "providerName": "Cloudflare Workers AI",
+      "live": true,
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        }
+      ],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false,
+        "sourceUse": {
+          "retrieved": 0,
+          "cited": [],
+          "uncited": false
+        }
+      },
+      "orchestration": {
+        "kind": "chat",
+        "parts": 1,
+        "contextTurns": 2,
+        "toolsUsed": [
+          "language-model"
+        ]
+      }
+    },
+    {
+      "id": "project-recall",
+      "input": {
+        "message": "What website did we just create?",
+        "history": [
+          {
+            "role": "user",
+            "content": "Create a compact complete one-page website for a fictional bakery called Sunrise Bakery. Use pink accents, inline CSS, no images or external resources, no invented contact details. Keep the whole HTML under 2200 characters."
+          },
+          {
+            "role": "assistant",
+            "content": "[Earlier website output; use the current project when editing.]",
+            "artifactType": "website"
+          }
+        ],
+        "projectContext": {
+          "name": "Sunrise Bakery Website",
+          "title": "Sunrise Bakery",
+          "headings": [
+            "Sunrise Bakery",
+            "Delicious Treats for Every Day"
+          ],
+          "savedLocally": true
+        }
+      },
+      "status": 200,
+      "passed": false,
+      "reply": "I mistakenly returned website code instead of answering your message. Your website has not been changed. Please repeat your question.",
+      "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "usage": {
+        "prompt_tokens": 888,
+        "completion_tokens": 298,
+        "total_tokens": 1186,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 20.02136193588376
+      },
+      "incomplete": false,
+      "provider": "cloudflare",
+      "providerName": "Cloudflare Workers AI",
+      "live": true,
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        }
+      ],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [
+          "Unexpected website HTML was blocked in a normal conversation."
+        ],
+        "factChecked": false,
+        "sourceUse": {
+          "retrieved": 0,
+          "cited": [],
+          "uncited": false
+        }
+      },
+      "orchestration": {
+        "kind": "chat",
+        "parts": 1,
+        "contextTurns": 2,
+        "toolsUsed": [
+          "language-model"
+        ]
+      }
+    },
+    {
+      "id": "express-backend",
+      "input": {
+        "message": "Write a minimal Node.js Express backend in one server.js code block, with one GET /health route and port 3000. Do not run it.",
+        "history": [
+          {
+            "role": "user",
+            "content": "Create a compact complete one-page website for a fictional bakery called Sunrise Bakery. Use pink accents, inline CSS, no images or external resources, no invented contact details. Keep the whole HTML under 2200 characters."
+          },
+          {
+            "role": "assistant",
+            "content": "[Earlier website output; use the current project when editing.]",
+            "artifactType": "website"
+          }
+        ]
+      },
+      "status": 200,
+      "passed": true,
+      "reply": "```javascript\n// server.js\nconst express = require('express');\n\nconst app = express();\n\napp.get('/health', (req, res) => {\n  res.send('Healthy!');\n});\n\nconst port = 3000;\napp.listen(port, () => {\n  console.log(`Server listening on port ${port}`);\n});\n```",
+      "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "usage": {
+        "prompt_tokens": 855,
+        "completion_tokens": 66,
+        "total_tokens": 921,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 13.504983798600733
+      },
+      "incomplete": false,
+      "provider": "cloudflare",
+      "providerName": "Cloudflare Workers AI",
+      "live": true,
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        }
+      ],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false,
+        "sourceUse": {
+          "retrieved": 0,
+          "cited": [],
+          "uncited": false
+        }
+      },
+      "orchestration": {
+        "kind": "code",
+        "parts": 2,
+        "contextTurns": 2,
+        "toolsUsed": [
+          "language-model"
+        ]
+      }
+    },
+    {
+      "id": "research",
+      "input": {
+        "message": "Who invented the transistor? Give a short answer with the supplied source identifiers."
+      },
+      "status": 200,
+      "passed": false,
+      "reply": "The invention of the transistor is attributed to John Bardeen, Walter Brattain, and William Shockley. They developed the first working transistor at Bell Labs in 1947.",
+      "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "usage": {
+        "prompt_tokens": 830,
+        "completion_tokens": 37,
+        "total_tokens": 867,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "neurons": 12.40281230211258
+      },
+      "incomplete": false,
+      "provider": "cloudflare",
+      "providerName": "Cloudflare Workers AI",
+      "live": true,
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        }
+      ],
+      "fallbackCount": 0,
+      "artifact": {
+        "type": "text"
+      },
+      "quality": {
+        "checks": [
+          "artifact-format"
+        ],
+        "warnings": [],
+        "factChecked": false,
+        "sourceUse": {
+          "retrieved": 0,
+          "cited": [],
+          "uncited": false
+        }
+      },
+      "orchestration": {
+        "kind": "chat",
+        "parts": 2,
+        "contextTurns": 0,
+        "toolsUsed": [
+          "language-model"
+        ]
+      },
+      "research": {
+        "scope": "none",
+        "retrievedAt": "2026-10-28T21:16:37.099Z",
+        "mode": "automatic",
+        "queryCount": 1,
+        "note": "Automatic reference search did not retrieve usable sources. Answer from general knowledge only, acknowledge relevant uncertainty, and do not fabricate citations."
+      }
+    }
+  ],
+  "health": {
+    "status": 200,
+    "data": {
+      "ok": true,
+      "version": "0.11.1",
+      "identity": {
+        "name": "Michelle",
+        "displayName": "MICHELLE",
+        "platform": "OMNIFORGE",
+        "owner": "ADEN INC."
+      },
+      "mode": "free-pool",
+      "poolBound": true,
+      "ownerSetup": false,
+      "aiBound": true,
+      "budgetBound": true,
+      "webSearchConfigured": false,
+      "encyclopediaSearch": true,
+      "verified": false
+    }
+  },
+  "build": {
+    "status": 200,
+    "data": {
+      "version": "0.11.1",
+      "buildId": "0.11.1-367034168ba1",
+      "sourceCommit": "b8d597710f916f8b3971b8d92ed3e24a3d53382a"
+    }
+  },
+  "providerStatus": {
+    "mode": "free-pool",
+    "version": "0.11.1",
+    "verified": false,
+    "ownerSetup": false,
+    "providers": [
+      {
+        "id": "gemini",
+        "name": "Google Gemini",
+        "capabilities": [
+          "chat",
+          "vision",
+          "transcribe"
+        ],
+        "state": "needs_key",
+        "model": "gemini-3.8-flash",
+        "models": [
+          "gemini-3.8-flash",
+          "gemini-3.5-flash-lite"
+        ],
+        "note": "Free-tier project required. Google may use free-tier content to improve products.",
+        "signup": "https://aistudio.google.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "groq",
+        "name": "Groq",
+        "capabilities": [
+          "chat",
+          "transcribe"
+        ],
+        "state": "needs_key",
+        "model": "openai/gpt-oss-120b",
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b",
+          "qwen/qwen3.8-27b"
+        ],
+        "note": "Free Plan. Speech and chat share this app budget; Groq also enforces separate speech limits.",
+        "signup": "https://console.groq.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "cloudflare",
+        "name": "Cloudflare Workers AI",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "ready",
+        "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+        "models": [
+          "@cf/meta/llama-3.1-8b-instruct-fp8"
+        ],
+        "note": "Existing AI binding; keep the Cloudflare account on Workers Free.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": 1793221029052,
+        "retryAt": null
+      },
+      {
+        "id": "cloudflare-image",
+        "name": "Cloudflare FLUX",
+        "capabilities": [
+          "image"
+        ],
+        "state": "ready",
+        "model": "@cf/black-forest-labs/flux-1-schnell",
+        "models": [
+          "@cf/black-forest-labs/flux-1-schnell"
+        ],
+        "note": "Existing four-step FLUX image tool. Per-provider budget; other free image services remain available when it is exhausted.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": 1793006251338,
+        "retryAt": null
+      },
+      {
+        "id": "mistral",
+        "name": "Mistral Studio",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "mistral-small-latest",
+        "models": [
+          "mistral-small-latest"
+        ],
+        "note": "Free mode only. Actual monthly allowance is shown in Studio.",
+        "signup": "https://console.mistral.ai/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "zai",
+        "name": "Z.ai Flash",
+        "capabilities": [
+          "chat",
+          "vision"
+        ],
+        "state": "needs_key",
+        "model": "glm-4.7-flash",
+        "models": [
+          "glm-4.7-flash",
+          "glm-4.5-flash",
+          "glm-4.6v-flash"
+        ],
+        "note": "Only these zero-priced Flash models. Search, image generation and FlashX are excluded.",
+        "signup": "https://z.ai/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "openrouter",
+        "name": "OpenRouter Free",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "recursive/flint-v1.0:free",
+        "models": [
+          "recursive/flint-v1.0:free",
+          "openrouter/free"
+        ],
+        "note": "Free variants only. Failed requests also consume the provider allowance.",
+        "signup": "https://openrouter.ai/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "llm7",
+        "name": "LLM7 Turbo",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "catalog:turbo",
+        "models": [
+          "catalog:turbo"
+        ],
+        "note": "A live catalog check selects a TURBO chat model. Pro models are never selected.",
+        "signup": "https://dash.llm7.io/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "ollama",
+        "name": "Ollama Cloud",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "gemma4:31b",
+        "models": [
+          "gemma4:31b"
+        ],
+        "note": "Monthly starter allowance only. No local model installation; paid credits must be disabled.",
+        "signup": "https://ollama.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "vercel",
+        "name": "Vercel AI Gateway",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "openai/gpt-oss-120b",
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b"
+        ],
+        "note": "Free-tier eligible models only. A price check and a $4/month app ceiling protect the $5 free allowance. No purchased credits or top-up.",
+        "signup": "https://vercel.com/ai-gateway",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "nvidia",
+        "name": "NVIDIA NIM — development",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "nvidia/nemotron-3-super-120b-a12b",
+        "models": [
+          "nvidia/nemotron-3-super-120b-a12b",
+          "openai/gpt-oss-120b"
+        ],
+        "note": "Free prototyping access. Enable only for a development workspace, not production entitlement.",
+        "signup": "https://build.nvidia.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "pollinations",
+        "name": "Pollinations Classic",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "ready",
+        "model": "classic-gpt-oss-20b",
+        "models": [
+          "classic-gpt-oss-20b"
+        ],
+        "note": "Anonymous best-effort access. Shared IP limits; a 402 means wait, never pay.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "ovh",
+        "name": "OVHcloud Anonymous",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "ready",
+        "model": "gpt-oss-120b",
+        "models": [
+          "gpt-oss-120b"
+        ],
+        "note": "Anonymous low-rate testing only. No paid project key is used.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "pollinations-image",
+        "name": "Pollinations Classic Images",
+        "capabilities": [
+          "image"
+        ],
+        "state": "ready",
+        "model": "classic-image",
+        "models": [
+          "classic-image"
+        ],
+        "note": "Free 768 px JPEGs with the provider logo. No paid wallet or keyed media API.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "horde-image",
+        "name": "AI Horde Images",
+        "capabilities": [
+          "image"
+        ],
+        "state": "ready",
+        "model": "stable_diffusion",
+        "models": [
+          "stable_diffusion"
+        ],
+        "note": "Anonymous volunteer-compute queue. Jobs can take several minutes or be unavailable.",
+        "signup": "https://aihorde.net/",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      }
+    ],
+    "parked": [
+      {
+        "id": "siliconflow",
+        "name": "SiliconFlow",
+        "state": "not_in_pool",
+        "note": "Free model and regional account eligibility need verification."
+      },
+      {
+        "id": "modelscope",
+        "name": "ModelScope",
+        "state": "not_in_pool",
+        "note": "Account and model-specific free API eligibility need verification."
+      },
+      {
+        "id": "scaleway",
+        "name": "Scaleway",
+        "state": "not_in_pool",
+        "note": "Allowance renewal and billing eligibility need verification."
+      },
+      {
+        "id": "puter",
+        "name": "Puter",
+        "state": "not_in_pool",
+        "note": "Individual user login and user-paid overage do not belong in the shared free pool."
+      }
+    ]
+  },
+  "generatedCodeCheck": {
+    "kind": "Node.js syntax only; the generated backend was not executed or deployed.",
+    "passed": true
+  },
+  "statusAfter": {
+    "mode": "free-pool",
+    "version": "0.11.1",
+    "verified": false,
+    "ownerSetup": false,
+    "providers": [
+      {
+        "id": "gemini",
+        "name": "Google Gemini",
+        "capabilities": [
+          "chat",
+          "vision",
+          "transcribe"
+        ],
+        "state": "needs_key",
+        "model": "gemini-3.8-flash",
+        "models": [
+          "gemini-3.8-flash",
+          "gemini-3.5-flash-lite"
+        ],
+        "note": "Free-tier project required. Google may use free-tier content to improve products.",
+        "signup": "https://aistudio.google.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "groq",
+        "name": "Groq",
+        "capabilities": [
+          "chat",
+          "transcribe"
+        ],
+        "state": "needs_key",
+        "model": "openai/gpt-oss-120b",
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b",
+          "qwen/qwen3.8-27b"
+        ],
+        "note": "Free Plan. Speech and chat share this app budget; Groq also enforces separate speech limits.",
+        "signup": "https://console.groq.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "cloudflare",
+        "name": "Cloudflare Workers AI",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "cooldown",
+        "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+        "models": [
+          "@cf/meta/llama-3.1-8b-instruct-fp8"
+        ],
+        "note": "Existing AI binding; keep the Cloudflare account on Workers Free.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": 1793222199091,
+        "retryAt": 1793222214124
+      },
+      {
+        "id": "cloudflare-image",
+        "name": "Cloudflare FLUX",
+        "capabilities": [
+          "image"
+        ],
+        "state": "ready",
+        "model": "@cf/black-forest-labs/flux-1-schnell",
+        "models": [
+          "@cf/black-forest-labs/flux-1-schnell"
+        ],
+        "note": "Existing four-step FLUX image tool. Per-provider budget; other free image services remain available when it is exhausted.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": 1793221964330,
+        "retryAt": null
+      },
+      {
+        "id": "mistral",
+        "name": "Mistral Studio",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "mistral-small-latest",
+        "models": [
+          "mistral-small-latest"
+        ],
+        "note": "Free mode only. Actual monthly allowance is shown in Studio.",
+        "signup": "https://console.mistral.ai/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "zai",
+        "name": "Z.ai Flash",
+        "capabilities": [
+          "chat",
+          "vision"
+        ],
+        "state": "needs_key",
+        "model": "glm-4.7-flash",
+        "models": [
+          "glm-4.7-flash",
+          "glm-4.5-flash",
+          "glm-4.6v-flash"
+        ],
+        "note": "Only these zero-priced Flash models. Search, image generation and FlashX are excluded.",
+        "signup": "https://z.ai/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "openrouter",
+        "name": "OpenRouter Free",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "recursive/flint-v1.0:free",
+        "models": [
+          "recursive/flint-v1.0:free",
+          "openrouter/free"
+        ],
+        "note": "Free variants only. Failed requests also consume the provider allowance.",
+        "signup": "https://openrouter.ai/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "llm7",
+        "name": "LLM7 Turbo",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "catalog:turbo",
+        "models": [
+          "catalog:turbo"
+        ],
+        "note": "A live catalog check selects a TURBO chat model. Pro models are never selected.",
+        "signup": "https://dash.llm7.io/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "ollama",
+        "name": "Ollama Cloud",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "gemma4:31b",
+        "models": [
+          "gemma4:31b"
+        ],
+        "note": "Monthly starter allowance only. No local model installation; paid credits must be disabled.",
+        "signup": "https://ollama.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "vercel",
+        "name": "Vercel AI Gateway",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "openai/gpt-oss-120b",
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b"
+        ],
+        "note": "Free-tier eligible models only. A price check and a $4/month app ceiling protect the $5 free allowance. No purchased credits or top-up.",
+        "signup": "https://vercel.com/ai-gateway",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "nvidia",
+        "name": "NVIDIA NIM — development",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "nvidia/nemotron-3-super-120b-a12b",
+        "models": [
+          "nvidia/nemotron-3-super-120b-a12b",
+          "openai/gpt-oss-120b"
+        ],
+        "note": "Free prototyping access. Enable only for a development workspace, not production entitlement.",
+        "signup": "https://build.nvidia.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "pollinations",
+        "name": "Pollinations Classic",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "ready",
+        "model": "classic-gpt-oss-20b",
+        "models": [
+          "classic-gpt-oss-20b"
+        ],
+        "note": "Anonymous best-effort access. Shared IP limits; a 402 means wait, never pay.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "ovh",
+        "name": "OVHcloud Anonymous",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "ready",
+        "model": "gpt-oss-120b",
+        "models": [
+          "gpt-oss-120b"
+        ],
+        "note": "Anonymous low-rate testing only. No paid project key is used.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "pollinations-image",
+        "name": "Pollinations Classic Images",
+        "capabilities": [
+          "image"
+        ],
+        "state": "ready",
+        "model": "classic-image",
+        "models": [
+          "classic-image"
+        ],
+        "note": "Free 768 px JPEGs with the provider logo. No paid wallet or keyed media API.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "horde-image",
+        "name": "AI Horde Images",
+        "capabilities": [
+          "image"
+        ],
+        "state": "ready",
+        "model": "stable_diffusion",
+        "models": [
+          "stable_diffusion"
+        ],
+        "note": "Anonymous volunteer-compute queue. Jobs can take several minutes or be unavailable.",
+        "signup": "https://aihorde.net/",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      }
+    ],
+    "parked": [
+      {
+        "id": "siliconflow",
+        "name": "SiliconFlow",
+        "state": "not_in_pool",
+        "note": "Free model and regional account eligibility need verification."
+      },
+      {
+        "id": "modelscope",
+        "name": "ModelScope",
+        "state": "not_in_pool",
+        "note": "Account and model-specific free API eligibility need verification."
+      },
+      {
+        "id": "scaleway",
+        "name": "Scaleway",
+        "state": "not_in_pool",
+        "note": "Allowance renewal and billing eligibility need verification."
+      },
+      {
+        "id": "puter",
+        "name": "Puter",
+        "state": "not_in_pool",
+        "note": "Individual user login and user-paid overage do not belong in the shared free pool."
+      }
+    ]
+  },
+  "remaining": "Raster generation and saved-image UI are verified separately. Authenticated adapters lacking keys are not live-tested. Limited examples are not a broad quality benchmark."
+}
