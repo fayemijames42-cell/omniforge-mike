@@ -124,3 +124,30 @@ test('Chat response explicitly identifies provider and model',async()=>{
  const r=await worker.fetch(req({message:'hello'}),e);
  const data=await r.json();assert.equal(data.provider,'cloudflare');assert.equal(data.model,'@cf/meta/llama-3.1-8b-instruct-fp8');
 });
+
+
+test('assistant identifies ADEN INC as developer in the system guidance',async()=>{
+ let prompt;
+ const local={AI:{run:async(_model,input)=>{prompt=input.messages[0].content;return {response:'OMNIFORGE was developed by ADEN INC.'}}}};
+ const response=await worker.fetch(req({message:'Who developed OMNIFORGE?'}),local);
+ assert.equal(response.status,200);
+ assert.match(prompt,/developed and owned by ADEN INC/);
+ assert.match(prompt,/Never disclose private application source code/);
+});
+test('normal greetings cannot turn leftover HTML into website output',async()=>{
+ const local={AI:{run:async()=>({response:'<!doctype html><html><body>OLD WEBSITE</body></html>'})}};
+ const response=await worker.fetch(req({message:'Dude 😔',history:[{role:'assistant',content:'<!doctype html><html><body>pink</body></html>'}]}),local);
+ assert.equal(response.status,200);
+ const answer=await response.json();
+ assert.equal(answer.artifact.type,'text');
+ assert.doesNotMatch(answer.reply,/<!doctype|<html/i);
+ assert.match(answer.quality.warnings.join(' '),/Unexpected website HTML/);
+});
+test('explicit website generation is still permitted',async()=>{
+ const local={AI:{run:async()=>({response:'<!doctype html><html><body>Pink website</body></html>'})}};
+ const response=await worker.fetch(req({message:'Create a website for a florist'}),local);
+ assert.equal(response.status,200);
+ const answer=await response.json();
+ assert.equal(answer.artifact.type,'website');
+ assert.match(answer.reply,/<!doctype html>/);
+});
