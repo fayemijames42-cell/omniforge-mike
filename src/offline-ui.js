@@ -66,7 +66,7 @@ async function saveReply(event){
   const assistant=msgs[index],question=msgs.slice(0,index).reverse().find(m=>m.role==='user');
   if(!question||!['WORKERS AI','LIVE AI'].includes(assistant.engine))throw Error('No eligible question/answer pair.');
   if(assistant.text.length>6000||/<html|<!doctype/i.test(assistant.text))throw Error('Use short plain-text answers only.');
-  await K.addRecord({question:question.text,answer:assistant.text,source:'User-saved MIKEE reply (not verified)',kind:'saved-ai'});
+  await K.addRecord({question:question.text,answer:assistant.text,source:'User-saved MICHELLE reply (not verified)',kind:'saved-ai'});
   await updateStatus();toast('Remembered on this device. AI answers should be checked for accuracy.');
  }catch(e){toast('Could not save memory: '+e.message)}
 }

@@ -32,7 +32,7 @@ function closeResponse(response) {
   if (pending) { clearTimeout(pending.timer); pendingResponses.delete(response); }
 }
 async function readLimited(response, maximum = 900000) {
-  if (Number(response.headers.get('content-length')) > maximum) throw new ProviderError('response_too_large');
+  if (Number(response.headers.get('content-length')) > maximum) {closeResponse(response);await response.body?.cancel().catch(()=>{});throw new ProviderError('response_too_large');}
   const reader = response.body?.getReader();
   if (!reader) return new Uint8Array();
   const chunks = []; let size = 0;
@@ -167,13 +167,15 @@ export async function pollinationsImage(fetcher, prompt, seed) {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(type)) { closeResponse(response); await response.body?.cancel().catch(() => {}); throw new ProviderError('invalid_image', { retryAfter: 60000 }); }
   const bytes = await readLimited(response, 2200000);
   if (bytes.length < 100) throw new ProviderError('invalid_image');
+  const signature=String.fromCharCode(...bytes.subarray(0,16));
+  if(!(type==='image/jpeg'?signature.startsWith('\xff\xd8\xff'):type==='image/png'?signature.startsWith('\x89PNG\r\n\x1a\n'):signature.startsWith('RIFF')&&signature.slice(8,12)==='WEBP'))throw new ProviderError('invalid_image');
   let binary = ''; for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
   return { dataUrl: 'data:' + type + ';base64,' + btoa(binary), mimeType: type, model: 'classic-image',
     attribution: 'Pollinations Classic · provider logo retained' };
 }
 
 const HORDE = 'https://aihorde.net/api/v2';
-const HORDE_HEADERS = { apikey: '0000000000', 'Client-Agent': 'OMNIFORGE:0.5:github.com/fayemijames42-cell/omniforge-mikee' };
+const HORDE_HEADERS = { apikey: '0000000000', 'Client-Agent': 'OMNIFORGE:0.11:github.com/fayemijames42-cell/omniforge-mike' };
 export async function startHorde(fetcher, prompt) {
   const data = await jsonRequest(fetcher, HORDE + '/generate/async', {
     method: 'POST', headers: { ...HORDE_HEADERS, 'content-type': 'application/json' },
@@ -211,6 +213,7 @@ export async function cloudflareImage(env,prompt){
  try{
   const data=await Promise.race([env.AI.run('@cf/black-forest-labs/flux-1-schnell',{prompt,steps:4}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new ProviderError('timeout',{retryAfter:45000})),30000)})]);
   if(typeof data?.image!=='string'||data.image.length<100||data.image.length>3000000)throw new ProviderError('invalid_image');
+  if(!/^[A-Za-z0-9+/]+={0,2}$/.test(data.image)||!atob(data.image.slice(0,32)).startsWith('\xff\xd8\xff'))throw new ProviderError('invalid_image');
   return {dataUrl:'data:image/jpeg;base64,'+data.image,mimeType:'image/jpeg',model:'@cf/black-forest-labs/flux-1-schnell'};
  }catch(error){if(error instanceof ProviderError)throw error;throw new ProviderError(/quota|neuron|limit/i.test(error?.message||'')?'allowance':'capacity',{retryAfter:3600000});}
  finally{clearTimeout(timer)}

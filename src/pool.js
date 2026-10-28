@@ -38,7 +38,7 @@
     $('#ownerUnlock').hidden = !!ownerToken;
     $('#ownerLock').hidden = !ownerToken;
     if (!ownerToken) {
-      $('#connectionList').innerHTML = '<p class="muted">MIKEE switches services automatically. Only the owner needs to configure individual API connections.</p>';
+      $('#connectionList').innerHTML = '<p class="muted">MICHELLE switches services automatically. Only the owner needs to configure individual API connections.</p>';
       return;
     }
     $('#connectionList').innerHTML = catalog.providers.map(p => {
@@ -50,7 +50,7 @@
         (p.signup ? '<a href="' + E(p.signup) + '" target="_blank" rel="noopener noreferrer">Provider account</a>' : '') +
         (usable ? '<label>Model<select class="connection-model">' + p.models.map(m => '<option value="' + E(m) + '"' + (m === p.model ? ' selected' : '') + '>' + E(m === 'catalog:turbo' ? 'Verified TURBO model from live catalog' : m) + '</option>').join('') + '</select></label>' +
           (p.id !== 'cloudflare' && !p.id.startsWith('pollinations') && !['ovh', 'horde-image'].includes(p.id) ? '<label>API key (leave blank to keep current key)<input class="connection-key" type="password" autocomplete="off" spellcheck="false" placeholder="' + (p.hasKey ? 'Key already stored securely' : 'Paste your provider key here') + '"></label><label class="switch"><input class="connection-free" type="checkbox"' + (p.freeConfirmed ? ' checked' : '') + '>This account has a free allowance; paid billing and automatic top-ups are disabled.</label>' : '') +
-          '<label class="switch"><input class="connection-enabled" type="checkbox"' + (p.enabled ? ' checked' : '') + '>Include in MIKEE Auto</label><div class="field-actions"><button type="button" data-save-connection="' + E(p.id) + '">Save connection</button>' +
+          '<label class="switch"><input class="connection-enabled" type="checkbox"' + (p.enabled ? ' checked' : '') + '>Include in MICHELLE Auto</label><div class="field-actions"><button type="button" data-save-connection="' + E(p.id) + '">Save connection</button>' +
           (p.capabilities.includes('chat') ? '<button type="button" data-test-connection="' + E(p.id) + '">Test one real reply</button>' : '') +
           (p.hasKey && !['cloudflare','pollinations','pollinations-image','ovh','horde-image'].includes(p.id) ? '<button type="button" data-remove-connection="' + E(p.id) + '">Disconnect</button>' : '') + '</div>' : '<p class="muted">Unlock owner access to manage this connection.</p>') + '</details>';
     }).join('') + '<details class="connection-card"><summary>Other researched services</summary>' + catalog.parked.map(p => '<p><strong>' + E(p.name) + '</strong> · ' + E(p.note) + '</p>').join('') + '</details>';

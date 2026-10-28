@@ -48,22 +48,18 @@ function replyTitle(text){
 }
 function route(message,selectedFocus='general',hasWebsite=false,history){
  const text=String(message||'').toLowerCase().replace(/\s+/g,' ').trim();
- const artifactAction=root.OMNI_CONTEXT?.websiteAction(text,hasWebsite,history);
+ const artifactAction=root.OMNI_CONTEXT.websiteAction(text,hasWebsite,history);
  // Explicit construction language is required; saying "what is a website" is not a creation request.
- const newWebsite=artifactAction?artifactAction==='website-create':/\b(create|build|design|make|generate|develop)\b.{0,90}\b(website|webpage|landing page|web app|html page|site)\b|\b(website|webpage|landing page|site)\b.{0,50}\b(create|build|design|make)\b/i.test(text);
- const editWebsite=artifactAction?artifactAction==='website-edit':!!hasWebsite&&(
-   /\b(edit|redesign|update|modify|fix|improve|change|add|remove|restyle|rework)\b.{0,90}\b(website|webpage|landing page|site|page|hero|header|footer|navigation|section|button|layout|theme)\b/i.test(text)||
-   /\b(make it|improve it|change it|update it|add a|remove the|fix the|redesign it|restyle it)\b/i.test(text)
- );
+ const newWebsite=artifactAction==='website-create',editWebsite=artifactAction==='website-edit';
  let focus='general',label='General conversation',action='chat';
  if(newWebsite||editWebsite){focus='create';label=newWebsite?'Website creation':'Website editing';action=newWebsite?'website-create':'website-edit'}
- else if(/\b(debug|javascript|python|typescript|programming|function|algorithm|source code|code review|firmware|write code)\b/i.test(text)){focus='code';label='Coding assistance'}
+ else if(root.OMNI_CONTEXT?.programmingRequest(text)){focus='code';label='Coding assistance'}
  else if(/\b(explain|teach|understand|study|learn|lesson|quiz|homework|mathematics|physics|engineering|science)\b/i.test(text)){focus='learn';label='Learning and explanation'}
  else if(/\b(write|draft|essay|report|letter|proposal|document|story|article|summary)\b/i.test(text)){focus='write';label='Writing assistance'}
  else if(/\b(create|design|plan|brainstorm|ideas|project)\b/i.test(text)){focus='create';label='Creative planning'}
  const allowed=['general','learn','write','code','create'];
  const mode=allowed.includes(selectedFocus)&&selectedFocus!=='general'?selectedFocus:focus;
- return {label,focus:mode,action,includeWebsite:editWebsite,local:true};
+ return {label,focus:mode,action,includeWebsite:editWebsite,includeProject:!!hasWebsite&&root.OMNI_CONTEXT?.websiteReference(text),local:true};
 }
 function filename(title,extension='md'){const safe=String(title||'note').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,55)||'note';return safe+'.'+extension}
 root.OMNI_WORKSPACE={MAX_NOTES,MAX_BODY,MAX_TITLE,createNote,findNote,notesOf,updateNote,undoNote,deleteNote,replyTitle,route,filename};

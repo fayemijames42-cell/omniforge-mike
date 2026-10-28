@@ -1,13 +1,13 @@
 {
   "name": "omniforge-mike",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "npm run check && npm test && node build.mjs",
     "deploy": "wrangler deploy",
     "check": "node --check worker.js && node --check src/app.js && node --check src/core.js && node --check src/workspace.js && node --check src/calculator.js && node --check src/symbolic.js && node --check src/offline.js && node --check src/offline-ui.js && node --check sw.js && node --check src/vector.js && node --check src/projectfiles.js && node --check src/pool.js && node --check server/catalog.js && node --check server/providers.js && node --check server/coordinator.js && node --check server/pool-http.js && node --check src/context.js && node --check server/nexus.js && node --check src/backup.js && node --check server/config.js",
-    "test": "node tests/core-tests.mjs && node --test tests/worker.test.mjs tests/research.test.mjs tests/workspace.test.mjs tests/calculator.test.mjs tests/symbolic.test.mjs tests/offline.test.mjs tests/vector.test.mjs tests/projectfiles.test.mjs tests/pool.test.mjs tests/nexus.test.mjs tests/audit.test.mjs tests/service-worker.test.mjs"
+    "test": "node tests/core-tests.mjs && node --test tests/worker.test.mjs tests/research.test.mjs tests/workspace.test.mjs tests/calculator.test.mjs tests/symbolic.test.mjs tests/offline.test.mjs tests/vector.test.mjs tests/projectfiles.test.mjs tests/pool.test.mjs tests/nexus.test.mjs tests/audit.test.mjs tests/service-worker.test.mjs tests/repair.test.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

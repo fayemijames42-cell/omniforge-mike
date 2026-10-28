@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 const runtime={window:{crypto:{randomUUID:(()=>{let i=0;return()=>String(++i)})()}},Date,Math};
 vm.createContext(runtime);
+vm.runInContext(readFileSync(new URL('../src/context.js',import.meta.url),'utf8'),runtime);
 const code=readFileSync(new URL('../src/workspace.js',import.meta.url),'utf8');
 vm.runInContext(code,runtime);
 const W=runtime.window.OMNI_WORKSPACE;

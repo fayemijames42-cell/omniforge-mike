@@ -38,7 +38,19 @@ const pref=async(key)=>txReq('prefs','readonly',os=>os.get(key));
 const setPref=(key,value)=>txReq('prefs','readwrite',os=>os.put(value,key));
 function formatMigrated(old){const p=clone(old);p.messages=Array.isArray(p.messages)?p.messages:[];p.history=Array.isArray(p.history)?p.history:[];p.assets=Array.isArray(p.assets)?p.assets:[];const base=makeProject(p.name).website;p.website ||=base;p.website.pages=Array.isArray(p.website.pages)?p.website.pages:base.pages;p.website.theme={...base.theme,...p.website.theme};p.website.meta={...base.meta,...p.website.meta};p.website.layout ||= 'general';p.website.headingScale ||=1;return p;}
 
-async function addAsset(p,file){if(!file.type.match(/^image\/(jpeg|png|webp)$/))throw Error('Use PNG, JPG or WebP photos.');if(file.size>8*1024*1024)throw Error(`“${file.name}” exceeds the 8 MB photo limit.`);if(p.assets.length>=60)throw Error('This project has reached the 60-photo limit.');const data=await imageDimensions(file);if(data.width*data.height>20000000)throw Error('Image exceeds 20 megapixels. Resize it before import.');const asset={id:id(),name:file.name.slice(0,100),mimeType:file.type,width:data.width,height:data.height,createdAt:Date.now(),size:file.size};await saveBlob(asset.id,file);p.assets.push(asset);p.updatedAt=Date.now();await saveProject(p);return asset;}
+async function addAsset(p,file,{originalId}={}){
+ if(!file.type.match(/^image\/(jpeg|png|webp)$/))throw Error('Use PNG, JPG or WebP photos.');
+ if(file.size>8*1024*1024)throw Error(`“${file.name}” exceeds the 8 MB photo limit.`);
+ if(p.assets.length>=60)throw Error('This project has reached the 60-photo limit.');
+ const data=await imageDimensions(file);if(data.width*data.height>20000000)throw Error('Image exceeds 20 megapixels. Resize it before import.');
+ const asset={id:id(),name:file.name.slice(0,100),mimeType:file.type,width:data.width,height:data.height,createdAt:Date.now(),size:file.size,...(originalId?{originalId}:{})};
+ const next=clone(p);next.assets.push(asset);next.updatedAt=Date.now();
+ const db=await openDB();
+ // The file and project metadata either both commit or both roll back.
+ await new Promise((resolve,reject)=>{const tx=db.transaction(['projects','assetBlobs'],'readwrite');tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error||Error('Photo storage transaction aborted'));tx.onerror=()=>reject(tx.error||Error('Photo could not be saved'));try{tx.objectStore('assetBlobs').put({id:asset.id,blob:file});tx.objectStore('projects').put(next);}catch(error){tx.abort();reject(error);}});
+ p.assets=next.assets;p.updatedAt=next.updatedAt;return asset;
+}
+
 function imageDimensions(blob){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(blob),im=new Image();im.onload=()=>{URL.revokeObjectURL(url);resolve({width:im.naturalWidth,height:im.naturalHeight})};im.onerror=()=>{URL.revokeObjectURL(url);reject(Error('Image could not be decoded.'))};im.src=url})}
 function blobData(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onerror=()=>reject(r.error);r.onload=()=>resolve(r.result);r.readAsDataURL(blob)})}
 async function assetMap(p,strict=false){const map={};for(const a of p.assets){const blob=await getBlob(a.id);if(blob)map[a.id]=await blobData(blob);else if(a.dataUrl?.startsWith('data:image/'))map[a.id]=a.dataUrl;else if(strict)throw Error('Saved photo data is missing: '+(a.name||a.id));}return map}
@@ -61,7 +73,8 @@ async function exportJSON(p){const copy=clone(p),map=await assetMap(p,true);copy
 function sandboxHTML(source){
  const csp="<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; connect-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'; base-uri 'none'; object-src 'none'; frame-src 'none';\">";
  const html=String(source||'').replace(/<base\b[^>]*>/gi,'').replace(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh\b[^>]*>/gi,'');
- if(/<head(?:\s[^>]*)?>/i.test(html))return html.replace(/<head(?:\s[^>]*)?>/i,match=>match+csp);
+ // The policy must precede even malformed markup with a script before its head.
+ // The browser normalizes the following saved document; exports remain byte-faithful.
  return '<!doctype html><head>'+csp+'</head>'+html.replace(/^\s*<!doctype[^>]*>/i,'');
 }
 async function importProject(file){if(!global.OMNI_BACKUP)throw Error('Backup support did not load. Refresh the page.');return global.OMNI_BACKUP.importProject(file);}
@@ -69,7 +82,7 @@ async function migrateLegacySite(){
  if(await pref('legacy-site-imported'))return;
  let html;try{html=global.localStorage?.getItem('omniforge_site');}catch{return;}
  if(typeof html!=='string'||!/<html[\s>][\s\S]*<\/html>/i.test(html)||html.length>1500000)return;
- const key='omniforge-legacy-quick-chat';if(!await getProject(key)){const p=makeProject('Previous MIKEE website');p.id=key;p.website.rawHtml=html;p.chatOnly=false;await saveProject(p);}
+ const key='omniforge-legacy-quick-chat';if(!await getProject(key)){const p=makeProject('Previous MICHELLE website');p.id=key;p.website.rawHtml=html;p.chatOnly=false;await saveProject(p);}
  await setPref('legacy-site-imported',true);
 }
 const API={uuid,clone,esc,palettes,section,page,slug,makeProject,change,undo,addAssetsToProject,formatMigrated,openDB,getProject,listProjects,saveProject,deleteProject,removeBlobs,saveBlob,getBlob,pref,setPref,addAsset,imageDimensions,blobData,assetMap,renderSite,download,exportHTML,exportZIP,exportJSON,importProject,sandboxHTML,migrateLegacySite,snapshot};global.OMNI=API;

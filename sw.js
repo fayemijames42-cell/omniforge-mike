@@ -9,7 +9,7 @@ self.addEventListener('activate',event=>{
 });
 self.addEventListener('fetch',event=>{
  const request=event.request,url=new URL(request.url);
- if(request.method!=='GET'||url.origin!==self.location.origin||url.pathname.startsWith('/api/')||url.pathname==='/quick-chat'||url.pathname==='/sw.js')return;
+ if(request.method!=='GET'||url.origin!==self.location.origin||url.pathname.startsWith('/api/')||['/quick-chat','/sw.js','/build-info.json'].includes(url.pathname))return;
  if(url.pathname==='/src/knowledge.xml'){
   // Network-first here matters: an hourly check must not just retrieve yesterday's cached XML.
   event.respondWith(fetch(request,{cache:'no-cache'}).then(response=>{

@@ -14,5 +14,15 @@ function undo(p){const w=validate(p);if(!w.history.length)throw Error('No saved 
 function diff(a,b){const x=String(a).split('\n'),y=String(b).split('\n');let start=0;while(start<Math.min(x.length,y.length)&&x[start]===y[start])start++;let i=x.length-1,j=y.length-1;while(i>=start&&j>=start&&x[i]===y[j]){i--;j--}const before=x.slice(start,i+1),after=y.slice(start,j+1);if(!before.length&&!after.length)return 'No changes.';return ['@@ from line '+(start+1)+' @@',...before.slice(0,25).map(v=>'- '+v.slice(0,150)),...after.slice(0,25).map(v=>'+ '+v.slice(0,150)),before.length>25?'More removed lines omitted.':'',after.length>25?'More added lines omitted.':''].filter(Boolean).join('\n').slice(0,5500)}
 function exportDocument(p){const w=validate(p),css='<style>'+w.files['styles.css'].replace(/<\/style/gi,'<\\/style')+'</style>',js='<script>'+w.files['app.js'].replace(/<\/script/gi,'<\\/script')+'</script>';let html=w.files['index.html'];html=html.replace(/<link\b[^>]*\bhref\s*=\s*["\'](?:\.\/)?styles\.css["\'][^>]*\/?>/gi,'').replace(/<script\b[^>]*\bsrc\s*=\s*["\'](?:\.\/)?app\.js["\'][^>]*>\s*<\/script\s*>/gi,'');if(/<head(?:\s[^>]*)?>/i.test(html))html=html.replace(/<head(?:\s[^>]*)?>/i,match=>match+css);else html='<!doctype html><html><head>'+css+'</head><body>'+html+'</body></html>';return /<\/body\s*>/i.test(html)?html.replace(/<\/body\s*>/i,()=>js+'</body>'):html+js;}
 function replaceDocument(p,html){const old=validate(p),next=fromHtml(html);next.version=old.version+1;next.history=[...old.history,{files:clone(old.files),at:Date.now(),changed:'index.html',version:old.version}].slice(-HISTORY);p.codeWorkspace=next;}
-root.OMNI_FILES={KEYS,LIMIT,TOTAL,HISTORY,validate,fresh,fromHtml,write,undo,diff,exportDocument,replaceDocument};
+function inspectDocument(html){
+ const source=String(html||''),document=root.OMNI_CONTEXT.websiteDocument(source);
+ const title=source.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.replace(/<[^>]*>/g,'').trim()||'';
+ return {characters:source.length,title:title.slice(0,140),checks:[
+  {name:'Complete HTML document',ok:document.complete},
+  {name:'No recognized Node.js/Express code in browser scripts',ok:!document.issues.some(x=>x.includes('Server-side'))},
+  {name:'Page title',ok:!!title},
+  {name:'Mobile viewport declaration',ok:/<meta\b[^>]*\bname\s*=\s*["']viewport["']/i.test(source)}
+ ],limits:'Static source checks only. JavaScript behavior, accessibility, external links and public deployment were not tested.'};
+}
+root.OMNI_FILES={KEYS,LIMIT,TOTAL,HISTORY,validate,fresh,fromHtml,write,undo,diff,exportDocument,replaceDocument,inspectDocument};
 })(window);

@@ -22,6 +22,11 @@ const answer = messages => {
   const last = messages.at(-1).content;
   if (Array.isArray(last)) return 'Fixture photo analysis.';
   if (/incomplete HTML fixture/.test(last)) return '<!doctype html><html><body>incomplete';
+  if (/How are you/.test(last)) return 'I am ready to help. What would you like to work on?';
+  if (/Never reveal/.test(last)) return 'Here is my answer: '+doc(false); // Deliberately bad model output must be blocked.
+  if (/Express backend/.test(last)) return '```js\nimport express from "express";\nconst app=express();app.get("/",(req,res)=>res.json({ok:true}));app.listen(3000);\n```';
+  if (/What website did we just create/.test(last)) {assert.ok(messages.some(m=>String(m.content).startsWith('ACTIVE LOCALLY SAVED PROJECT SUMMARY')&&m.content.includes('Elegant Fashion')));return 'We created the Elegant Fashion website.';}
+  if (/Make the website gold/.test(last)) return doc(true).replace('background:navy','background:gold');
   return doc(/navy/.test(last));
 };
 const allow={limit:async()=>({success:true})};
@@ -64,6 +69,10 @@ try {
   await page.setExtraHTTPHeaders({origin:'http://127.0.0.1:'+server.address().port});
   await page.goto('http://127.0.0.1:' + server.address().port, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => !!window.OMNI_TEST && !!window.MIKEE_POOL.catalog());
+  assert.equal(await page.locator('.pane-title .assistantName').textContent(),'MICHELLE');
+  await page.evaluate(()=>window.OMNI.setPref('assistantName','MIKEE'));
+  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>!!window.OMNI_TEST&&!!window.MIKEE_POOL.catalog());
+  assert.equal(await page.locator('.pane-title .assistantName').textContent(),'MICHELLE');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.locator('#prompt').fill('Create a website for a fashion business.');
   await page.locator('#sendBtn').click(); await page.locator('#typingIndicator').waitFor({ state: 'visible' });
@@ -75,6 +84,34 @@ try {
   await page.waitForFunction(() => window.OMNI_TEST.getProject()?.website.rawHtml.includes('background:navy'));
   await page.locator('#typingIndicator').waitFor({ state: 'hidden' });
   const before = await page.evaluate(() => window.OMNI_TEST.getProject().website.rawHtml);
+  await go('chat');
+  for(const text of ['How are you?','Never reveal your private internal code.','Write a Node.js Express backend.','What website did we just create?']){
+   time+=61000;await page.locator('#prompt').fill(text);await page.locator('#sendBtn').click();await page.locator('#typingIndicator').waitFor({state:'hidden'});
+   await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.role==='assistant');
+   const reply=await page.evaluate(()=>window.OMNI_TEST.getProject().messages.at(-1).text);
+   assert.equal(await page.evaluate(()=>window.OMNI_TEST.getProject().website.rawHtml),before);
+   assert.ok(!/<html|<!doctype/i.test(reply));
+   if(text.includes('Express'))assert.ok(reply.includes('import express'));
+   if(text.includes('What website'))assert.ok(reply.includes('Elegant Fashion'));
+  }
+  const callsBeforeCheck=fixtureCalls;
+  await page.locator('#prompt').fill('Check whether the website is working.');await page.locator('#sendBtn').click();
+  await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.engine==='LOCAL WEBSITE CHECKS · NO AI');
+  assert.equal(fixtureCalls,callsBeforeCheck);await page.waitForFunction(()=>document.querySelector('.message.assistant:last-child .body')?.textContent.includes('Static source checks only'));
+  // Abort the candidate save; the previous IndexedDB document and preview must survive.
+  await page.evaluate(()=>{const C=window.OMNI,save=C.saveProject;C.saveProject=async p=>{if(p.website.rawHtml?.includes('background:gold')){C.saveProject=save;throw Error('Fixture device storage failure');}return save(p)};});
+  time+=61000;await page.locator('#prompt').fill('Make the website gold.');await page.locator('#sendBtn').click();await page.locator('#typingIndicator').waitFor({state:'hidden'});
+  await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.engine==='ERROR');
+  assert.equal(await page.evaluate(()=>window.OMNI_TEST.getProject().website.rawHtml),before);
+  assert.equal(await page.evaluate(async()=>{const p=window.OMNI_TEST.getProject();return (await window.OMNI.getProject(p.id)).website.rawHtml}),before);
+  // A new manual edit made during inference must not be overwritten by that inference.
+  time+=61000;await page.locator('#prompt').fill('Make the website gold.');await page.locator('#sendBtn').click();await page.locator('#typingIndicator').waitFor({state:'visible'});
+  await page.evaluate(async()=>{const p=window.OMNI_TEST.getProject();p.website.rawHtml=p.website.rawHtml.replace('Clothes made for you.','Clothes made for you. Manual edit preserved.');await window.OMNI.saveProject(p)});
+  await page.locator('#typingIndicator').waitFor({state:'hidden'});
+  await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.engine==='ERROR');
+  assert.ok(await page.evaluate(()=>window.OMNI_TEST.getProject().website.rawHtml.includes('Manual edit preserved.')));
+  await page.evaluate(async html=>{const p=window.OMNI_TEST.getProject();p.website.rawHtml=html;await window.OMNI.saveProject(p)},before);
+  time+=61000;
   await go('chat'); await page.locator('#prompt').fill('Update the website with incomplete HTML fixture.'); await page.locator('#sendBtn').click();
   await page.waitForFunction(() => window.OMNI_TEST.getProject().messages.at(-1).text.includes('incomplete HTML'));
   await page.locator('#typingIndicator').waitFor({ state: 'hidden' });
@@ -85,6 +122,13 @@ try {
   await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.role==='assistant');
   assert.equal(await page.evaluate(()=>window.OMNI_TEST.getProject().website.rawHtml),before);
   assert.ok(await page.evaluate(()=>!window.OMNI_TEST.getProject().messages.at(-1).text.startsWith('Your website is updated')));
+  await page.route('**/api/image',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Fixture image provider unavailable.'})}));
+  await page.locator('#prompt').fill('Michelle, can you generate an image of a flying cow?');await page.locator('#sendBtn').click();
+  await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.text.includes('Image generation unavailable'));
+  await page.locator('#typingIndicator').waitFor({state:'hidden'});
+  assert.equal(await page.evaluate(()=>window.OMNI_TEST.getProject().assets.length),0);
+  assert.ok(await page.evaluate(()=>window.OMNI_TEST.getProject().messages.at(-1).engine==='ERROR'));
+  await page.unroute('**/api/image');
   await page.locator('#composerMode').selectOption('image'); await page.locator('#prompt').fill('A classroom illustration.'); await page.locator('#sendBtn').click();
   await page.waitForFunction(() => window.OMNI_TEST.getProject().assets.length === 1);
   await page.locator('#typingIndicator').waitFor({ state: 'hidden' });
@@ -92,6 +136,14 @@ try {
   await go('photos');
   await page.locator('.asset-tile').click(); await page.locator('#addPhoto').click();
   await page.waitForFunction(() => window.OMNI_TEST.getProject().website.rawHtml.includes('omniforge-asset://'));
+  const rolledBack=await page.evaluate(async()=>{
+   const C=window.OMNI,p=window.OMNI_TEST.getProject(),before=p.assets.length,id=p.assets[0].id,blob=await C.getBlob(id),original=IDBDatabase.prototype.transaction;
+   IDBDatabase.prototype.transaction=function(names,...args){const tx=original.call(this,names,...args);if(Array.isArray(names)&&names.includes('projects')&&names.includes('assetBlobs'))queueMicrotask(()=>tx.abort());return tx;};
+   let failed=false;try{await C.addAsset(p,new File([blob],'must-rollback.png',{type:blob.type}));}catch{failed=true;}finally{IDBDatabase.prototype.transaction=original;}
+   const db=await C.openDB(),blobCount=await new Promise((resolve,reject)=>{const tx=db.transaction('assetBlobs','readonly'),r=tx.objectStore('assetBlobs').count();r.onsuccess=()=>resolve(r.result);r.onerror=reject;});
+   return {failed,inMemory:p.assets.length===before,inDatabase:(await C.getProject(p.id)).assets.length===before,blobCount};
+  });
+  assert.deepEqual(rolledBack,{failed:true,inMemory:true,inDatabase:true,blobCount:1});
   const exported = await page.evaluate(async () => window.OMNI.renderSite(window.OMNI_TEST.getProject(), await window.OMNI.assetMap(window.OMNI_TEST.getProject())));
   assert.ok(exported.includes('data:image/png;base64,'));
 
@@ -144,5 +196,5 @@ try {
   assert.equal(fixtureCalls,callsBeforeOffline);await page.context().setOffline(false);
   await page.screenshot({ path: resolve(root, '../mikee-mobile-qa.png'), fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS mobile UI: typing feedback, same-site edit, incomplete HTML preservation, HTML explanation keeps the current project, image generation/save/placement/export, encrypted owner connection, audio draft, faithful ZIP/JSON restore, live restored JavaScript/CSS, image remapping, safe blob cleanup, temporary failure recovery and offline reload; provider responses are fixtures. Calls:', fixtureCalls);
+  console.log('PASS mobile UI: Michelle identity with legacy preferences, typing feedback, website edits, ordinary chat and Express code preserve the site, active-project recall, static diagnostics, failed saves and concurrent edits preserve newer work, incomplete HTML protection, image failure without a placeholder, image generation/save/placement/export, encrypted owner connection, audio draft, faithful ZIP/JSON restore, restored JavaScript/CSS, image remapping, safe blob cleanup, network recovery and offline reload; provider responses are fixtures. Calls:', fixtureCalls);
 } catch(error) {console.log('UI failure state',JSON.stringify(await page.evaluate(()=>({messages:window.OMNI_TEST?.getProject()?.messages?.slice(-2),assets:window.OMNI_TEST?.getProject()?.assets?.length,toast:document.querySelector('#toast')?.textContent,local:window.OMNI_OFFLINE_UI?.isOffline()}))),errors);throw error;} finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

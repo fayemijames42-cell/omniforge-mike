@@ -18,7 +18,7 @@ const FOLLOWUP=/^(?:go on|continue|elaborate|explain more|why|how so|tell me mor
 // The old anchored classifier skipped this prefix and never retrieved sources.
 export function normalizedQuestion(text){
  let clean=String(text||'').trim();
- clean=clean.replace(/^(?:(?:hey|hi|hello|good morning|good afternoon|good evening)[\s,!:.-]+)?(?:mikee|mickey|mike|nexus)[\s,!:.-]+/i,'');
+ clean=clean.replace(/^(?:(?:hey|hi|hello|good morning|good afternoon|good evening)[\s,!:.-]+)?(?:michelle|mikee|mickey|mike|nexus)[\s,!:.-]+/i,'');
  clean=clean.replace(/^(?:(?:please\s+)?(?:can you|could you|would you|will you)\s+(?:(?:please\s+)?(?:tell me|explain to me|help me understand|show me|find out|check)\s+)?|(?:please\s+)?(?:tell me|i want to know|i'd like to know|i need to know)\s+)+/i,'');
  return clean.trim();
 }

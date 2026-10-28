@@ -6,6 +6,7 @@ const realWorker={async fetch(request,env){return actualWorker.fetch(request,awa
 const allow={limit:async()=>({success:true})};
 const budgetAllow={getByName:()=>({fetch:async()=>new Response(JSON.stringify({allowed:true,attempts:1,remaining:69,cap:70}),{headers:{'content-type':'application/json'}})})};
 const allGuards={CHAT_VISITOR_LIMIT:allow,CHAT_SHARED_LIMIT:allow,IMAGE_VISITOR_LIMIT:allow,IMAGE_SHARED_LIMIT:allow,DAILY_BUDGET:budgetAllow};
+const fixtureJPEG=Buffer.concat([Buffer.from([0xff,0xd8,0xff]),Buffer.alloc(147)]).toString('base64');
 const worker={fetch(req,env){return realWorker.fetch(req,{...allGuards,...env})}};
 const req=(body,origin='https://mikee.test')=>new Request('https://mikee.test/api/chat',{method:'POST',headers:{'content-type':'application/json',origin},body:JSON.stringify(body)});
 let calls=0;const env={AI:{run:async(model,input)=>{calls++;assert.equal(model,'@cf/meta/llama-3.1-8b-instruct-fp8');assert.equal(input.messages.at(-1).content,'hello');return {response:'Test fixture response'}}}};
@@ -51,13 +52,13 @@ test('conversation history is bounded and excludes system injection',async()=>{
 
 test('image endpoint calls a single free-compatible FLUX model at four steps',async()=>{
  let calls=0;
- const env={AI:{run:async(model,input)=>{calls++;assert.equal(model,'@cf/black-forest-labs/flux-1-schnell');assert.equal(input.steps,4);assert.equal(input.prompt,'a cow in a meadow');return {image:'A'.repeat(200)}}}};
+ const env={AI:{run:async(model,input)=>{calls++;assert.equal(model,'@cf/black-forest-labs/flux-1-schnell');assert.equal(input.steps,4);assert.equal(input.prompt,'a cow in a meadow');return {image:fixtureJPEG}}}};
  const request=new Request('https://mikee.test/api/image',{method:'POST',headers:{origin:'https://mikee.test','content-type':'application/json'},body:JSON.stringify({prompt:'a cow in a meadow'})});
  const result=await worker.fetch(request,env),body=await result.json();
  assert.equal(result.status,200);assert.equal(body.live,true);assert.equal(body.mime,'image/jpeg');assert.equal(body.image.length,200);assert.equal(calls,1);
 });
 test('image endpoint rejects other origins and invalid input before inference',async()=>{
- let calls=0;const env={AI:{run:async()=>{calls++;return {image:'A'.repeat(200)}}}};
+ let calls=0;const env={AI:{run:async()=>{calls++;return {image:fixtureJPEG}}}};
  const request=(prompt,origin)=>new Request('https://mikee.test/api/image',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({prompt})});
  assert.equal((await worker.fetch(request('a cow','https://evil.test'),env)).status,403);
  assert.equal((await worker.fetch(request('', 'https://mikee.test'),env)).status,400);
@@ -84,7 +85,7 @@ test('Shared chat quota returns HTTP 429',async()=>{
  assert.equal((await realWorker.fetch(req({message:'hello'}),e)).status,429);assert.equal(hits,0);
 });
 test('Image quota rejects model invocation before FLUX runs',async()=>{
- let hits=0;const e={AI:{run:async()=>{hits++;return {image:'A'.repeat(200)}}},IMAGE_VISITOR_LIMIT:{limit:async()=>({success:false})},IMAGE_SHARED_LIMIT:allow};
+ let hits=0;const e={AI:{run:async()=>{hits++;return {image:fixtureJPEG}}},IMAGE_VISITOR_LIMIT:{limit:async()=>({success:false})},IMAGE_SHARED_LIMIT:allow};
  const request=new Request('https://mikee.test/api/image',{method:'POST',headers:{origin:'https://mikee.test'},body:JSON.stringify({prompt:'cow'})});
  assert.equal((await realWorker.fetch(request,e)).status,429);assert.equal(hits,0);
 });
@@ -108,7 +109,7 @@ test('Per-provider chat cap returns 429 without a model call',async()=>{
  assert.equal(r.status,429);assert.equal(body.code,'FREE_POOL_WAIT');assert.ok(body.retryAfter>0);assert.equal(calls,0);
 });
 test('Per-provider image cap returns 429 when no other service is connected',async()=>{
- let calls=0;const e=await withTestPool({...allGuards,AI:{run:async()=>{calls++;return {image:'A'.repeat(200)}}}});
+ let calls=0;const e=await withTestPool({...allGuards,AI:{run:async()=>{calls++;return {image:fixtureJPEG}}}});
  e.POOL_FIXTURE.ledger('cloudflare-image',Date.now()).requests=8;
  const request=new Request('https://mikee.test/api/image',{method:'POST',headers:{origin:'https://mikee.test'},body:JSON.stringify({prompt:'turtle in sand'})});
  assert.equal((await actualWorker.fetch(request,e)).status,429);assert.equal(calls,0);

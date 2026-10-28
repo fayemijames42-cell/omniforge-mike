@@ -1,15 +1,15 @@
-# OMNIFORGE · MIKEE / NEXUS
+# OMNIFORGE · MICHELLE / NEXUS
 
-OMNIFORGE by ADEN.inc is a conversation-first AI workspace. MIKEE is the assistant; NEXUS prepares context, references and supported tool results. Connected language models generate explanations, writing and code. Website creation is one capability of the assistant.
+OMNIFORGE by ADEN INC. is a conversation-first AI workspace. MICHELLE is the assistant; NEXUS prepares context, references and supported tool results. Connected language models generate explanations, writing and code. Website creation is one capability of the assistant.
 
 Public app: https://omniforge-mike.fayemijames42.workers.dev/
 
-## Current implementation — v0.11.0
+## Current implementation — v0.11.1
 
 | Capability | Current behavior |
 | --- | --- |
 | Conversation | Real inference through the persistent free-service coordinator, with bounded earlier requirements and recent turns. |
-| Website creation/editing | Complete HTML accepted into the current project; incomplete output preserves the previous version. |
+| Website creation/editing | Only an explicitly requested website action can save validated browser HTML. Incomplete output, server code in browser scripts, failed saves and concurrent edits preserve the prior/newer work. |
 | Code workspace | Three editable files, actual combined-document preview/export, saved edits and Undo. AI website edits update the same active document. |
 | Images | Cloudflare FLUX, Pollinations Classic and queued AI Horde adapters; completed images are saved as local project assets. Availability depends on the provider and its free allowance. |
 | Photo tools | Local crop, resize, rotation and image adjustments. Explicit photo analysis needs a connected compatible vision provider. |
@@ -52,7 +52,7 @@ The build runs syntax checks and the automated suite before generating `public/`
 
 The current audit adds integration coverage for streamed input limits, actual project/code synchronization, backup/restore fidelity, image remapping, safe blob cleanup, update installation, recovery after connection errors and offline reload. Preserve both existing Durable Object bindings and migration tags in `wrangler.jsonc`; they contain accounting state, not obsolete scaffold.
 
-See [audit and acceptance record](docs/INTEGRATION_AUDIT_2026-10-25.md), [offline reference behavior](docs/OFFLINE_REFERENCE.md), and [the public-beta answer-quality gate](docs/MIKEE_QUALITY_GATE.md). Earlier version notes and research documents are historical records, not alternate installation instructions.
+See [28 October engineering report](docs/ENGINEERING_REPORT_2026-10-28.md), [earlier audit and acceptance record](docs/INTEGRATION_AUDIT_2026-10-25.md), [offline reference behavior](docs/OFFLINE_REFERENCE.md), and [the public-beta answer-quality gate](docs/MIKEE_QUALITY_GATE.md). Earlier version notes and research documents are historical records, not alternate installation instructions.
 
 ## Storage and scope
 
@@ -62,12 +62,12 @@ This release does not claim a complete school syllabus database, universal factu
 
 ### Automatic free AI routing
 
-MIKEE now always selects a connected free service for ordinary chat. There is no visitor-facing
+MICHELLE now always selects a connected free service for ordinary chat. There is no visitor-facing
 model selector, and previously stored provider preferences are reset to Auto. An unavailable
 or unconfigured Gemini/Groq connection is skipped; it is never represented as a functioning
 service without credentials, free-tier confirmation and a successful real response. Only the
 authenticated owner can run a targeted connection test or manage encrypted keys.
-If all free allowances are exhausted, MIKEE shows one clear error and a short retry cooldown.
+If all free allowances are exhausted, MICHELLE shows one clear error and a short retry cooldown.
 No paid fallback or fabricated offline AI response is enabled. Groq (the inference provider)
 and xAI Grok are different products; only Groq is included in this repository.
 
@@ -75,3 +75,15 @@ Build/Node tests cover routing, token budgets, refusals, auth and provider failo
 The optional Playwright test uses mocked providers. Neither confirms that external API keys
 exist on the live deployment. Real end-to-end provider success requires an actual response
 from the deployed /api/chat endpoint and owner-side connection checks.
+
+
+### Michelle repair release
+
+The official identity is **OMNIFORGE · Powered by MICHELLE · Owned by ADEN INC.**
+The existing `MIKEE_POOL`, `MikeeCoordinator`, `MIKEE_ADMIN_TOKEN`, database names and migration tags deliberately keep their compatible infrastructure names. Settings must use `MIKEE_ADMIN_TOKEN`, not `MICHELLE_ADMIN_TOKEN`. Old display-name preferences no longer override the assistant identity; project and preference data are retained.
+
+Conversation, explicit programming, website actions and raster requests have distinct routes. Website recall receives a bounded summary of the current saved project; actual edits receive its complete source after historical excerpts. Merely having a website never authorizes an edit. Full model outputs are no longer duplicated into every future website history turn.
+
+Ask “Check whether the website is working” to run the available **local static source checks**. These check document boundaries, obvious server/browser runtime mixing, title and mobile viewport. They do not establish interactive correctness, accessibility, external link availability or deployment.
+
+`/api/health` reports release and identity. `/build-info.json` identifies the built frontend and source commit, bypassing the offline cache. These metadata routes do not assert that every provider works. The read-only CI verifies the full Node suite, Wrangler bundling and the mobile browser workflow without live model calls. Completed one-time October 25 probe workflows were removed; their commits and run logs remain in GitHub history.

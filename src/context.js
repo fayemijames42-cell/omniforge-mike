@@ -3,9 +3,26 @@
 'use strict';
 const raw=m=>m?.aiContent??m?.content??m?.text;
 const body=m=>String(raw(m)??'');
+const IDENTITY=Object.freeze({name:'Michelle',displayName:'MICHELLE',platform:'OMNIFORGE',owner:'ADEN INC.'});
+function taskText(message){
+ return String(message||'').trim().replace(/^(?:(?:hey|hi|hello)[\s,!:.-]+)?(?:michelle|mikee|mickey|mike|nexus)[\s,!:.-]+/i,'').replace(/^(?:(?:please\s+|(?:can|could|would|will) you\s+)|(?:i (?:want|need) (?:you )?to|i'd like (?:you )?to|let's)\s+)+/i,'').trim();
+}
+function programmingRequest(message){
+ const text=taskText(message);
+ if(/\b(?:never|do not|don't|stop)\b.{0,45}\b(?:reveal|expose|share|disclose)\b|\b(?:your|internal|private) (?:source |application |backend )?code\b/i.test(text))return false;
+ return /\b(?:debug|programming|html|css|javascript|typescript|python|firmware|express(?:\.js)?|node\.?js|cloudflare worker|sql|source code|write code|code review)\b/i.test(text)||/^(?:write|generate|create|show|explain|fix)\b.{0,70}\b(?:code|function|algorithm|backend|api|json)\b/i.test(text);
+}
+function imagePrompt(message){
+ const text=taskText(message);
+ const match=text.match(/^(?:generate|genrate|create|make|draw|render|design|produce)\s+(?:(?:me|us)\s+)?(?:(?:an?|the)\s+)?(?:image|picture|photo|photograph|illustration|artwork|painting)\s*(?:of|showing|depicting|with|about|for)?\s+(.+)$/i);
+ // Explicit vector/code requests belong in programming, never the raster queue.
+ return match&&!/\b(?:svg|vector|html|code)\b/i.test(text)&&match[1].trim().length>1?text.slice(0,900):null;
+}
+const websiteReference=message=>/\b(?:website|webpage|landing page|current (?:site|project)|previous site|site we|we (?:just )?(?:created|built|made)|what did we (?:just )?(?:create|build|make))\b/i.test(message);
+const websiteCheckRequest=message=>/^(?:check|test|verify|inspect|review|audit)\b.{0,90}\b(?:website|webpage|site|page)\b/i.test(taskText(message))&&!/\b(?:explain|how to|how can|how do)\b/i.test(message);
 function selectHistory(items){
  const valid=(Array.isArray(items)?items:[]).slice(-100).filter(m=>['user','assistant'].includes(m?.role)&&m.engine!=='ERROR'&&typeof raw(m)==='string'&&body(m).trim());
- const entries=valid.map((m,index)=>({index,role:m.role,content:/<!doctype html|<html[\s>]/i.test(body(m))?'[Earlier website output; use the current project when editing.]':body(m).slice(0,1800)}));
+ const entries=valid.map((m,index)=>({index,role:m.role,content:m.artifactType==='website'||/<!doctype html|<html[\s>]/i.test(body(m))?'[Earlier website output; use the current project when editing.]':body(m).slice(0,1800)}));
  const anchors=entries.filter(m=>m.role==='user').slice(0,2), chosen=new Map();
  let used=0;
  // Preserve early user requirements as actual quoted turns, never an invented summary.
@@ -19,18 +36,32 @@ function selectHistory(items){
  return [...chosen.values()].sort((a,b)=>a.index-b.index).map(({role,content})=>({role,content}));
 }
 function websiteAction(message,hasWebsite=false,history){
- const text=String(message||'').trim().replace(/^(?:(?:hey|hi|hello)[\s,!:.-]+)?(?:mikee|mickey|mike|nexus)[\s,!:.-]+/i,'').replace(/^(?:please\s+|(?:can|could|would|will) you\s+)+/i,'');
- const explanatory=/^(?:what|why|when|where|explain|describe|teach|how\s+(?:to|do|does|can|would))\b/i.test(text);
+ const text=taskText(message);
+ const explanatory=/^(?:what|who|why|when|where|explain|describe|teach|how\s+(?:to|do|does|can|would)|(?:check|test|verify|inspect|review|audit)\b|(?:do not|don't|never|stop|avoid)\b)/i.test(text);
  const create=!explanatory&&(/\b(create|build|design|make|generate|develop)\b.{0,90}\b(website|webpage|landing page|web app|html page|site)\b|\b(website|webpage|landing page|site)\b.{0,50}\b(create|build|design|make)\b/i.test(text));
  if(create)return 'website-create';
  if(!hasWebsite||explanatory)return 'chat';
  const namesSite=/\b(website|webpage|landing page|site|hero|header|footer|navigation|layout|theme|button|background|colour|color)\b/i.test(text);
  const otherText=/\b(answer|explanation|report|essay|paragraph|lesson|question|letter|story|poem)\b/i.test(text);
  const last=(Array.isArray(history)?history:[]).filter(m=>m?.role==='assistant'&&m.engine!=='ERROR').at(-1);
- const recentWebsite=history===undefined||/<!doctype html|<html[\s>]/i.test(body(last));
+ const recentWebsite=history===undefined||last?.artifactType==='website'||/<!doctype html|<html[\s>]|^\[Earlier website output;/i.test(body(last));
  const edit=/\b(edit|redesign|update|modify|fix|improve|change|add|remove|restyle|rework|make)\b/i.test(text);
- const contextual=/\b(make it|improve it|change it|update it|add a|remove the|fix the|redesign it|restyle it)\b/i.test(text);
+ const contextual=/^(?:make it|improve it|change it|update it|add a|remove the|fix the|redesign it|restyle it)\b/i.test(text);
  return !otherText&&((namesSite&&edit)||(recentWebsite&&contextual))?'website-edit':'chat';
 }
-root.OMNI_CONTEXT=Object.freeze({selectHistory,websiteAction});
+function projectSummary(project,html){
+ if(!project||project.chatOnly)return null;
+ const plain=value=>String(value||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,140);
+ const source=String(html||'').slice(0,350000).replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi,'');
+ return {name:plain(project.name),title:plain(source.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]),headings:[...source.matchAll(/<h[12]\b[^>]*>([\s\S]*?)<\/h[12]>/gi)].slice(0,6).map(x=>plain(x[1])),savedLocally:true};
+}
+function websiteDocument(reply){
+ const text=String(reply||''),match=text.match(/<!doctype html[\s\S]*?<\/html\s*>/i)||text.match(/<html[\s\S]*?<\/html\s*>/i),html=match?.[0]||'',issues=[];
+ if(!html)issues.push('The website response is incomplete. The previous project must be kept.');
+ for(const script of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)){
+  if(/\b(?:require\s*\(\s*['"](?:express|node:|fs['"]|http['"])|from\s*['"](?:express|node:)|module\.exports|app\.listen\s*\()/i.test(script[1])){issues.push('Server-side code was returned in a browser script. The previous project must be kept.');break;}
+ }
+ return {html,complete:!!html,valid:!!html&&!issues.length,issues};
+}
+root.OMNI_CONTEXT=Object.freeze({IDENTITY,taskText,programmingRequest,imagePrompt,websiteReference,websiteCheckRequest,projectSummary,websiteDocument,selectHistory,websiteAction});
 })(typeof window!=='undefined'?window:globalThis);
