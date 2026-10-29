@@ -91,3 +91,7 @@ Ask “Check whether the website is working” to run the available **local stat
 Self-reported training dates are not treated as verified metadata. Unexpected website output during ordinary conversation can receive one bounded, budget-accounted real-model recovery; unrecoverable output remains a visible error and never overwrites a website.
 
 Current-project name/title recall reads the active saved website directly and is labelled as local project context, without an AI request. It remains usable when inference capacity is unavailable. Other conversation and creation tasks continue to use real connected models.
+
+Version 0.11.4 fixes styling requests such as “Make the website pink” being mistaken for new website creation. Existing source accompanies these edits and component additions. Negated instructions, explanatory mentions, raster prompts and backend-code requests cannot activate the builder merely by mentioning a website. Node regression tests and the mobile integration test cover the actual browser-to-Worker source handoff.
+
+`tests/live-browser-acceptance.mjs` is an additional explicit opt-in production check, using `OMNIFORGE_LIVE_TEST=1` and `OMNIFORGE_EXPECTED_COMMIT`. It uses an isolated browser profile and real existing free allowances for a bakery website, a pink edit, ordinary chat and one FLUX image. It also checks local recall/diagnostics, rendered CSS, persistence and image download. It does not change owner configuration and is never part of ordinary CI. A deployment change or missing capability is a recorded failure.

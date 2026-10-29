@@ -32,6 +32,25 @@ test('Creation and edits still work after the shared history selector runs',()=>
  const unrelated=[...previous,{role:'assistant',content:'A diode allows current primarily in one direction.'}];
  assert.equal(planRequest({message:'Make it simpler.',history:unrelated,currentHtml:html}).action,'chat');
 });
+test('Website styling and component additions include the saved source instead of creating a replacement',()=>{
+ const runtime=vm.createContext({window:{},console});
+ for(const file of ['context.js','workspace.js'])vm.runInContext(readFileSync(new URL('../src/'+file,import.meta.url),'utf8'),runtime);
+ for(const message of ['Make the website pink.','Make my website background #000080.','Create a button for the website.','Add a contact form to the website.']){
+  const route=runtime.window.OMNI_WORKSPACE.route(message,'general',true,previous);
+  assert.equal(route.action,'website-edit',message);assert.equal(route.includeWebsite,true,message);
+  assert.equal(planRequest({message,currentHtml:html,history:previous}).action,'website-edit',message);
+ }
+ assert.equal(C.websiteAction('Make the website pink.',false),'chat');
+ for(const message of ['Create a responsive modern website for a bakery.','Make a new website for a bakery.','Build me a website.'])assert.equal(C.websiteAction(message,true),'website-create',message);
+});
+test('Mentioning a website inside a refusal, explanation, image prompt or programming task cannot replace it',()=>{
+ for(const message of ['I do not want you to create a website.',"I don't want you to change the website.",'Tell me how to create a website.','The instruction says "create a website". What does it mean?'])assert.equal(planRequest({message,currentHtml:html,history:previous}).website,false,message);
+ for(const message of ['Write Python code to create a website.','Create a Python script to build a website.','Write Express.js backend code for a website.']){
+  const plan=planRequest({message,currentHtml:html,history:previous});assert.equal(plan.kind,'code',message);assert.equal(plan.website,false,message);
+ }
+ const image=planRequest({message:'Generate an image of a flying cow for my website.',currentHtml:html,history:previous});
+ assert.equal(image.kind,'image');assert.equal(image.website,false);
+});
 test('Short follow-ups recognize saved artifact metadata without retaining repeated HTML',()=>{
  const history=[{role:'assistant',text:'Website code saved.',aiContent:'[Earlier website output; use the current project when editing.]',artifactType:'website'}];
  assert.equal(C.websiteAction('Make it pink.',true,history),'website-edit');

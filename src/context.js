@@ -45,15 +45,23 @@ function selectHistory(items){
 }
 function websiteAction(message,hasWebsite=false,history){
  const text=taskText(message);
- const explanatory=/^(?:what|who|why|when|where|explain|describe|teach|how\s+(?:to|do|does|can|would)|(?:check|test|verify|inspect|review|audit)\b|(?:do not|don't|never|stop|avoid)\b)/i.test(text);
- const create=!explanatory&&(/\b(create|build|design|make|generate|develop)\b.{0,90}\b(website|webpage|landing page|web app|html page|site)\b|\b(website|webpage|landing page|site)\b.{0,50}\b(create|build|design|make)\b/i.test(text));
- if(create)return 'website-create';
+ // Match the requested object, not an action quoted or mentioned later in prose.
+ // Raster requests and code for a site must never become website documents.
+ const explanatory=/^(?:what|who|why|when|where|explain|describe|teach|how\s+(?:to|do|does|can|would)|(?:tell|show)\s+(?:me|us)\s+how|(?:check|test|verify|inspect|review|audit)\b|(?:i\s+)?(?:do not|don't|never|stop|avoid)\b)/i.test(text);
+ const programming=/^(?:write|debug|explain|show|review)\b/i.test(text)&&programmingRequest(text)||/^(?:create|build|generate|fix|update)\b.{0,45}\b(?:python|node\.?js|express(?:\.js)?|sql|backend|server|script|function|api|svg|vector)\b/i.test(text);
+ if(explanatory||imagePrompt(text)||programming)return 'chat';
+ const construction=text.match(/^(create|build|design|make|generate|develop)\s+([^.!?;:\n"'`]{0,90}?)\b(website|webpage|landing page|web app|html page|site)\b(.*)$/i);
+ if(construction&&!/\b(?:for|on|inside|to|of|that|which|button|header|footer|section|form|image|icon|logo|component|code)\b/i.test(construction[2])){
+  // "Make a website" creates; "make the website pink" edits the saved site.
+  const restyle=construction[1].toLowerCase()==='make'&&!/\b(?:a|an|new|another)\b/i.test(construction[2])&&(/\b(?:the|my|our|this|current|existing)\b/i.test(construction[2])||construction[4].trim().length>1)&&!/^\s+(?:for|about|called|named)\b/i.test(construction[4]);
+  return restyle?(hasWebsite?'website-edit':'chat'):'website-create';
+ }
  if(!hasWebsite||explanatory)return 'chat';
  const namesSite=/\b(website|webpage|landing page|site|hero|header|footer|navigation|layout|theme|button|background|colour|color)\b/i.test(text);
  const otherText=/\b(answer|explanation|report|essay|paragraph|lesson|question|letter|story|poem)\b/i.test(text);
  const last=(Array.isArray(history)?history:[]).filter(m=>m?.role==='assistant'&&m.engine!=='ERROR').at(-1);
  const recentWebsite=history===undefined||last?.artifactType==='website'||/<!doctype html|<html[\s>]|^\[Earlier website output;/i.test(body(last));
- const edit=/\b(edit|redesign|update|modify|fix|improve|change|add|remove|restyle|rework|make)\b/i.test(text);
+ const edit=/^(?:edit|redesign|update|modify|fix|improve|change|add|remove|replace|set|restyle|rework|make)\b/i.test(text)||/^(?:create|build|design|generate)\b.{0,50}\b(?:button|header|footer|section|form|navigation|component)\b/i.test(text);
  const contextual=/^(?:make it|improve it|change it|update it|add a|remove the|fix the|redesign it|restyle it)\b/i.test(text);
  return !otherText&&((namesSite&&edit)||(recentWebsite&&contextual))?'website-edit':'chat';
 }
