@@ -16,7 +16,7 @@ function providerFailureDetails(error){
   lines.push('Suggested retry: after about '+duration+'.');
  }
  if(error.code==='FREE_POOL_NOT_CONNECTED')lines.push('An owner must connect an eligible free AI provider.');
- return '\\n\\nAI provider checks (no credentials):\\n'+lines.join('\\n');
+ return '\n\nAI provider checks (no credentials):\n'+lines.join('\n');
 }
 function queued(fn){queue=queue.catch(()=>{}).then(fn).catch(fail);return queue}
 function autoChatTitle(input){
