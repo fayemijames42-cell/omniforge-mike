@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 import worker from '../worker.js';
 import { MikeeCoordinator } from '../server/coordinator.js';
 import { PROFILES } from '../server/catalog.js';
@@ -249,4 +251,72 @@ test('auto skips unconfigured Gemini and Groq and uses free Cloudflare AI',async
  assert.equal(status.providers.find(p=>p.id==='gemini').state,'needs_key');
  assert.equal(status.providers.find(p=>p.id==='groq').state,'needs_key');
  assert.ok(status.providers.find(p=>p.id==='cloudflare').verifiedAt);
+});
+
+test('Website generation failure identifies each attempted free provider without credentials', async () => {
+  let cfCalls=0, anonymousCalls=0;
+  const h=await harness({
+    active:['cloudflare','pollinations','ovh'],
+    env:{AI:{run:async()=>{cfCalls++;throw Error('quota exceeded: fixture private token must never be displayed');}}},
+    fetcher:async url=>{
+      anonymousCalls++;
+      if(url.startsWith('https://text.pollinations.ai'))throw Error('fixture private network credentials');
+      return Response.json({error:{message:'secret upstream server details'}},{status:503});
+    }
+  });
+  const response=await h.send({message:'Create a simple website for Sunrise Bakery with a heading, a welcome message, and an orange background.'});
+  const result=await response.json();
+  assert.equal(response.status,429);
+  assert.equal(result.code,'FREE_POOL_WAIT');
+  assert.equal(cfCalls,1);
+  assert.equal(anonymousCalls,2);
+  assert.deepEqual(result.diagnostics.providers,[
+    {provider:'Cloudflare Workers AI',reason:'Free allowance reached'},
+    {provider:'Pollinations Classic',reason:'Connection unavailable'},
+    {provider:'OVHcloud Anonymous',reason:'Service busy'}
+  ]);
+  assert.ok(result.retryAfter>0);
+  assert.doesNotMatch(JSON.stringify(result.diagnostics),/secret|token|credentials|https:|fixture/i);
+});
+
+test('Shared daily limit returns a safe summary instead of internal provider details',async()=>{
+  const h=await harness();
+  h.pool.data.global={day:'2026-10-25',requests:400};
+  const response=await h.send({message:'Create a website for Sunrise Bakery'});
+  const result=await response.json();
+  assert.equal(response.status,429);
+  assert.equal(result.diagnostics.shared,'Daily free usage limit reached');
+  assert.deepEqual(result.diagnostics.providers,[]);
+});
+
+test('Frontend retains only bounded, safe provider diagnostics for a failed request',async()=>{
+  const source=readFileSync(new URL('../src/pool.js',import.meta.url),'utf8');
+  const fake={
+    error:'No free service can answer.',
+    code:'FREE_POOL_WAIT',
+    retryAfter:90,
+    diagnostics:{
+      providers:[{provider:'Cloudflare Workers AI',reason:'Free allowance reached',apiKey:'private-secret'},
+                 {provider:'OVHcloud\nAnonymous',reason:'Connection\nunavailable'}],
+      shared:''
+    },
+    secret:'must-not-leak'
+  };
+  const runtime=vm.createContext({
+    window:{OMNI:{esc:x=>x}},document:{querySelector:()=>null},
+    fetch:async()=>Response.json(fake,{status:429}),
+    AbortController,FormData,setTimeout,clearTimeout
+  });
+  vm.runInContext(source,runtime);
+  await assert.rejects(runtime.window.MIKEE_POOL.request('/api/chat',{body:{message:'Create a website'}}),error=>{
+    assert.equal(error.code,'FREE_POOL_WAIT');
+    assert.equal(error.retryAfter,90);
+    assert.equal(error.providerDiagnostics.length,2);
+    assert.equal(error.providerDiagnostics[0].provider,'Cloudflare Workers AI');
+    assert.equal(error.providerDiagnostics[1].provider,'OVHcloud Anonymous');
+    assert.equal(error.providerDiagnostics[1].reason,'Connection unavailable');
+    assert.ok(!JSON.stringify(error.providerDiagnostics).includes('private-secret'));
+    assert.ok(!JSON.stringify(error.providerDiagnostics).includes('must-not-leak'));
+    return true;
+  });
 });
