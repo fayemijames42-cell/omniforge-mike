@@ -297,7 +297,7 @@ test('Frontend retains only bounded, safe provider diagnostics for a failed requ
     retryAfter:90,
     diagnostics:{
       providers:[{provider:'Cloudflare Workers AI',reason:'Free allowance reached',apiKey:'private-secret'},
-                 {provider:'OVHcloud\\nAnonymous',reason:'Connection\\nunavailable'}],
+                 {provider:'OVHcloud\nAnonymous',reason:'Connection\nunavailable'}],
       shared:''
     },
     secret:'must-not-leak'
@@ -305,7 +305,7 @@ test('Frontend retains only bounded, safe provider diagnostics for a failed requ
   const runtime=vm.createContext({
     window:{OMNI:{esc:x=>x}},document:{querySelector:()=>null},
     fetch:async()=>Response.json(fake,{status:429}),
-    AbortController,setTimeout,clearTimeout
+    AbortController,FormData,setTimeout,clearTimeout
   });
   vm.runInContext(source,runtime);
   await assert.rejects(runtime.window.MIKEE_POOL.request('/api/chat',{body:{message:'Create a website'}}),error=>{
