@@ -64,11 +64,11 @@ test('Provider fallback preserves the exact prepared history, active source, ide
 });
 test('Project recall gets bounded saved-state data, not unrelated HTML or a missing-project assertion',async()=>{
  const summary=C.projectSummary({name:'Bakery Website',chatOnly:false},html);
- const result=await run({message:'What website did we just create?',history:selectHistory(previous),projectContext:{...summary,secret:'MUST NOT BE FORWARDED'}});
+ const result=await run({message:'Describe the current website style in words.',history:selectHistory(previous),projectContext:{...summary,secret:'MUST NOT BE FORWARDED'}});
  assert.equal(result.response.status,200);
  const sent=result.messages.map(x=>x.content).join('\n');
  assert.match(sent,/Sunrise Bakery/);assert.match(sent,/savedLocally/);assert.doesNotMatch(sent,/MUST NOT BE FORWARDED|No existing website is attached/);
- assert.doesNotMatch(sent,/<html/);assert.equal(result.messages.at(-1).content,'What website did we just create?');
+ assert.doesNotMatch(sent,/<html/);assert.equal(result.messages.at(-1).content,'Describe the current website style in words.');
  assert.equal(C.projectSummary({name:'Other chat',chatOnly:true},html),null);
 });
 test('The authoritative edit source follows old conversation and precedes the latest request',async()=>{
@@ -143,11 +143,24 @@ test('An unsolicited artifact gets one budgeted model recovery with saved-projec
  const seen=[],allow={limit:async()=>({success:true})};let clock=Date.now();
  const env=await withTestPool({CHAT_VISITOR_LIMIT:allow,CHAT_SHARED_LIMIT:allow,AI:{run:async(_m,input)=>{seen.push(input.messages);clock+=2000;return {response:seen.length===1?html:'We created the Sunrise Bakery website.'};}}});
  env.POOL_FIXTURE.now=()=>clock;
- const response=await worker.fetch(request({message:'What website did we just create?',history:previous,projectContext:C.projectSummary({name:'Sunrise Bakery Website'},html)}),env);
+ const response=await worker.fetch(request({message:'Tell me about the current website style.',history:previous,projectContext:C.projectSummary({name:'Sunrise Bakery Website'},html)}),env);
  const data=await response.json();assert.equal(response.status,200);assert.equal(seen.length,2);assert.match(data.reply,/Sunrise Bakery/);assert.doesNotMatch(data.reply,/<html/);
  assert.equal(data.orchestration.modelAttempts,2);assert.ok(data.quality.checks.includes('format-recovery'));
  assert.ok(seen[1].some(m=>String(m.content).startsWith('ACTIVE LOCALLY SAVED PROJECT SUMMARY')));
  assert.ok(!seen[1].some(m=>m.content==='Create a website for Sunrise Bakery.'));
- assert.equal(seen[1].at(-1).content,'What website did we just create?');
+ assert.equal(seen[1].at(-1).content,'Tell me about the current website style.');
  assert.equal(env.POOL_FIXTURE.data.ledger.cloudflare.requests,2);
+});
+
+test('Code focus does not inject programming instructions into an ordinary identity question',async()=>{
+ const result=await run({message:'Who are you?',focus:'code',history:previous});
+ assert.equal(result.data.orchestration.kind,'chat');assert.match(result.messages[0].content,/CURRENT ACTION: conversation/);
+ assert.doesNotMatch(result.messages[0].content,/Provide correct, minimal, testable code/);
+});
+test('Active-project recall reads supplied state without a model or an AI budget',async()=>{
+ const summary=C.projectSummary({name:'Wrong conversation title'},html);
+ const response=await worker.fetch(request({message:'What website did we just create?',projectContext:summary,history:previous}),{});
+ const data=await response.json();assert.equal(response.status,200);assert.equal(data.reply,'The active website in this conversation is “Sunrise Bakery”.');
+ assert.equal(data.live,false);assert.equal(data.toolOnly,true);assert.equal(data.provider,'local-project-context');assert.deepEqual(data.orchestration.toolsUsed,['project-context']);
+ assert.equal(C.projectRecallQuestion('Which website is best for learning?'),false);assert.equal(C.projectRecallQuestion('What is the name of the current website?'),true);
 });

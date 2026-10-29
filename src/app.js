@@ -286,8 +286,15 @@ async function checkWebsite(text){
  await C.saveProject(project);await refreshList();await showAll();
 }
 
+async function recallProject(text){
+ $('#prompt').value='';
+ const summary=window.OMNI_CONTEXT.projectSummary(project,C.renderSite(project));
+ project.messages.push(msg('user',text),msg('assistant',window.OMNI_CONTEXT.projectRecallReply(summary),'LOCAL PROJECT CONTEXT · NO AI'));
+ project.messages=project.messages.slice(-100);aiState='LOCAL PROJECT CONTEXT · NO AI';await C.saveProject(project);await refreshList();await showAll();
+}
 async function send(text){
  text=text.trim();if(!text||requestPending)return;
+ if(!pendingImage&&project&&!project.chatOnly&&window.OMNI_CONTEXT.projectRecallQuestion(text))return recallProject(text);
  if(!pendingImage&&project&&!project.chatOnly&&window.OMNI_CONTEXT.websiteCheckRequest(text))return checkWebsite(text);
  if(!pendingImage&&window.OMNI_CALC?.expressionFromCommand(text)!==null)return sendCalculation(text);
  if(!pendingImage&&window.OMNI_SYMBOLIC?.command(text))return sendSymbolic(text);
@@ -310,9 +317,9 @@ async function send(text){
   const projectContext=route.includeProject?window.OMNI_CONTEXT.projectSummary(project,C.renderSite(project)):null;if(currentHtml.length>24000)throw Error('This website exceeds the current AI editing limit (24,000 characters). Export a backup; manual tools remain available.');
   const userMessage=msg('user',text);userMessage.route=route.label;project.messages.push(userMessage);await C.saveProject(project);await refreshList();await showAll();
   const data=await Pool.request('/api/chat',{body:{message:text,history,currentHtml,...(projectContext?{projectContext}:{}),provider:'auto',focus:route.focus,sources:project.useSources===false?[]:(project.sources||[]).slice(0,3),...(pendingImage?{image:pendingImage}:{})},signal:activeAbort.signal});
-  const toolOnly=data.toolOnly===true&&data.provider==='local-calculator';
-  if((data.live!==true&&!toolOnly)||typeof data.reply!=='string')throw Error('No real provider response or executed calculator result was received.');
-  providerRetryUntil=0;aiState=toolOnly?'CALCULATED · NO AI':'MICHELLE REPLIED';
+  const toolOnly=data.toolOnly===true&&['local-calculator','local-project-context'].includes(data.provider);
+  if((data.live!==true&&!toolOnly)||typeof data.reply!=='string')throw Error('No provider response or observed tool result was received.');
+  providerRetryUntil=0;aiState=toolOnly?(data.provider==='local-project-context'?'LOCAL PROJECT CONTEXT · NO AI':'CALCULATED · NO AI'):'MICHELLE REPLIED';
   // Both the requested action and the returned artifact must authorize a save.
   const allowsWebsite=['website-create','website-edit'].includes(route.action)&&data.artifact?.type==='website';
   const document=window.OMNI_CONTEXT.websiteDocument(data.reply);
@@ -323,7 +330,7 @@ async function send(text){
   if(match){candidate=C.change(project,p=>{p.website.rawHtml=document.html;if(p.codeWorkspace)F.replaceDocument(p,document.html);p.chatOnly=false;}).project;answer='Website code received and saved on this device. Open Preview to inspect it, or export HTML. This has not published a live website.';}
   else if(allowsWebsite){answer=document.complete?'The AI returned website code that failed validation. Your previous website is unchanged. Ask for browser-only HTML, CSS and JavaScript.':'The AI returned incomplete HTML. Your previous website is unchanged. Ask for a shorter complete website.';}
 
-  const m=msg('assistant',answer,toolOnly?'NEXUS CALCULATOR · NO AI':'LIVE AI');m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount,toolsUsed:data.orchestration?.toolsUsed,warnings:data.quality?.warnings};clearVision();m.aiContent=allowsWebsite?(match?'[Earlier website output; use the current project when editing.]':'[Website generation failed validation; the previous project was kept.]'):data.reply;if(match)m.artifactType='website';m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';m.uncitedSources=data.quality?.sourceUse?.uncited===true;const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}candidate.messages.push(m);candidate.messages=candidate.messages.slice(-100);
+  const m=msg('assistant',answer,toolOnly?(data.provider==='local-project-context'?'LOCAL PROJECT CONTEXT · NO AI':'NEXUS CALCULATOR · NO AI'):'LIVE AI');m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount,toolsUsed:data.orchestration?.toolsUsed,warnings:data.quality?.warnings};clearVision();m.aiContent=allowsWebsite?(match?'[Earlier website output; use the current project when editing.]':'[Website generation failed validation; the previous project was kept.]'):data.reply;if(match)m.artifactType='website';m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';m.uncitedSources=data.quality?.sourceUse?.uncited===true;const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}candidate.messages.push(m);candidate.messages=candidate.messages.slice(-100);
   await C.saveProject(candidate);project=candidate;await refreshList();await showAll();if(match&&innerWidth<=800)switchMobile('preview');
   }catch(e){
   const cancelled=activeAbort?.signal.aborted===true;

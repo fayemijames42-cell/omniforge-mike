@@ -133,7 +133,7 @@ export async function collectEvidence(query,env,fetcher=fetch,options={}){
  const retrievedAt=new Date().toISOString();
  if(!requested)return {requested:false,sources:[],retrievedAt,scope:'none'};
  const hasWeb=typeof env?.TAVILY_API_KEY==='string'&&env.TAVILY_API_KEY.trim().length>10;
- if(intent.fresh&&!hasWeb)return {requested:true,sources:[],retrievedAt,scope:'encyclopedia-only',error:'Live, web-wide search is not configured yet. MIKEE cannot independently verify current or breaking information. Please connect an approved search provider first.'};
+ if(intent.fresh&&!hasWeb)return {requested:true,sources:[],retrievedAt,scope:'encyclopedia-only',error:'Live, web-wide search is not configured yet. Michelle cannot independently verify current or breaking information. Please connect an approved search provider first.'};
  const queries=(Array.isArray(options.queries)&&options.queries.length?options.queries:[intent.query]).slice(0,2).map(q=>String(q).slice(0,200));
  const results=await Promise.allSettled(queries.map(q=>hasWeb?webSearch(q,env.TAVILY_API_KEY,fetcher):encyclopedia(q,fetcher)));
  const groups=results.map(r=>r.status==='fulfilled'?r.value:[]),sources=[],seen=new Set();

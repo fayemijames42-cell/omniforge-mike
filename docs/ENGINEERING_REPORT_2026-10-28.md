@@ -1,8 +1,8 @@
-# OMNIFORGE engineering report — 28 October 2026
+# OMNIFORGE engineering report — 28–29 October 2026
 
 OMNIFORGE · Powered by MICHELLE · Owned by ADEN INC.
 
-Release candidate: **0.11.2**. Repository: `fayemijames42-cell/omniforge-mike`. Starting revision: `1c77b2563126001f2356cfc8664ec45decbbc955`.
+Release candidate: **0.11.3**. Repository: `fayemijames42-cell/omniforge-mike`. Starting revision: `1c77b2563126001f2356cfc8664ec45decbbc955`.
 
 This report separates reproduced failures, local verification and actual production observations. It is not a claim of universal model accuracy or unlimited free capacity.
 
@@ -36,7 +36,7 @@ API-key configuration still requires legitimate free accounts and owner setup. T
 ## Verification performed
 
 - Starting baseline: **157 automated tests passed**; the latest starting revision had successful build, mobile CI and Cloudflare checks.
-- Release candidate: **192 automated tests passed**, including new request/identity/context, provider fallback, invalid raster and CSP regressions.
+- Release candidate: **194 automated tests passed**, including new request/identity/context, provider fallback, invalid raster and CSP regressions.
 - Real Chromium mobile integration at **360 × 780** uses explicitly labelled provider fixtures. It checks official identity after reload, ordinary chat and programming without site replacement, creation/editing, static diagnostics, failed persistence, concurrent manual edits, incomplete code, image failure/success, atomic image rollback, photo placement, encrypted owner setup, audio draft review, ZIP/JSON fidelity, actual restored inline JavaScript/CSS, shared-image cleanup, network recovery and offline reload.
 - `npm run build` runs syntax checks, all Node tests and content-versioned asset generation. A public build manifest reports version, frontend content hash and source commit and is excluded from the service-worker cache.
 - Wrangler dry run checks the actual bundle and the unchanged `AI`, asset, rate-limit and SQLite bindings.
@@ -46,7 +46,7 @@ API-key configuration still requires legitimate free accounts and owner setup. T
 
 | Feature | Status | Evidence or limitation |
 | --- | --- | --- |
-| Conversation, identity, website creation/editing | NOT TESTED in production for this candidate yet | 192 local tests and expanded mobile fixtures pass; production acceptance follows deployment. |
+| Conversation, identity, website creation/editing | NOT TESTED in production for this candidate yet | 194 local tests and expanded mobile fixtures pass; production acceptance follows deployment. |
 | Local diagnostics, persistence, photos, Undo, notes, search, export/restore | WORKING in local browser tests | Static diagnostics expressly do not test every interaction or publish anything. |
 | Cloudflare text and image integrations | PARTIALLY WORKING | Both bindings and prior real responses are visible in current production status. Candidate's real acceptance remains pending. |
 | Automatic fallback and quota enforcement | WORKING in deterministic integration tests | Same prepared context verified across a failing primary and succeeding fallback. Anonymous fallback availability in production is best effort. |
@@ -125,3 +125,38 @@ Corrected release deployment and targeted live acceptance are pending below; the
 - Current connection and quality documentation uses MICHELLE; compatible historical filenames and infrastructure identifiers remain unchanged.
 
 Additional evidence and updated current documentation: `docs/FREE_POOL.md`, `docs/MIKEE_QUALITY_GATE.md`, `docs/verification/michelle-live-2026-10-28.json`, `docs/verification/michelle-browser-2026-10-28.json`.
+
+
+## Final project-context repair — 29 October
+
+The second deployed candidate, `648199735f6e546dc2c1ac0723b46b5bb5ca334b` (0.11.2), passed Cloudflare build `ff571bd0-5ab9-4004-940a-0c8804f8a8de`, version `e14cfc8c-c458-49f8-a858-536352a8aaa0`, and both GitHub checks. A targeted live pass confirmed the unsupported-date correction and website creation/editing with exact background `#000080`. Project recall still hit the artifact guard; its automatic model recovery could not complete within the remaining free allowance. A later request reported `daily_budget` for Cloudflare and network failures for both anonymous text fallbacks. The configured caps and counters were left intact; no paid service or quota reset was used.
+
+Version 0.11.3 makes narrow current-project recall an **observed local tool**, rather than asking a language model to guess which project is open. It reads the active website's actual title/name from this conversation, works without a provider request or connection, and labels the reply `LOCAL PROJECT CONTEXT · NO AI`. General conversation and creative generation still use genuine model inference. Broader project questions keep the bounded context path. This is an explicit state lookup, not a replacement mock chatbot or a claim of permanent memory.
+
+The server also supports this metadata operation without AI bindings or budget reservations, retaining input bounds and marking it `toolOnly:true`, `live:false`. Regression coverage proves it selects the website title over an unrelated conversation title and does not mistake “Which website is best for learning?” for a saved-state query. Code focus no longer adds programming instructions to ordinary chat. Provider errors no longer assert an unverified save operation.
+
+The **194-test** full suite and expanded mobile browser workflow pass after this repair. The browser workflow includes project recall, all storage rollback checks, and blocking image placement when no website exists. Mobile checks emulate a 360 × 780 viewport; they are not a benchmark on the user's physical 2 GB phone. Final deployment/state-lookup verification is recorded after publication.
+
+## Provider capability inventory
+
+This table describes the **installed adapters**, not every feature advertised by each vendor. The common app context remains bounded to 12 turns/9,000 characters plus up to 24,000 characters of current editing source. Vendor tool-calling, larger context windows and structured-output modes are not automatically exposed by this application.
+
+| Adapter | Installed operations | Last actual configuration/verification |
+| --- | --- | --- |
+| Cloudflare Llama 3.1 8B FP8 | Text chat/code/website generation | WORKING: real public responses verified; free application budgets can temporarily stop requests. |
+| Cloudflare FLUX Schnell | Raster image generation | WORKING: actual 1024 × 1024 JPEG, persistent local save and download verified. |
+| Gemini | Text, vision, transcription | NOT CONFIGURED: no account key in public status. |
+| Groq | Text, transcription | NOT CONFIGURED: no account key. The installed adapter does not currently route vision to Groq. |
+| Mistral | Text | NOT CONFIGURED. |
+| Z.ai Flash | Text; dedicated GLM-4.6V-Flash for vision | NOT CONFIGURED. Paid FlashX models are excluded. |
+| OpenRouter free variants | Text | NOT CONFIGURED. Free variants and zero-price routing constraints remain enforced. |
+| LLM7 Turbo | Text through a checked Turbo catalog | NOT CONFIGURED. |
+| Ollama Cloud | Text | NOT CONFIGURED; no local heavyweight model is installed on the phone. |
+| Vercel AI Gateway | Text with account confirmation and credit ceiling | NOT CONFIGURED; no purchased credits/top-up enabled. |
+| NVIDIA NIM | Development-only text adapter | NOT CONFIGURED; not treated as production free entitlement. |
+| Pollinations Classic text | Anonymous text fallback | NOT WORKING in the observed live fallback attempt: network error. |
+| OVH anonymous text | Anonymous text fallback | NOT WORKING in the observed live fallback attempt: network error. |
+| Pollinations Classic image | Raster adapter | NOT TESTED live in this audit; adapter/fixtures exist. |
+| AI Horde | Queued raster adapter | NOT TESTED live in this audit; queue/expiry/cancellation fixtures exist. |
+
+Gemini/Groq/Z.ai capabilities require valid, eligible free accounts and keys. Vision and transcription remain NOT CONFIGURED on the live app. Broader current-web retrieval is NOT CONFIGURED; the keyless encyclopedia probe returned no usable sources and is not declared fully working. User-supplied notes and original educational explanations are supported, but PDF ingestion, neural image editing, arbitrary backend execution and complete syllabus coverage are not claimed.

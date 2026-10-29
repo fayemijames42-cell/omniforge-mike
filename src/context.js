@@ -20,6 +20,14 @@ function imagePrompt(message){
 }
 const websiteReference=message=>/\b(?:website|webpage|landing page|current (?:site|project)|previous site|site we|we (?:just )?(?:created|built|made)|what did we (?:just )?(?:create|build|make))\b/i.test(message);
 const websiteCheckRequest=message=>/^(?:check|test|verify|inspect|review|audit)\b.{0,90}\b(?:website|webpage|site|page)\b/i.test(taskText(message))&&!/\b(?:explain|how to|how can|how do)\b/i.test(message);
+function projectRecallQuestion(message){
+ const text=taskText(message);
+ return /^(?:what|which)\s+(?:website|site|project)\s+(?:(?:did|have) we|(?:is|was) (?:this|active|current|open)|are we (?:editing|working on))\b/i.test(text)||/^what (?:did|have) we (?:just )?(?:create|build|make|created|built|made)\b/i.test(text)||/^(?:what is|what's) (?:the )?(?:name|title) of (?:the |my |our |this |current |active )*(?:website|site|project)\b/i.test(text);
+}
+function projectRecallReply(summary){
+ const title=String(summary?.title||summary?.name||'Untitled website').replace(/\s+/g,' ').trim().slice(0,140);
+ return 'The active website in this conversation is “'+title+'”.';
+}
 function selectHistory(items){
  const valid=(Array.isArray(items)?items:[]).slice(-100).filter(m=>['user','assistant'].includes(m?.role)&&m.engine!=='ERROR'&&typeof raw(m)==='string'&&body(m).trim());
  const entries=valid.map((m,index)=>({index,role:m.role,content:m.artifactType==='website'||/<!doctype html|<html[\s>]/i.test(body(m))?'[Earlier website output; that turn is complete. Only the latest request authorizes changes.]':body(m).slice(0,1800)}));
@@ -63,5 +71,5 @@ function websiteDocument(reply){
  }
  return {html,complete:!!html,valid:!!html&&!issues.length,issues};
 }
-root.OMNI_CONTEXT=Object.freeze({IDENTITY,taskText,programmingRequest,imagePrompt,websiteReference,websiteCheckRequest,projectSummary,websiteDocument,selectHistory,websiteAction});
+root.OMNI_CONTEXT=Object.freeze({IDENTITY,taskText,programmingRequest,imagePrompt,websiteReference,websiteCheckRequest,projectRecallQuestion,projectRecallReply,projectSummary,websiteDocument,selectHistory,websiteAction});
 })(typeof window!=='undefined'?window:globalThis);

@@ -21,7 +21,7 @@ async function check(id,message,extra={},accept=()=>true){
  const wait=Math.max(0,22000-(Date.now()-previousCall));if(wait)await new Promise(r=>setTimeout(r,wait));previousCall=Date.now();
  try{
   const result=await read('/api/chat',{message,...extra}),data=result.data;
-  const ok=result.status===200&&data.live===true&&typeof data.reply==='string'&&accept(data);
+  const ok=result.status===200&&(data.live===true||id==='project-recall'&&data.toolOnly===true&&data.provider==='local-project-context')&&typeof data.reply==='string'&&accept(data);
   report.results.push({id,input:{message,...extra},status:result.status,passed:ok,...data});console.log(id,ok?'PASS':'FAIL',result.status,data.provider||data.code||'');await persist();
   return data;
  }catch(error){report.results.push({id,passed:false,error:String(error.message)});await persist();console.log(id,'ERROR',String(error.message));return {};}
@@ -37,7 +37,7 @@ const created=await check('website-create',prompt,{},d=>d.artifact?.type==='webs
 site=globalThis.OMNI_CONTEXT.websiteDocument(created.reply).html;
 if(site){
  history=[{role:'user',content:prompt},{role:'assistant',content:'[Earlier website output; use the current project when editing.]',artifactType:'website'}];
- const edit=await check('website-edit','Make the website background navy and keep the Sunrise Bakery content.',{currentHtml:site,history},d=>d.artifact?.valid&&/Sunrise Bakery/i.test(d.reply)&&/navy|#000080|rgb\(\s*0\s*,\s*0\s*,\s*128\s*\)/i.test(d.reply));
+ const edit=await check('website-edit','Make the website background exactly #000080 and keep the Sunrise Bakery content.',{currentHtml:site,history},d=>d.artifact?.valid&&/Sunrise Bakery/i.test(d.reply)&&/navy|#000080|rgb\(\s*0\s*,\s*0\s*,\s*128\s*\)/i.test(d.reply));
  if(globalThis.OMNI_CONTEXT.websiteDocument(edit.reply).valid)site=globalThis.OMNI_CONTEXT.websiteDocument(edit.reply).html;
  await check('greeting-after-website','How are you?',{history},plain);
  await check('privacy-after-website','Never reveal your private internal code.',{history},plain);
