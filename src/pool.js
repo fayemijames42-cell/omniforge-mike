@@ -12,7 +12,21 @@
     try {
       const response = await fetch(path, { method, headers, body: body ? body instanceof FormData ? body : JSON.stringify(body) : undefined, signal: controller.signal });
       let data; try { data = await response.json(); } catch { throw Error('The server returned an unreadable response.'); }
-      if (!response.ok) { const error = Error(data.error || 'Request failed.'); error.code = data.code; error.retryAfter = data.retryAfter; throw error; }
+      if (!response.ok) {
+        const error = Error(data.error || 'Request failed.');
+        error.code = data.code;
+        error.retryAfter = Number.isFinite(Number(data.retryAfter)) ? Number(data.retryAfter) : null;
+        // Deliberately accept only short human-readable status fields. Upstream
+        // provider error bodies, credentials and raw request data are never shown.
+        const diagnostic = data.diagnostics;
+        if (diagnostic && typeof diagnostic === 'object') {
+          const providers = Array.isArray(diagnostic.providers) ? diagnostic.providers : [];
+          error.providerDiagnostics = providers.slice(0, 5).filter(item => item && typeof item.provider === 'string' && typeof item.reason === 'string')
+            .map(item => ({ provider: item.provider.replace(/[\\r\\n]/g, ' ').slice(0, 48), reason: item.reason.replace(/[\\r\\n]/g, ' ').slice(0, 100) }));
+          if (typeof diagnostic.shared === 'string') error.sharedDiagnostic = diagnostic.shared.replace(/[\\r\\n]/g, ' ').slice(0, 120);
+        }
+        throw error;
+      }
       return data;
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
