@@ -13,7 +13,8 @@ function providerFailureDetails(error){
  const seconds=Number(error.retryAfter);
  if(error.code==='FREE_POOL_WAIT'&&Number.isFinite(seconds)&&seconds>0){
   const duration=seconds>=3600?Math.ceil(seconds/3600)+' hour(s)':Math.ceil(seconds/60)+' minute(s)';
-  lines.push('Suggested retry: after about '+duration+'.');
+  lines.push('Earliest suggested retry: about '+duration+' (not guaranteed).');
+  if(providers.some(item=>/daily free usage limit reached|daily free usage limit|daily budget/i.test(item.reason)))lines.push('Services at their daily limit cannot respond until their separate daily allowance resets.');
  }
  if(error.code==='FREE_POOL_NOT_CONNECTED')lines.push('An owner must connect an eligible free AI provider.');
  return '\n\nAI provider checks (no credentials):\n'+lines.join('\n');

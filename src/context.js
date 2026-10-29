@@ -14,7 +14,7 @@ function programmingRequest(message){
 }
 function imagePrompt(message){
  const text=taskText(message);
- const match=text.match(/^(?:generate|genrate|create|make|draw|render|design|produce)\s+(?:(?:me|us)\s+)?(?:(?:an?|the)\s+)?(?:image|picture|photo|photograph|illustration|artwork|painting)\s*(?:of|showing|depicting|with|about|for)?\s+(.+)$/i);
+ const match=text.match(/^(?:generate|genrate|create|make|draw|render|design|produce)\s+(?:(?:me|us)\s+)?(?:(?:an?|the)\s+)?(?:(?:highly|very|ultra|realistic|photorealistic|detailed|cinematic|digital|high-quality|colourful|colorful|beautiful|professional|simple|original|3d|cartoon|anime)\s+){0,4}(?:image|picture|photo|photograph|illustration|artwork|painting)\s*(?:of|showing|depicting|with|about|for)?\s+(.+)$/i);
  // Explicit vector/code requests belong in programming, never the raster queue.
  return match&&!/\b(?:svg|vector|html|code)\b/i.test(text)&&match[1].trim().length>1?text.slice(0,900):null;
 }
