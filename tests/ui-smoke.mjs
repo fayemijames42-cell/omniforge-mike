@@ -27,6 +27,7 @@ const answer = messages => {
   if (/Express backend/.test(last)) return '```js\nimport express from "express";\nconst app=express();app.get("/",(req,res)=>res.json({ok:true}));app.listen(3000);\n```';
   if (/What website did we just create/.test(last)) {assert.ok(messages.some(m=>String(m.content).startsWith('ACTIVE LOCALLY SAVED PROJECT SUMMARY')&&m.content.includes('Elegant Fashion')));return 'We created the Elegant Fashion website.';}
   if (/Make the website gold/.test(last)) return doc(true).replace('background:navy','background:gold');
+  if (/Make the website background navy/.test(last)) assert.ok(messages.some(m=>String(m.content).startsWith('CURRENT PROJECT')&&m.content.includes('Clothes made for you.')),'A styling edit must receive the actual saved website.');
   return doc(/navy/.test(last));
 };
 const allow={limit:async()=>({success:true})};
@@ -80,10 +81,12 @@ try {
   await page.locator('#typingIndicator').waitFor({ state: 'hidden' });
   assert.ok(await page.evaluate(() => window.OMNI_TEST.getProject().website.rawHtml.includes('Elegant Fashion')));
   await go('chat');
-  await page.locator('#prompt').fill('Make the main background navy.'); await page.locator('#sendBtn').click();
+  await page.locator('#prompt').fill('Make the website background navy.'); await page.locator('#sendBtn').click();
   await page.waitForFunction(() => window.OMNI_TEST.getProject()?.website.rawHtml.includes('background:navy'));
   await page.locator('#typingIndicator').waitFor({ state: 'hidden' });
   const before = await page.evaluate(() => window.OMNI_TEST.getProject().website.rawHtml);
+  assert.ok(before.includes('Elegant Fashion'));assert.ok(before.includes('Clothes made for you.'));
+  assert.ok(await page.evaluate(()=>window.OMNI_TEST.getProject().messages.find(m=>m.text==='Make the website background navy.')?.route==='Website editing'));
   await go('chat');
   for(const text of ['How are you?','Never reveal your private internal code.','Write a Node.js Express backend.','What website did we just create?']){
    time+=61000;await page.locator('#prompt').fill(text);await page.locator('#sendBtn').click();await page.locator('#typingIndicator').waitFor({state:'hidden'});
