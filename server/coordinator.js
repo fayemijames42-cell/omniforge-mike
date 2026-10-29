@@ -11,8 +11,20 @@ const nextDay = now => Date.parse(dayOf(now) + 'T00:00:00Z') + 86400000;
 const nextMonth = now => { const date = new Date(now); return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1); };
 const pauseMessages = { allowance: 'Free allowance reached', credentials: 'Check account key/access', model_unavailable: 'Model unavailable',
   free_model_unverified: 'Free eligibility could not be verified', timeout: 'Taking too long', capacity: 'Service busy', network: 'Connection unavailable',
-  empty_response: 'No answer returned', invalid_response: 'Unreadable provider response', invalid_image: 'No usable image returned' };
+  empty_response: 'No answer returned', invalid_response: 'Unreadable provider response', invalid_image: 'No usable image returned',
+  daily_budget: 'Daily free usage limit reached', monthly_budget: 'Monthly free usage limit reached', request_too_large: 'Request exceeds this service limit',
+  busy: 'Another request is still using this service', cooldown: 'Waiting before another request', response_too_large: 'Provider response was too large',
+  request_rejected: 'Provider rejected the request' };
 const cleanReason = reason => pauseMessages[reason] || 'Temporarily unavailable';
+// Only product-owned provider names and approved reason descriptions reach the UI.
+// No credentials, upstream error bodies, tokens, or network addresses are included.
+function safeDiagnostics(attempts) {
+  const skipped = new Set(['needs_key', 'needs_binding', 'paused', 'free_confirmation', 'development_only']);
+  const providers = attempts.filter(item => item && BY_ID[item.provider] && !skipped.has(item.reason))
+    .slice(0, 5).map(item => ({ provider: BY_ID[item.provider].name, reason: cleanReason(item.reason) }));
+  const shared = attempts.find(item => item && !item.provider && ['daily_budget', 'monthly_budget'].includes(item.reason));
+  return { providers, ...(shared ? { shared: cleanReason(shared.reason) } : {}) };
+}
 
 function base64(bytes) { let out = ''; for (let i = 0; i < bytes.length; i += 8192) out += String.fromCharCode(...bytes.subarray(i, i + 8192)); return btoa(out); }
 function unbase64(text) { return Uint8Array.from(atob(text), c => c.charCodeAt(0)); }
@@ -187,12 +199,12 @@ export class MikeeCoordinator {
   }
   unavailable(attempts, retryAt) {
     const eligible=attempts.filter(x=>!['needs_key','needs_binding','paused','free_confirmation','development_only'].includes(x.reason));
-    if(eligible.length&&eligible.every(x=>x.reason==='request_too_large'))return json({error:'This request is too large for the connected free services. Shorten the message or current document; nothing was truncated.',code:'FREE_POOL_REQUEST_TOO_LARGE',attempts},413);
+    if(eligible.length&&eligible.every(x=>x.reason==='request_too_large'))return json({error:'This request is too large for the connected free services. Shorten the message or current document; nothing was truncated.',code:'FREE_POOL_REQUEST_TOO_LARGE',attempts,diagnostics:safeDiagnostics(attempts)},413);
     const now = this.now(), retryAfter = Math.max(1, Math.ceil(((retryAt || now + 60000) - now) / 1000));
     const hasReady = attempts.some(x => !['needs_key', 'needs_binding', 'paused', 'free_confirmation', 'development_only'].includes(x.reason));
     return json({ error: hasReady ? 'MICHELLE tried the connected free AI services, but none can answer right now. Your existing work was not replaced. MICHELLE will choose a service automatically when you try again.' :
       'MICHELLE has no connected free AI service for this task. Provider selection is automatic; only the owner needs to configure API connections.',
-      code: hasReady ? 'FREE_POOL_WAIT' : 'FREE_POOL_NOT_CONNECTED', attempts, retryAfter }, hasReady ? 429 : 503, { 'retry-after': String(retryAfter) });
+      code: hasReady ? 'FREE_POOL_WAIT' : 'FREE_POOL_NOT_CONNECTED', attempts, diagnostics:safeDiagnostics(attempts), retryAfter }, hasReady ? 429 : 503, { 'retry-after': String(retryAfter) });
   }
   async route(data, capability = 'chat', audio) {
     if(capability!=='transcribe'&&(!Array.isArray(data.messages)||!data.messages.length))return json({error:'A prepared conversation is required.'},400);
