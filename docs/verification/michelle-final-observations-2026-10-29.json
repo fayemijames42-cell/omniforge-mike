@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-29",
+  "environment": "Actual public OMNIFORGE UI plus HTTP metadata; synthetic local verification project, no provider fixtures used for the recorded UI checks.",
+  "application": {
+    "url": "https://omniforge-mike.fayemijames42.workers.dev/",
+    "version": "0.11.4",
+    "sourceCommit": "dbb49499cd2191328cba5e75f3f96c33b45cbcd7",
+    "buildId": "0.11.4-3e950f15d150"
+  },
+  "projectSetup": "Earlier genuine AI bakery document entered through the visible static code editor; unused starter styles and script cleared. Not a fresh inference or completed file upload.",
+  "checks": [
+    {
+      "name": "active-project-recall",
+      "status": "PASS",
+      "engine": "LOCAL PROJECT CONTEXT · NO AI",
+      "reply": "The active website in this conversation is “Sunrise Bakery”.",
+      "workspaceName": "Static Code Project"
+    },
+    {
+      "name": "static-source-diagnostics",
+      "status": "PASS",
+      "reply": "Local website checks: Static Code Project\nPASS: Complete HTML document\nPASS: No recognized Node.js/Express code in browser scripts\nPASS: Page title\nCHECK NEEDED: Mobile viewport declaration\nSource size: 1110 characters.\n\nStatic source checks only. JavaScript behavior, accessibility, external links and public deployment were not tested."
+    },
+    {
+      "name": "rendered-preview",
+      "status": "PASS",
+      "bodyBackground": "rgb(3, 5, 91)",
+      "paragraphColor": "rgb(0, 0, 0)"
+    },
+    {
+      "name": "reload-persistence",
+      "status": "PASS",
+      "observed": "Saved project, recall/diagnostic messages and styled preview retained."
+    },
+    {
+      "name": "project-ZIP",
+      "status": "PASS",
+      "bytes": 3360,
+      "sha256": "ccf00dfb28519999aad7326dfa9301ab39ae7a7adcce3bc26ff13bb6fec491e5",
+      "files": [
+        "project.json",
+        "index.html",
+        "styles.css",
+        "app.js",
+        "site.html",
+        "README.txt"
+      ],
+      "indexHtmlMatchesEarlierAIGeneratedSource": true
+    },
+    {
+      "name": "public-file-import",
+      "status": "NOT TESTED",
+      "observed": "Chooser attempt did not complete; not counted as a successful production import."
+    }
+  ],
+  "earlierActualRasterObservation": {
+    "applicationVersion": "0.11.3",
+    "provider": "Cloudflare FLUX",
+    "model": "@cf/black-forest-labs/flux-1-schnell",
+    "format": "JPEG",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 336110,
+    "sha256": "33c8fc28dee3f5bc82768b23a754b89e983b7c2e85b328fd305b02753dd41a4d",
+    "observed": "Decoded and displayed, saved in conversation/Photos, downloaded and independently decoded. Actual image bytes remain available as verification evidence."
+  },
+  "latestTextAcceptance": "See michelle-live-final-2026-10-29.json: 0/1; 429 FREE_POOL_WAIT, Cloudflare daily_budget, anonymous fallback network failures. No allowance reset or paid route."
+}

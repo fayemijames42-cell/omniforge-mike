@@ -1,0 +1,766 @@
+{
+  "date": "2026-10-29T19:15:56.055Z",
+  "base": "https://omniforge-mike.fayemijames42.workers.dev",
+  "environment": "Actual deployed public Worker. Synthetic test conversations only.",
+  "results": [
+    {
+      "id": "identity",
+      "input": {
+        "message": "Who are you? Keep it to one sentence."
+      },
+      "status": 429,
+      "passed": false,
+      "error": "MICHELLE tried the connected free AI services, but none can answer right now. Your existing work was not replaced. MICHELLE will choose a service automatically when you try again.",
+      "code": "FREE_POOL_WAIT",
+      "attempts": [
+        {
+          "provider": "gemini",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "groq",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "cloudflare",
+          "reason": "daily_budget"
+        },
+        {
+          "provider": "mistral",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "zai",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "openrouter",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "llm7",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "ollama",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "vercel",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "nvidia",
+          "reason": "needs_key"
+        },
+        {
+          "provider": "pollinations",
+          "reason": "network"
+        },
+        {
+          "provider": "ovh",
+          "reason": "network"
+        }
+      ],
+      "diagnostics": {
+        "providers": [
+          {
+            "provider": "Cloudflare Workers AI",
+            "reason": "Daily free usage limit reached"
+          },
+          {
+            "provider": "Pollinations Classic",
+            "reason": "Connection unavailable"
+          },
+          {
+            "provider": "OVHcloud Anonymous",
+            "reason": "Connection unavailable"
+          }
+        ]
+      },
+      "retryAfter": 30
+    }
+  ],
+  "health": {
+    "status": 200,
+    "data": {
+      "ok": true,
+      "version": "0.11.4",
+      "identity": {
+        "name": "Michelle",
+        "displayName": "MICHELLE",
+        "platform": "OMNIFORGE",
+        "owner": "ADEN INC."
+      },
+      "mode": "free-pool",
+      "poolBound": true,
+      "ownerSetup": false,
+      "aiBound": true,
+      "budgetBound": true,
+      "webSearchConfigured": false,
+      "encyclopediaSearch": true,
+      "verified": false
+    }
+  },
+  "build": {
+    "status": 200,
+    "data": {
+      "version": "0.11.4",
+      "buildId": "0.11.4-3e950f15d150",
+      "sourceCommit": "dbb49499cd2191328cba5e75f3f96c33b45cbcd7"
+    }
+  },
+  "providerStatus": {
+    "mode": "free-pool",
+    "version": "0.11.4",
+    "verified": false,
+    "ownerSetup": false,
+    "providers": [
+      {
+        "id": "gemini",
+        "name": "Google Gemini",
+        "capabilities": [
+          "chat",
+          "vision",
+          "transcribe"
+        ],
+        "state": "needs_key",
+        "model": "gemini-3.8-flash",
+        "models": [
+          "gemini-3.8-flash",
+          "gemini-3.5-flash-lite"
+        ],
+        "note": "Free-tier project required. Google may use free-tier content to improve products.",
+        "signup": "https://aistudio.google.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "groq",
+        "name": "Groq",
+        "capabilities": [
+          "chat",
+          "transcribe"
+        ],
+        "state": "needs_key",
+        "model": "openai/gpt-oss-120b",
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b",
+          "qwen/qwen3.8-27b"
+        ],
+        "note": "Free Plan. Speech and chat share this app budget; Groq also enforces separate speech limits.",
+        "signup": "https://console.groq.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "cloudflare",
+        "name": "Cloudflare Workers AI",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "ready",
+        "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+        "models": [
+          "@cf/meta/llama-3.1-8b-instruct-fp8"
+        ],
+        "note": "Existing AI binding; keep the Cloudflare account on Workers Free.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": 1793250887519,
+        "retryAt": null
+      },
+      {
+        "id": "cloudflare-image",
+        "name": "Cloudflare FLUX",
+        "capabilities": [
+          "image"
+        ],
+        "state": "ready",
+        "model": "@cf/black-forest-labs/flux-1-schnell",
+        "models": [
+          "@cf/black-forest-labs/flux-1-schnell"
+        ],
+        "note": "Existing four-step FLUX image tool. Per-provider budget; other free image services remain available when it is exhausted.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": 1793249702429,
+        "retryAt": null
+      },
+      {
+        "id": "mistral",
+        "name": "Mistral Studio",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "mistral-small-latest",
+        "models": [
+          "mistral-small-latest"
+        ],
+        "note": "Free mode only. Actual monthly allowance is shown in Studio.",
+        "signup": "https://console.mistral.ai/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "zai",
+        "name": "Z.ai Flash",
+        "capabilities": [
+          "chat",
+          "vision"
+        ],
+        "state": "needs_key",
+        "model": "glm-4.7-flash",
+        "models": [
+          "glm-4.7-flash",
+          "glm-4.5-flash",
+          "glm-4.6v-flash"
+        ],
+        "note": "Only these zero-priced Flash models. Search, image generation and FlashX are excluded.",
+        "signup": "https://z.ai/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "openrouter",
+        "name": "OpenRouter Free",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "recursive/flint-v1.0:free",
+        "models": [
+          "recursive/flint-v1.0:free",
+          "openrouter/free"
+        ],
+        "note": "Free variants only. Failed requests also consume the provider allowance.",
+        "signup": "https://openrouter.ai/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "llm7",
+        "name": "LLM7 Turbo",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "catalog:turbo",
+        "models": [
+          "catalog:turbo"
+        ],
+        "note": "A live catalog check selects a TURBO chat model. Pro models are never selected.",
+        "signup": "https://dash.llm7.io/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "ollama",
+        "name": "Ollama Cloud",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "gemma4:31b",
+        "models": [
+          "gemma4:31b"
+        ],
+        "note": "Monthly starter allowance only. No local model installation; paid credits must be disabled.",
+        "signup": "https://ollama.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "vercel",
+        "name": "Vercel AI Gateway",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "openai/gpt-oss-120b",
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b"
+        ],
+        "note": "Free-tier eligible models only. A price check and a $4/month app ceiling protect the $5 free allowance. No purchased credits or top-up.",
+        "signup": "https://vercel.com/ai-gateway",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "nvidia",
+        "name": "NVIDIA NIM — development",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "nvidia/nemotron-3-super-120b-a12b",
+        "models": [
+          "nvidia/nemotron-3-super-120b-a12b",
+          "openai/gpt-oss-120b"
+        ],
+        "note": "Free prototyping access. Enable only for a development workspace, not production entitlement.",
+        "signup": "https://build.nvidia.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "pollinations",
+        "name": "Pollinations Classic",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "ready",
+        "model": "classic-gpt-oss-20b",
+        "models": [
+          "classic-gpt-oss-20b"
+        ],
+        "note": "Anonymous best-effort access. Shared IP limits; a 402 means wait, never pay.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "ovh",
+        "name": "OVHcloud Anonymous",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "ready",
+        "model": "gpt-oss-120b",
+        "models": [
+          "gpt-oss-120b"
+        ],
+        "note": "Anonymous low-rate testing only. No paid project key is used.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "pollinations-image",
+        "name": "Pollinations Classic Images",
+        "capabilities": [
+          "image"
+        ],
+        "state": "ready",
+        "model": "classic-image",
+        "models": [
+          "classic-image"
+        ],
+        "note": "Free 768 px JPEGs with the provider logo. No paid wallet or keyed media API.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "horde-image",
+        "name": "AI Horde Images",
+        "capabilities": [
+          "image"
+        ],
+        "state": "ready",
+        "model": "stable_diffusion",
+        "models": [
+          "stable_diffusion"
+        ],
+        "note": "Anonymous volunteer-compute queue. Jobs can take several minutes or be unavailable.",
+        "signup": "https://aihorde.net/",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      }
+    ],
+    "parked": [
+      {
+        "id": "siliconflow",
+        "name": "SiliconFlow",
+        "state": "not_in_pool",
+        "note": "Free model and regional account eligibility need verification."
+      },
+      {
+        "id": "modelscope",
+        "name": "ModelScope",
+        "state": "not_in_pool",
+        "note": "Account and model-specific free API eligibility need verification."
+      },
+      {
+        "id": "scaleway",
+        "name": "Scaleway",
+        "state": "not_in_pool",
+        "note": "Allowance renewal and billing eligibility need verification."
+      },
+      {
+        "id": "puter",
+        "name": "Puter",
+        "state": "not_in_pool",
+        "note": "Individual user login and user-paid overage do not belong in the shared free pool."
+      }
+    ]
+  },
+  "statusAfter": {
+    "mode": "free-pool",
+    "version": "0.11.4",
+    "verified": false,
+    "ownerSetup": false,
+    "providers": [
+      {
+        "id": "gemini",
+        "name": "Google Gemini",
+        "capabilities": [
+          "chat",
+          "vision",
+          "transcribe"
+        ],
+        "state": "needs_key",
+        "model": "gemini-3.8-flash",
+        "models": [
+          "gemini-3.8-flash",
+          "gemini-3.5-flash-lite"
+        ],
+        "note": "Free-tier project required. Google may use free-tier content to improve products.",
+        "signup": "https://aistudio.google.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "groq",
+        "name": "Groq",
+        "capabilities": [
+          "chat",
+          "transcribe"
+        ],
+        "state": "needs_key",
+        "model": "openai/gpt-oss-120b",
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b",
+          "qwen/qwen3.8-27b"
+        ],
+        "note": "Free Plan. Speech and chat share this app budget; Groq also enforces separate speech limits.",
+        "signup": "https://console.groq.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "cloudflare",
+        "name": "Cloudflare Workers AI",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "ready",
+        "model": "@cf/meta/llama-3.1-8b-instruct-fp8",
+        "models": [
+          "@cf/meta/llama-3.1-8b-instruct-fp8"
+        ],
+        "note": "Existing AI binding; keep the Cloudflare account on Workers Free.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": 1793250887519,
+        "retryAt": null
+      },
+      {
+        "id": "cloudflare-image",
+        "name": "Cloudflare FLUX",
+        "capabilities": [
+          "image"
+        ],
+        "state": "ready",
+        "model": "@cf/black-forest-labs/flux-1-schnell",
+        "models": [
+          "@cf/black-forest-labs/flux-1-schnell"
+        ],
+        "note": "Existing four-step FLUX image tool. Per-provider budget; other free image services remain available when it is exhausted.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": 1793249702429,
+        "retryAt": null
+      },
+      {
+        "id": "mistral",
+        "name": "Mistral Studio",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "mistral-small-latest",
+        "models": [
+          "mistral-small-latest"
+        ],
+        "note": "Free mode only. Actual monthly allowance is shown in Studio.",
+        "signup": "https://console.mistral.ai/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "zai",
+        "name": "Z.ai Flash",
+        "capabilities": [
+          "chat",
+          "vision"
+        ],
+        "state": "needs_key",
+        "model": "glm-4.7-flash",
+        "models": [
+          "glm-4.7-flash",
+          "glm-4.5-flash",
+          "glm-4.6v-flash"
+        ],
+        "note": "Only these zero-priced Flash models. Search, image generation and FlashX are excluded.",
+        "signup": "https://z.ai/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "openrouter",
+        "name": "OpenRouter Free",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "recursive/flint-v1.0:free",
+        "models": [
+          "recursive/flint-v1.0:free",
+          "openrouter/free"
+        ],
+        "note": "Free variants only. Failed requests also consume the provider allowance.",
+        "signup": "https://openrouter.ai/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "llm7",
+        "name": "LLM7 Turbo",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "catalog:turbo",
+        "models": [
+          "catalog:turbo"
+        ],
+        "note": "A live catalog check selects a TURBO chat model. Pro models are never selected.",
+        "signup": "https://dash.llm7.io/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "ollama",
+        "name": "Ollama Cloud",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "gemma4:31b",
+        "models": [
+          "gemma4:31b"
+        ],
+        "note": "Monthly starter allowance only. No local model installation; paid credits must be disabled.",
+        "signup": "https://ollama.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "vercel",
+        "name": "Vercel AI Gateway",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "openai/gpt-oss-120b",
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b"
+        ],
+        "note": "Free-tier eligible models only. A price check and a $4/month app ceiling protect the $5 free allowance. No purchased credits or top-up.",
+        "signup": "https://vercel.com/ai-gateway",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "nvidia",
+        "name": "NVIDIA NIM — development",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "needs_key",
+        "model": "nvidia/nemotron-3-super-120b-a12b",
+        "models": [
+          "nvidia/nemotron-3-super-120b-a12b",
+          "openai/gpt-oss-120b"
+        ],
+        "note": "Free prototyping access. Enable only for a development workspace, not production entitlement.",
+        "signup": "https://build.nvidia.com/",
+        "enabled": true,
+        "hasKey": false,
+        "freeConfirmed": false,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "pollinations",
+        "name": "Pollinations Classic",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "cooldown",
+        "model": "classic-gpt-oss-20b",
+        "models": [
+          "classic-gpt-oss-20b"
+        ],
+        "note": "Anonymous best-effort access. Shared IP limits; a 402 means wait, never pay.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": 1793301422475
+      },
+      {
+        "id": "ovh",
+        "name": "OVHcloud Anonymous",
+        "capabilities": [
+          "chat"
+        ],
+        "state": "cooldown",
+        "model": "gpt-oss-120b",
+        "models": [
+          "gpt-oss-120b"
+        ],
+        "note": "Anonymous low-rate testing only. No paid project key is used.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": 1793301422487
+      },
+      {
+        "id": "pollinations-image",
+        "name": "Pollinations Classic Images",
+        "capabilities": [
+          "image"
+        ],
+        "state": "ready",
+        "model": "classic-image",
+        "models": [
+          "classic-image"
+        ],
+        "note": "Free 768 px JPEGs with the provider logo. No paid wallet or keyed media API.",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      },
+      {
+        "id": "horde-image",
+        "name": "AI Horde Images",
+        "capabilities": [
+          "image"
+        ],
+        "state": "ready",
+        "model": "stable_diffusion",
+        "models": [
+          "stable_diffusion"
+        ],
+        "note": "Anonymous volunteer-compute queue. Jobs can take several minutes or be unavailable.",
+        "signup": "https://aihorde.net/",
+        "enabled": true,
+        "hasKey": true,
+        "freeConfirmed": true,
+        "verifiedAt": null,
+        "retryAt": null
+      }
+    ],
+    "parked": [
+      {
+        "id": "siliconflow",
+        "name": "SiliconFlow",
+        "state": "not_in_pool",
+        "note": "Free model and regional account eligibility need verification."
+      },
+      {
+        "id": "modelscope",
+        "name": "ModelScope",
+        "state": "not_in_pool",
+        "note": "Account and model-specific free API eligibility need verification."
+      },
+      {
+        "id": "scaleway",
+        "name": "Scaleway",
+        "state": "not_in_pool",
+        "note": "Allowance renewal and billing eligibility need verification."
+      },
+      {
+        "id": "puter",
+        "name": "Puter",
+        "state": "not_in_pool",
+        "note": "Individual user login and user-paid overage do not belong in the shared free pool."
+      }
+    ]
+  },
+  "remaining": "Raster generation and saved-image UI are verified separately. Authenticated adapters lacking keys are not live-tested. Limited examples are not a broad quality benchmark."
+}
