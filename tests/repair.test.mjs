@@ -115,10 +115,21 @@ test('Browser artifacts reject server-side code; explicit vector requests stay a
  assert.equal(planRequest({message:'Draw an SVG vector illustration of a flying cow.'}).kind,'vector');
 });
 test('Polite Michelle image requests use the raster workflow, not SVG chat',async()=>{
- for(const message of ['Generate an image of a flying cow.','Michelle, can you please generate an image of a flying cow?','Create a picture of a blue bird.'])assert.ok(C.imagePrompt(message),message);
+ for(const message of ['Generate an image of a flying cow.','Generate a realistic image of a flying cow above green farmland under a blue sky.','Generate a highly realistic image of a flying cow.','Create a detailed picture of a blue bird.','Michelle, can you please generate an image of a flying cow?','Create a picture of a blue bird.'])assert.ok(C.imagePrompt(message),message);
  assert.equal(C.imagePrompt('Draw an SVG illustration of a cow.'),null);
  const result=await run({message:'Generate an image of a flying cow.'});
  assert.equal(result.response.status,409);assert.equal(result.data.code,'IMAGE_WORKFLOW_REQUIRED');assert.equal(result.calls,0);
+});
+test('Descriptive raster request does not become chat, local knowledge, or website code',async()=>{
+ const message='Generate a realistic image of a flying cow above green farmland under a blue sky.';
+ assert.equal(planRequest({message,history:previous,currentHtml:html}).kind,'image');
+ assert.equal(planRequest({message,history:previous,currentHtml:html}).website,false);
+ const result=await run({message});
+ assert.equal(result.response.status,409);
+ assert.equal(result.data.code,'IMAGE_WORKFLOW_REQUIRED');
+ assert.equal(result.calls,0);
+ assert.equal(C.imagePrompt('Draw an SVG vector illustration of a flying cow.'),null);
+ assert.equal(C.imagePrompt('Write Python code to generate an image of a cow.'),null);
 });
 test('Website diagnostics report exactly their static scope',()=>{
  const runtime=vm.createContext({window:{OMNI_CONTEXT:C}});
