@@ -3,6 +3,21 @@
 const ui={chat:$('#chatStream'),chips:$('#chips'),edit:$('#editControls'),grid:$('#assetGrid'),photoEditor:$('#photoEditor'),frame:$('#siteFrame'),previewEmpty:$('#previewEmpty'),select:$('#projectSelect')};
 const E=C.esc, uid=C.uuid, K=window.OMNI_KNOWLEDGE;const imagePreviewURLs=new Set();function notify(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>t.style.display='none',3600)}
 function fail(e){const msg=e?.name==='QuotaExceededError'?'Device storage is full. Export a backup, remove unused photos, then try again.':e?.message||String(e);notify(msg);console.warn('OMNIFORGE action failed:',e)}
+function providerFailureDetails(error){
+ if(!['FREE_POOL_WAIT','FREE_POOL_NOT_CONNECTED','FREE_POOL_REQUEST_TOO_LARGE'].includes(error?.code))return '';
+ const lines=[];
+ if(error.sharedDiagnostic)lines.push('Shared limit: '+error.sharedDiagnostic);
+ const providers=Array.isArray(error.providerDiagnostics)?error.providerDiagnostics:[];
+ for(const item of providers.slice(0,5))lines.push(item.provider+': '+item.reason);
+ if(!lines.length)lines.push('Detailed provider reasons were not supplied by the server.');
+ const seconds=Number(error.retryAfter);
+ if(error.code==='FREE_POOL_WAIT'&&Number.isFinite(seconds)&&seconds>0){
+  const duration=seconds>=3600?Math.ceil(seconds/3600)+' hour(s)':Math.ceil(seconds/60)+' minute(s)';
+  lines.push('Suggested retry: after about '+duration+'.');
+ }
+ if(error.code==='FREE_POOL_NOT_CONNECTED')lines.push('An owner must connect an eligible free AI provider.');
+ return '\\n\\nAI provider checks (no credentials):\\n'+lines.join('\\n');
+}
 function queued(fn){queue=queue.catch(()=>{}).then(fn).catch(fail);return queue}
 function autoChatTitle(input){
  let s=String(input||'').replace(/https?:\/\/\S+/g,'').replace(/\s+/g,' ').trim();
@@ -334,7 +349,7 @@ async function send(text){
   await C.saveProject(candidate);project=candidate;await refreshList();await showAll();if(match&&innerWidth<=800)switchMobile('preview');
   }catch(e){
   const cancelled=activeAbort?.signal.aborted===true;
-  const message=cancelled?'Request cancelled.':e?.name==='AbortError'?'Request timed out':String(e?.message||e);
+  const message=cancelled?'Request cancelled.':e?.name==='AbortError'?'Request timed out':String(e?.message||e)+providerFailureDetails(e);
   if(!cancelled&&e?.code==='FREE_POOL_WAIT'&&Number.isFinite(Number(e.retryAfter)))providerRetryUntil=Date.now()+Math.min(300000,Math.max(1000,Number(e.retryAfter)*1000));
   aiState='AI REQUEST FAILED';if(project){project.messages.push(msg('assistant',message,'ERROR'));await C.saveProject(project);await showAll()}else fail(e)
  }finally{activeAbort=null;setPending(false);Pool.refresh().catch(()=>{})}
