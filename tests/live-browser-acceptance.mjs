@@ -55,7 +55,7 @@ try{
  const bytes=await readFile(await file.path());assert.equal(bytes.length,blob.bytes);report.image.downloadSHA256=createHash('sha256').update(bytes).digest('hex');
  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>!!window.OMNI_TEST?.getProject());
  await go('chat');const restored=page.locator('.real-image-artifact img').last();await restored.waitFor();await restored.evaluate(el=>el.decode());
- assert.equal((await project()).website.rawHtml,website);await go('photos');assert.ok(await page.locator('.asset-tile').count()>0);
+ assert.equal((await project()).website.rawHtml,website);await go('photos');await page.locator('.asset-tile').first().waitFor({state:'visible',timeout:15000});assert.ok(await page.locator('.asset-tile').count()>0);
  report.reloadPreservedWebsiteAndImage=true;report.noPageErrors=errors.length===0;assert.deepEqual(errors,[]);
  report.finalBuild=await (await page.request.get(base+'/build-info.json')).json();assert.equal(report.finalBuild.sourceCommit,report.build.sourceCommit,'Deployment changed during acceptance.');
  report.passed=true;
