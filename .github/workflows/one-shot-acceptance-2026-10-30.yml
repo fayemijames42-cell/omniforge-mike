@@ -1,4 +1,4 @@
-name: OMNIFORGE one-shot live acceptance (2026-10-30)
+name: OMNIFORGE one-shot mobile acceptance (2026-10-30)
 on:
   push:
     branches:
@@ -8,9 +8,9 @@ on:
 permissions:
   contents: read
 jobs:
-  live-acceptance:
+  live-mobile-acceptance:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -18,12 +18,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check actual deployed version, live creation, edit, chat and one raster image
-        run: node tests/one-shot-live-2026-10-30.mjs
-      - name: Preserve the evidence even if providers fail
+      - name: Install locked app dependencies
+        run: npm ci
+      - name: Install one-time headless browser runner
+        run: npm install --no-save --package-lock=false playwright@1.56.1
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run actual mobile browser production acceptance without mock providers
+        env:
+          OMNIFORGE_LIVE_TEST: '1'
+          OMNIFORGE_EXPECTED_COMMIT: 4a6c0615fa37a084218aa05a884936be230770b0
+          OMNIFORGE_BROWSER_OUTPUT: docs/verification/one-shot-browser-2026-10-30.json
+        run: node tests/live-browser-acceptance.mjs
+      - name: Preserve evidence even on failure
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: omniforge-live-acceptance-2026-10-30
-          path: docs/verification/one-shot-live-2026-10-30.json
+          name: omniforge-mobile-live-acceptance-2026-10-30
+          path: docs/verification/one-shot-browser-2026-10-30.json
           if-no-files-found: warn
