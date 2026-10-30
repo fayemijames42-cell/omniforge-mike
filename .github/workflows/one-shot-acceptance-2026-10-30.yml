@@ -1,0 +1,29 @@
+name: OMNIFORGE one-shot live acceptance (2026-10-30)
+on:
+  push:
+    branches:
+      - audit/one-shot-production-acceptance-20261030
+    paths:
+      - .github/workflows/one-shot-acceptance-2026-10-30.yml
+permissions:
+  contents: read
+jobs:
+  live-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check actual deployed version, live creation, edit, chat and one raster image
+        run: node tests/one-shot-live-2026-10-30.mjs
+      - name: Preserve the evidence even if providers fail
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: omniforge-live-acceptance-2026-10-30
+          path: docs/verification/one-shot-live-2026-10-30.json
+          if-no-files-found: warn
