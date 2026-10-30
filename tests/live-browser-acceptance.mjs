@@ -47,7 +47,7 @@ try{
  current=await send('What website did we just create?',{local:true});assert.match(current.messages.at(-1).text,/Sunrise Bakery/);assert.equal(chatRequests,beforeRecall);assert.equal(current.messages.at(-1).engine,'LOCAL PROJECT CONTEXT · NO AI');
  await send('Check whether the website is working.',{local:true});assert.equal(chatRequests,beforeRecall);
  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>!!window.OMNI_TEST?.getProject());assert.equal((await project()).website.rawHtml,website);
- current=await send('Generate an image of a flying cow.');const image=current.messages.at(-1);assert.ok(image.imageId);assert.equal(image.receipt.provider,'cloudflare-image');
+ current=await send('Generate a realistic image of a flying cow above green farmland under a blue sky.');const image=current.messages.at(-1);assert.ok(image.imageId);assert.equal(image.receipt.provider,'cloudflare-image');
  const img=page.locator('.real-image-artifact img').last();await img.waitFor();await img.evaluate(el=>el.decode());
  report.image=await img.evaluate(el=>({width:el.naturalWidth,height:el.naturalHeight}));
  const blob=await page.evaluate(async id=>{const b=await window.OMNI.getBlob(id);return {bytes:b.size,mime:b.type};},image.imageId);Object.assign(report.image,blob,{provider:image.receipt.provider,model:image.receipt.model});
