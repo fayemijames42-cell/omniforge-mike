@@ -36,7 +36,7 @@ async function importProject(file){
  }else if(name.endsWith('.json'))project=JSON.parse(await file.text());
  else throw Error('Import an OMNIFORGE .zip/.json backup or an HTML file.');
  if(!project||typeof project!=='object'||Array.isArray(project)||typeof project.id!=='string'||!project.website||!Array.isArray(project.assets))throw Error('Invalid OMNIFORGE project.');project=C.formatMigrated(project);validate(project);
- const mapping=new Map(project.assets.map(a=>[a.id,C.uuid()])),created=[],photos=project.assets;
+ const mapping=new Map(project.assets.map(a=>[a.id,C.uuid()])),photos=project.assets;
  const remap=text=>String(text).replace(/omniforge-asset:\/\/([a-zA-Z0-9-]+)/g,(all,id)=>mapping.has(id)?'omniforge-asset://'+mapping.get(id):all);
  const restored=C.clone(project);restored.id=C.uuid();restored.createdAt=Date.now();restored.updatedAt=Date.now();restored.version=1;restored.history=[];
  restored.messages=Array.isArray(restored.messages)?restored.messages.slice(-100):[];
@@ -46,17 +46,22 @@ async function importProject(file){
  for(const message of restored.messages){for(const key of ['assetId','imageId'])if(message[key])message[key]=mapping.get(message[key])||null;if(typeof message.aiContent==='string')message.aiContent=remap(message.aiContent);}
  if(restored.website.rawHtml)restored.website.rawHtml=remap(restored.website.rawHtml);
  if(restored.codeWorkspace){for(const key of root.OMNI_FILES.KEYS)restored.codeWorkspace.files[key]=remap(restored.codeWorkspace.files[key]);restored.codeWorkspace.history=[];}
- try{
-  // Decompress and store one photo at a time; do not retain a whole album in RAM.
-  for(const asset of photos){
-   let blob;
-   if(archive){const entry=archive.file('assets/'+asset.id+'.'+extension(asset.mimeType));if(entry)blob=new Blob([await zipBytes(entry,MAX_IMAGE)],{type:asset.mimeType});}
-   else if(asset.dataUrl){if(typeof asset.dataUrl!=='string'||asset.dataUrl.length>Math.ceil(MAX_IMAGE*4/3)+100||!/^data:image\/(jpeg|png|webp);base64,[a-zA-Z0-9+/]+=*$/i.test(asset.dataUrl))throw Error('Invalid embedded photo.');blob=await(await fetch(asset.dataUrl)).blob();if(blob.size>MAX_IMAGE)throw Error('Embedded photo exceeds 8 MB.');}
-   if(!blob)throw Error('Backup is missing photo data for '+String(asset.name||asset.id)+'.');
-   const id=mapping.get(asset.id);created.push(id);await C.saveBlob(id,blob);
+ const files=[];
+ for(const asset of photos){
+  let blob;
+  if(archive){
+   const entry=archive.file('assets/'+asset.id+'.'+extension(asset.mimeType));
+   if(entry)blob=new Blob([await zipBytes(entry,MAX_IMAGE)],{type:asset.mimeType});
+  }else if(asset.dataUrl){
+   if(typeof asset.dataUrl!=='string'||asset.dataUrl.length>Math.ceil(MAX_IMAGE*4/3)+100||!/^data:image\/(jpeg|png|webp);base64,[a-zA-Z0-9+/]+=*$/i.test(asset.dataUrl))throw Error('Invalid embedded photo.');
+   blob=await(await fetch(asset.dataUrl)).blob();
   }
-  await C.saveProject(restored);return restored;
- }catch(error){await C.removeBlobs(created).catch(()=>{});throw error;}
+  if(!blob?.size)throw Error('Backup is missing photo data for '+String(asset.name||asset.id)+'.');
+  if(blob.type!==asset.mimeType||blob.size>MAX_IMAGE)throw Error('Backup photo type or size does not match its metadata.');
+  files.push({id:mapping.get(asset.id),blob});
+ }
+ await C.saveProject(restored,files);
+ return restored;
 }
 root.OMNI_BACKUP=Object.freeze({importProject});
 })(window);

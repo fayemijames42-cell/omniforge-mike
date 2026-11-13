@@ -2,7 +2,7 @@
 (function(){'use strict';const C=window.OMNI,W=window.OMNI_WORKSPACE,F=window.OMNI_FILES,Pool=window.MIKEE_POOL;const $=s=>document.querySelector(s);
 if(!C||!W||!F||!Pool||!window.OMNI_CONTEXT)return;
 const mobileLayout=matchMedia('(max-width: 800px)');
-let project=null,activeView='preview',mobileView=mobileLayout.matches?'chat':'preview',preferences={name:'MICHELLE'},selectedAsset=null,originalURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message',pendingImage=null,activeAbort=null,imageJob=null,providerRetryUntil=0;
+let project=null,activeView='preview',mobileView=mobileLayout.matches?'chat':'preview',preferences={name:'MICHELLE'},selectedAsset=null,originalURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,messageQueued=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message',pendingImage=null,activeAbort=null,imageJob=null,providerRetryUntil=0;
 const ui={chat:$('#chatStream'),chips:$('#chips'),edit:$('#editControls'),grid:$('#assetGrid'),photoEditor:$('#photoEditor'),frame:$('#siteFrame'),previewEmpty:$('#previewEmpty'),select:$('#projectSelect')};
 const E=C.esc, uid=C.uuid, K=window.OMNI_KNOWLEDGE;const imagePreviewURLs=new Set();function notify(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>t.style.display='none',3600)}
 function fail(e){const msg=e?.name==='QuotaExceededError'?'Device storage is full. Export a backup, remove unused photos, then try again.':e?.message||String(e);notify(msg);console.warn('OMNIFORGE action failed:',e)}
@@ -22,7 +22,38 @@ function providerFailureDetails(error){
  if(error.code==='FREE_POOL_NOT_CONNECTED')lines.push('An owner must connect an eligible free AI provider.');
  return '\n\nAI provider checks (no credentials):\n'+lines.join('\n');
 }
-function queued(fn){queue=queue.catch(()=>{}).then(fn).catch(fail);return queue}
+function queued(fn){queue=queue.catch(()=>{}).then(fn).catch(recoverAction);return queue}
+async function recoverAction(error){
+ if(error?.code==='PROJECT_CONFLICT'&&project?.id===error.projectId){
+  try{
+   await activate(error.projectId,undefined,{preserveDraft:true});
+   if(!project){fail(Error('This conversation was deleted in another tab. Open another conversation or start a new chat.'));return}
+  }catch(loadError){fail(loadError);return}
+ }
+ fail(error);
+}
+function conversationDraft(){
+ if(project)return C.clone(project);
+ const draft=C.makeProject('New Chat');
+ draft.chatOnly=true;
+ return draft;
+}
+async function saveConversation(draft){
+ const isNew=project?.id!==draft.id;
+ project=await C.saveProject(draft);
+ if(isNew)await C.setPref('lastProjectId',project.id).catch(fail);
+}
+function clearSubmittedPrompt(text){
+ const prompt=$('#prompt');
+ if(prompt.value.trim()===text)prompt.value='';
+}
+function queueMessage(text){
+ if(requestPending||messageQueued||!text.trim())return;
+ messageQueued=true;
+ queued(async()=>{
+  try{await send(text)}finally{messageQueued=false}
+ });
+}
 function autoChatTitle(input){
  let s=String(input||'').replace(/https?:\/\/\S+/g,'').replace(/\s+/g,' ').trim();
  if(!s||/^(hi|hello|hey|yo|ok|okay|thanks|thank you|good morning|good afternoon)[!.,? ]*$/i.test(s))return '';
@@ -73,8 +104,8 @@ async function addReferenceNotes(fileList){
  if(requestPending)throw Error('Finish the current AI request before editing reference notes.');
  const files=Array.from(fileList||[]);
  if(!files.length)return;
- if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
- const next=[...(project.sources||[])];
+ const draft=conversationDraft();
+ const next=[...(draft.sources||[])];
  for(const file of files){
   if(!/\.(txt|md|markdown|csv|json)$/i.test(file.name))throw Error('Use plain text, Markdown, CSV, or JSON notes. PDF parsing is not available yet.');
   if(file.size>24000)throw Error('Each note must be 24 KB or smaller. Copy a relevant excerpt for longer documents.');
@@ -85,8 +116,8 @@ async function addReferenceNotes(fileList){
   if(index>=0)next[index]=item;
   else{if(next.length>=3)throw Error('Use up to 3 short reference notes per conversation. Remove an older note first.');next.push(item)}
  }
- project.sources=next;project.useSources=true;project.updatedAt=Date.now();
- await C.saveProject(project);await refreshList();renderSources();
+ draft.sources=next;draft.useSources=true;draft.updatedAt=Date.now();
+ await saveConversation(draft);await refreshList();renderSources();
  $('#sourceShelf').hidden=false;$('#toggleSources').setAttribute('aria-expanded','true');
  notify(next.length+' reference note(s) attached. Note contents are sent only when you send a message with Include notes enabled.');
 }
@@ -99,8 +130,10 @@ async function refreshList(saved){
  $('#renameChat').disabled=requestPending||!project;
  $('#storageState').textContent=`Saved projects: ${items.length} · Current storage: this browser on this device`;
 }
-async function activate(projectId,saved){
+async function activate(projectId,saved,{preserveDraft=false}={}){
  const previous=project;
+ const code=preserveDraft&&$('#codeFileEditor')?{file:$('#codeFileSelect').value,text:$('#codeFileEditor').value}:null;
+ const note=preserveDraft&&$('#noteTitle')?{id:$('#noteSelect').value,title:$('#noteTitle').value,body:$('#noteBody').value}:null;
  try{
   const stored=projectId?await C.getProject(projectId):null;
   project=stored?C.formatMigrated(stored):null;
@@ -114,6 +147,19 @@ async function activate(projectId,saved){
   await showAll();
   await refreshList(saved);
   throw error;
+ }
+ if(project&&previous?.id===project.id){
+  if(code&&$('#codeFileEditor')){
+   project.codeSelectedFile=code.file;
+   renderCodeWorkspace();
+   $('#codeFileEditor').value=code.text;
+  }
+  if(note&&$('#noteTitle')&&W.findNote(project,note.id)){
+   project.activeNoteId=note.id;
+   renderNotes();
+   $('#noteTitle').value=note.title;
+   $('#noteBody').value=note.body;
+  }
  }
  await refreshList(saved);
  if(project)await C.setPref('lastProjectId',project.id).catch(fail);
@@ -242,13 +288,17 @@ function imagePromptFromText(text){return window.OMNI_CONTEXT.imagePrompt(text);
 async function sendImage(text,promptText,{reuse=false}={}){
  if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false)throw Error('Real AI image generation requires Cloud AI and internet access. Switch to Cloud AI, then request the image again.');
  if(requestPending)return;
- $('#prompt').value='';
+ let promptSaved=reuse;
  setPending(true,'create image');activeAbort=new AbortController();
  pendingKind='image';updatePendingText();
  try{
-  if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
-  if(!project.chatTitleSet&&project.chatOnly){project.name=autoChatTitle(text)||'Image creation';project.chatTitleSet=true;project.updatedAt=Date.now()}
-  if(!reuse){const m=msg('user',text);m.route='Image generation';project.messages.push(m);await C.saveProject(project);await refreshList();await showAll()}
+  if(!reuse){
+   const draft=conversationDraft();
+   if(!draft.chatTitleSet&&draft.chatOnly){draft.name=autoChatTitle(text)||'Image creation';draft.chatTitleSet=true;draft.updatedAt=Date.now()}
+   const message=msg('user',text);message.route='Image generation';draft.messages.push(message);
+   await saveConversation(draft);promptSaved=true;clearSubmittedPrompt(text);
+   await refreshList();await showAll();
+  }
   let data=await Pool.request('/api/image',{body:{prompt:promptText},signal:activeAbort.signal});
   if(data.jobId){imageJob=data.jobId;const deadline=Date.now()+600000;while(data.state!=='done'){
    if(data.state==='cancelled'||data.state==='failed')throw Error('The image job stopped before producing an image.');if(Date.now()>deadline)throw Error('The free image queue took too long. Try again later.');
@@ -261,42 +311,42 @@ async function sendImage(text,promptText,{reuse=false}={}){
   if(data.image||data.dataUrl){const url=data.dataUrl||'data:'+(data.mime||'image/jpeg')+';base64,'+data.image;const response=await fetch(url);blob=await response.blob();}
   else if(data.imageUrl){const response=await fetch(data.imageUrl,{signal:activeAbort.signal,credentials:'omit',referrerPolicy:'no-referrer'});if(!response.ok)throw Error('The generated image could not be downloaded.');blob=await response.blob();}
   if(!blob||blob.size<100||blob.size>2250000||!/^image\/(jpeg|png|webp)$/.test(blob.type))throw Error('The service returned an unsupported or oversized image.');
-  const asset=await C.addAsset(project,new File([blob],'michelle-image-'+Date.now()+'.'+(blob.type==='image/png'?'png':blob.type==='image/webp'?'webp':'jpg'),{type:blob.type}));
-  const imageId=asset.id;selectedAsset=imageId;
-  const result=msg('assistant','Your generated image is saved in this conversation and in Photos. You can edit it and add it to your website.','LIVE AI');result.model=typeof data.model==='string'?data.model.slice(0,100):'';result.imageId=imageId;result.imagePrompt=promptText;
+  const result=msg('assistant','Your generated image is saved in this conversation and in Photos. You can edit it and add it to your website.','LIVE AI');result.model=typeof data.model==='string'?data.model.slice(0,100):'';result.imagePrompt=promptText;
   result.receipt={provider:data.provider,providerName:data.providerName,model:data.model,attribution:data.attribution};
-  project.messages.push(result);project.messages=project.messages.slice(-100);
-  aiState='AI IMAGE GENERATED';await C.saveProject(project);await refreshList();await showAll();
+  const extension=blob.type==='image/png'?'png':blob.type==='image/webp'?'webp':'jpg';
+  const file=new File([blob],'michelle-image-'+Date.now()+'.'+extension,{type:blob.type});
+  const asset=await C.addAsset(project,file,{reply:result});
+  selectedAsset=asset.id;
+  aiState='AI IMAGE GENERATED';await refreshList();await showAll();
  }catch(error){
   aiState='IMAGE REQUEST FAILED';
-  const description=error?.name==='AbortError'?'Image request timed out.':String(error?.message||error);
-  if(project){project.messages.push(msg('assistant','Image generation unavailable: '+description+'\nNo SVG placeholder was substituted.','ERROR'));await C.saveProject(project);await showAll()}else fail(error);
+  if(!promptSaved||error?.code==='PROJECT_CONFLICT')throw error;
+  const description=activeAbort?.signal.aborted?'Request cancelled.':error?.name==='AbortError'?'Image request timed out.':String(error?.message||error);
+  if(project){const draft=conversationDraft();draft.messages.push(msg('assistant','Image generation unavailable: '+description+'\nNo SVG placeholder was substituted.','ERROR'));await saveConversation(draft);await showAll()}else fail(error);
  }finally{if(imageJob&&activeAbort?.signal.aborted)Pool.request('/api/image/'+imageJob,{method:'DELETE',timeout:15000}).catch(()=>{});imageJob=null;activeAbort=null;setPending(false);Pool.refresh().catch(()=>{})}
 }
 
 async function sendCalculation(text,displayText=text){
  const expr=window.OMNI_CALC.expressionFromCommand(text);
  if(expr===null)return;
- $('#prompt').value='';
- if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
- if(project.chatOnly&&!project.chatTitleSet){project.name=('Calculation: '+expr).slice(0,60)||'Calculator';project.chatTitleSet=true;project.updatedAt=Date.now()}
- const user=msg('user',displayText);user.route='NEXUS local calculation · no AI call';project.messages.push(user);
+ const draft=conversationDraft();
+ if(draft.chatOnly&&!draft.chatTitleSet){draft.name=('Calculation: '+expr).slice(0,60)||'Calculator';draft.chatTitleSet=true;draft.updatedAt=Date.now()}
+ const user=msg('user',displayText);user.route='NEXUS local calculation · no AI call';draft.messages.push(user);
  let reply;
  try{const answer=window.OMNI_CALC.calculate(expr);reply='Result: '+answer.formatted+'\nExpression: '+answer.expression+'\nCalculated locally on your device. No AI request was made.'}
  catch(error){reply='Calculation error: '+error.message+'\nTry /calc (5+3)*2 or /calc sin(deg(30)).'}
- project.messages.push(msg('assistant',reply,'NEXUS · LOCAL CALCULATOR'));
- project.messages=project.messages.slice(-100);
- await C.saveProject(project);await refreshList();await showAll();
+ draft.messages.push(msg('assistant',reply,'NEXUS · LOCAL CALCULATOR'));
+ draft.messages=draft.messages.slice(-100);
+ await saveConversation(draft);clearSubmittedPrompt(displayText);await refreshList();await showAll();
 }
 
 async function sendSymbolic(text){
  // Execute only recognized, bounded symbolic maths: no Workers AI request or mock reasoning.
  const request=window.OMNI_SYMBOLIC?.command(text);
  if(!request)return;
- $('#prompt').value='';
- if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
- if(project.chatOnly&&!project.chatTitleSet){project.name=(request.op==='solve'?'Equation: ':'Calculus: '+request.op+' ')+request.expr.slice(0,40);project.name=project.name.slice(0,60);project.chatTitleSet=true;project.updatedAt=Date.now()}
- const user=msg('user',text);user.route='NEXUS symbolic maths · offline · no AI call';project.messages.push(user);
+ const draft=conversationDraft();
+ if(draft.chatOnly&&!draft.chatTitleSet){draft.name=(request.op==='solve'?'Equation: ':'Calculus: '+request.op+' ')+request.expr.slice(0,40);draft.name=draft.name.slice(0,60);draft.chatTitleSet=true;draft.updatedAt=Date.now()}
+ const user=msg('user',text);user.route='NEXUS symbolic maths · offline · no AI call';draft.messages.push(user);
  let reply;
  try{
   const answer=window.OMNI_SYMBOLIC.compute(request);
@@ -304,40 +354,39 @@ async function sendSymbolic(text){
  }catch(e){
   reply='Local symbolic maths cannot complete this expression: '+String(e.message||e)+'\n\nCurrently supports polynomial differentiation, indefinite integration (including x^-1), and linear/quadratic equations in x. For other functions or a detailed explanation, ask MICHELLE in a separate Cloud AI question.';
  }
- project.messages.push(msg('assistant',reply,'NEXUS · LOCAL SYMBOLIC MATH'));
- project.messages=project.messages.slice(-100);
+ draft.messages.push(msg('assistant',reply,'NEXUS · LOCAL SYMBOLIC MATH'));
+ draft.messages=draft.messages.slice(-100);
  aiState='LOCAL SYMBOLIC MATH · NO AI';
- await C.saveProject(project);await refreshList();await showAll();
+ await saveConversation(draft);clearSubmittedPrompt(text);await refreshList();await showAll();
 }
 async function respondOffline(text,{existing=false,reason=''}={}){
- $('#prompt').value='';
- if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
- if(project.chatOnly&&!project.chatTitleSet){const title=autoChatTitle(text);if(title){project.name=title;project.chatTitleSet=true}}
- if(!existing){const m=msg('user',text);m.route='LOCAL KNOWLEDGE (no AI)';project.messages.push(m)}
+ const draft=conversationDraft();
+ if(draft.chatOnly&&!draft.chatTitleSet){const title=autoChatTitle(text);if(title){draft.name=title;draft.chatTitleSet=true}}
+ if(!existing){const m=msg('user',text);m.route='LOCAL KNOWLEDGE (no AI)';draft.messages.push(m)}
  await K.syncBundled().catch(()=>{});
  const data=await K.answer(text);
  const caption=data.found?'\n\nSaved topic: '+data.question+'\nSource: '+data.source+'\n':'\n';
  const warning=data.found&&data.kind!=='builtin'?'\nThis saved/imported answer has not been independently verified.':'';
  const start=reason?'Cloud AI unavailable ('+reason.slice(0,130)+'). Local reference mode:\n\n':'';
- project.messages.push(msg('assistant',start+data.text+caption+warning+'\n[LOCAL REFERENCE: no AI inference or live research]','LOCAL KNOWLEDGE · NO AI'));
- project.messages=project.messages.slice(-100);
+ draft.messages.push(msg('assistant',start+data.text+caption+warning+'\n[LOCAL REFERENCE: no AI inference or live research]','LOCAL KNOWLEDGE · NO AI'));
+ draft.messages=draft.messages.slice(-100);
  aiState='LOCAL KNOWLEDGE · NO AI';
- await C.saveProject(project);await refreshList();await showAll();
+ await saveConversation(draft);clearSubmittedPrompt(text);await refreshList();await showAll();
 }
 async function checkWebsite(text){
- $('#prompt').value='';
  const result=F.inspectDocument(C.renderSite(project));
  const checks=result.checks.map(item=>(item.ok?'PASS: ':'CHECK NEEDED: ')+item.name).join('\n');
  const reply='Local website checks: '+project.name+'\n'+checks+'\nSource size: '+result.characters+' characters.\n\n'+result.limits;
- project.messages.push(msg('user',text),msg('assistant',reply,'LOCAL WEBSITE CHECKS · NO AI'));project.messages=project.messages.slice(-100);
- await C.saveProject(project);await refreshList();await showAll();
+ const draft=conversationDraft();
+ draft.messages.push(msg('user',text),msg('assistant',reply,'LOCAL WEBSITE CHECKS · NO AI'));draft.messages=draft.messages.slice(-100);
+ await saveConversation(draft);clearSubmittedPrompt(text);await refreshList();await showAll();
 }
 
 async function recallProject(text){
- $('#prompt').value='';
  const summary=window.OMNI_CONTEXT.projectSummary(project,C.renderSite(project));
- project.messages.push(msg('user',text),msg('assistant',window.OMNI_CONTEXT.projectRecallReply(summary),'LOCAL PROJECT CONTEXT · NO AI'));
- project.messages=project.messages.slice(-100);aiState='LOCAL PROJECT CONTEXT · NO AI';await C.saveProject(project);await refreshList();await showAll();
+ const draft=conversationDraft();
+ draft.messages.push(msg('user',text),msg('assistant',window.OMNI_CONTEXT.projectRecallReply(summary),'LOCAL PROJECT CONTEXT · NO AI'));
+ draft.messages=draft.messages.slice(-100);aiState='LOCAL PROJECT CONTEXT · NO AI';await saveConversation(draft);clearSubmittedPrompt(text);await refreshList();await showAll();
 }
 async function send(text){
  text=text.trim();if(!text||requestPending)return;
@@ -350,19 +399,20 @@ async function send(text){
   const arithmetic=window.OMNI_CALC?.arithmeticFromText(text);
   if(!pendingImage&&arithmetic!==null&&arithmetic!==undefined)return sendCalculation('/calc '+arithmetic,text);
  if(window.OMNI_OFFLINE_UI?.isOffline())return respondOffline(text);if(providerRetryUntil>Date.now()){notify('Free AI services are cooling down. MICHELLE will automatically try again in '+Math.ceil((providerRetryUntil-Date.now())/1000)+' seconds.');return;}if(navigator.onLine===false){aiState='NO INTERNET CONNECTION';fail(new Error('Internet connection appears offline. Cloud AI was not contacted. Your saved projects remain available; reconnect and retry.'));return;}
- $('#prompt').value='';
+ let promptSaved=false;
  aiState='MICHELLE IS GENERATING…';
  setPending(true,text);activeAbort=new AbortController();
  $('.status span').textContent=aiState;
  try{
-  if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.saveProject(project);await C.setPref('lastProjectId',project.id)}
-  if(project.chatOnly&&!project.chatTitleSet){const name=autoChatTitle(text);if(name){project.name=name;project.chatTitleSet=true;project.updatedAt=Date.now()}}
-  const history=window.OMNI_CONTEXT.selectHistory(project.messages);
-  const requestedProjectId=project.id,requestedSnapshot=JSON.stringify(C.snapshot(project));
-  const route=W.route(text,project.focus||'general',!project.chatOnly,project.messages);
-  const currentHtml=(!project.chatOnly&&route.includeWebsite)?C.renderSite(project):'';
-  const projectContext=route.includeProject?window.OMNI_CONTEXT.projectSummary(project,C.renderSite(project)):null;if(currentHtml.length>24000)throw Error('This website exceeds the current AI editing limit (24,000 characters). Export a backup; manual tools remain available.');
-  const userMessage=msg('user',text);userMessage.route=route.label;project.messages.push(userMessage);await C.saveProject(project);await refreshList();await showAll();
+  const draft=conversationDraft();
+  if(draft.chatOnly&&!draft.chatTitleSet){const name=autoChatTitle(text);if(name){draft.name=name;draft.chatTitleSet=true;draft.updatedAt=Date.now()}}
+  const history=window.OMNI_CONTEXT.selectHistory(draft.messages);
+  const requestedProjectId=draft.id,requestedSnapshot=JSON.stringify(C.snapshot(draft));
+  const route=W.route(text,draft.focus||'general',!draft.chatOnly,draft.messages);
+  const currentHtml=(!draft.chatOnly&&route.includeWebsite)?C.renderSite(draft):'';
+  const projectContext=route.includeProject?window.OMNI_CONTEXT.projectSummary(draft,C.renderSite(draft)):null;if(currentHtml.length>24000)throw Error('This website exceeds the current AI editing limit (24,000 characters). Export a backup; manual tools remain available.');
+  const userMessage=msg('user',text);userMessage.route=route.label;draft.messages.push(userMessage);
+  await saveConversation(draft);promptSaved=true;clearSubmittedPrompt(text);await refreshList();await showAll();
   const data=await Pool.request('/api/chat',{body:{message:text,history,currentHtml,...(projectContext?{projectContext}:{}),provider:'auto',focus:route.focus,sources:project.useSources===false?[]:(project.sources||[]).slice(0,3),...(pendingImage?{image:pendingImage}:{})},signal:activeAbort.signal});
   const toolOnly=data.toolOnly===true&&['local-calculator','local-project-context'].includes(data.provider);
   if((data.live!==true&&!toolOnly)||typeof data.reply!=='string')throw Error('No provider response or observed tool result was received.');
@@ -380,14 +430,16 @@ async function send(text){
   const m=msg('assistant',answer,toolOnly?(data.provider==='local-project-context'?'LOCAL PROJECT CONTEXT · NO AI':'NEXUS CALCULATOR · NO AI'):'LIVE AI');m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount,toolsUsed:data.orchestration?.toolsUsed,warnings:data.quality?.warnings};clearVision();m.aiContent=allowsWebsite?(match?'[Earlier website output; use the current project when editing.]':'[Website generation failed validation; the previous project was kept.]'):data.reply;if(match)m.artifactType='website';m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';m.uncitedSources=data.quality?.sourceUse?.uncited===true;const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}candidate.messages.push(m);candidate.messages=candidate.messages.slice(-100);
   await C.saveProject(candidate);project=candidate;await refreshList();await showAll();if(match&&mobileLayout.matches)switchMobile('preview');
   }catch(e){
+  aiState='AI REQUEST FAILED';
+  if(!promptSaved||e?.code==='PROJECT_CONFLICT')throw e;
   const cancelled=activeAbort?.signal.aborted===true;
   const message=cancelled?'Request cancelled.':e?.name==='AbortError'?'Request timed out':String(e?.message||e)+providerFailureDetails(e);
   if(!cancelled&&e?.code==='FREE_POOL_WAIT'&&Number.isFinite(Number(e.retryAfter)))providerRetryUntil=Date.now()+Math.min(300000,Math.max(1000,Number(e.retryAfter)*1000));
-  aiState='AI REQUEST FAILED';if(project){project.messages.push(msg('assistant',message,'ERROR'));await C.saveProject(project);await showAll()}else fail(e)
+  if(project){const draft=conversationDraft();draft.messages.push(msg('assistant',message,'ERROR'));await saveConversation(draft);await showAll()}else fail(e)
  }finally{activeAbort=null;setPending(false);Pool.refresh().catch(()=>{})}
 }
-async function doUndo(){if(!project)return;project=C.undo(project);project.messages.push(msg('assistant','Reverted the last website version. Photos remain in the project asset library.','LOCAL TOOL'));await C.saveProject(project);await showAll();notify('Previous website version restored')}
-async function commitSite(mutator,note){if(!project)throw Error('Select a website first.');const ret=C.change(project,mutator);if(!ret.changed)return;const next=ret.project;await C.saveProject(next);project=next;if(note){project.messages.push(msg('assistant',note,'MANUAL EDIT · LOCAL'));await C.saveProject(project)}await showAll();notify('Changes saved locally')}
+async function doUndo(){if(!project)return;const next=C.undo(project);next.messages.push(msg('assistant','Reverted the last website version. Photos remain in the project asset library.','LOCAL TOOL'));project=await C.saveProject(next);await showAll();notify('Previous website version restored')}
+async function commitSite(mutator,note){if(!project)throw Error('Select a website first.');const ret=C.change(project,mutator);if(!ret.changed)return;const next=ret.project;if(note)next.messages.push(msg('assistant',note,'MANUAL EDIT · LOCAL'));project=await C.saveProject(next);await showAll();notify('Changes saved locally')}
 
 
 function renderCodeWorkspace(){
@@ -401,8 +453,8 @@ function renderCodeWorkspace(){
   $('#convertCodeProject').onclick=()=>queued(async()=>{
    if(!project||project.chatOnly)throw Error('Open an existing website first.');
    const html=C.renderSite(project,await C.assetMap(project));
-   project.codeWorkspace=F.fromHtml(html);project.updatedAt=Date.now();
-   await C.saveProject(project);renderCodeWorkspace();await preview();notify('Website copied into editable files.');
+   const next=C.clone(project);next.codeWorkspace=F.fromHtml(html);next.updatedAt=Date.now();
+   project=await C.saveProject(next);renderCodeWorkspace();await preview();notify('Website copied into editable files.');
   });return;
  }
  let workspace;try{workspace=F.validate(project)}catch(e){host.textContent=e.message;return}
@@ -419,12 +471,14 @@ function renderCodeWorkspace(){
   project.codeSelectedFile=event.target.value;renderCodeWorkspace();
  };
  $('#codeSave').onclick=()=>queued(async()=>{
-  if(!F.write(project,selected,editor.value)){notify('No changes to save.');return}
-  await C.saveProject(project);await preview();renderCodeWorkspace();notify('Saved code version '+project.codeWorkspace.version);
+  const next=C.clone(project);
+  if(!F.write(next,selected,editor.value)){notify('No changes to save.');return}
+  project=await C.saveProject(next);await preview();renderCodeWorkspace();notify('Saved code version '+project.codeWorkspace.version);
  });
  $('#codeUndo').onclick=()=>queued(async()=>{
   if(editor.value!==workspace.files[selected]&&!confirm('Discard unsaved changes?'))return;
-  project.codeSelectedFile=F.undo(project);await C.saveProject(project);await preview();renderCodeWorkspace();notify('Code reverted to previous snapshot.');
+  const next=C.clone(project);next.codeSelectedFile=F.undo(next);
+  project=await C.saveProject(next);await preview();renderCodeWorkspace();notify('Code reverted to previous snapshot.');
  });
  $('#codePreview').onclick=()=>queued(async()=>{if(editor.value!==workspace.files[selected]){notify('Save your file before preview.');return}await preview();switchMobile('preview')});
  $('#codeZip').onclick=()=>queued(async()=>{
@@ -448,18 +502,18 @@ function renderNotes(){
   title.addEventListener('input',()=>{feedback.textContent='Unsaved changes · press Save note'});
   body.addEventListener('input',()=>{preview.textContent=body.value;feedback.textContent='Unsaved changes · press Save note'});
   preview.textContent=selected.body;
-  $('#saveNote').onclick=()=>queued(async()=>{const updated=W.updateNote(project,selected.id,title.value,body.value);if(updated){await C.saveProject(project);await refreshList()}renderNotes();notify(updated?'Note saved on this device.':'Note already saved.')});
-  $('#undoNote').onclick=()=>queued(async()=>{if((title.value!==selected.title||body.value!==selected.body)&&!confirm('Discard unsaved changes?'))return;W.undoNote(project,selected.id);await C.saveProject(project);renderNotes();notify('Previous saved version restored.')});
+  $('#saveNote').onclick=()=>queued(async()=>{const next=C.clone(project);const updated=W.updateNote(next,selected.id,title.value,body.value);if(updated){project=await C.saveProject(next);await refreshList()}renderNotes();notify(updated?'Note saved on this device.':'Note already saved.')});
+  $('#undoNote').onclick=()=>queued(async()=>{if((title.value!==selected.title||body.value!==selected.body)&&!confirm('Discard unsaved changes?'))return;const next=C.clone(project);W.undoNote(next,selected.id);project=await C.saveProject(next);renderNotes();notify('Previous saved version restored.')});
   const download=ext=>{const txt=ext==='md'?'# '+title.value+'\n\n'+body.value:body.value;C.download(new Blob([txt],{type:'text/plain;charset=utf-8'}),W.filename(title.value,ext));notify('Note exported locally.')};
   $('#downloadNote').onclick=()=>download('md');$('#downloadNoteTxt').onclick=()=>download('txt');
  }
- $('#newNote').onclick=()=>queued(async()=>{if(selected&&(document.querySelector('#noteTitle')?.value!==selected.title||document.querySelector('#noteBody')?.value!==selected.body)&&!confirm('Discard unsaved changes?'))return;W.createNote(project);await C.saveProject(project);renderNotes();$('#noteTitle')?.focus()});
+ $('#newNote').onclick=()=>queued(async()=>{if(selected&&(document.querySelector('#noteTitle')?.value!==selected.title||document.querySelector('#noteBody')?.value!==selected.body)&&!confirm('Discard unsaved changes?'))return;const next=C.clone(project);W.createNote(next);project=await C.saveProject(next);renderNotes();$('#noteTitle')?.focus()});
  if(selected){
-  $('#removeNote').onclick=()=>queued(async()=>{if(!confirm('Delete "'+selected.title+'"? This cannot be undone.'))return;W.deleteNote(project,selected.id);await C.saveProject(project);renderNotes();notify('Note deleted.')});
-  $('#noteSelect').onchange=event=>queued(async()=>{if((document.querySelector('#noteTitle')?.value!==selected.title||document.querySelector('#noteBody')?.value!==selected.body)&&!confirm('Discard unsaved changes?')){event.target.value=selected.id;return}project.activeNoteId=event.target.value;await C.saveProject(project);renderNotes()});
+  $('#removeNote').onclick=()=>queued(async()=>{if(!confirm('Delete "'+selected.title+'"? This cannot be undone.'))return;const next=C.clone(project);W.deleteNote(next,selected.id);project=await C.saveProject(next);renderNotes();notify('Note deleted.')});
+  $('#noteSelect').onchange=event=>queued(async()=>{if((document.querySelector('#noteTitle')?.value!==selected.title||document.querySelector('#noteBody')?.value!==selected.body)&&!confirm('Discard unsaved changes?')){event.target.value=selected.id;return}const next=C.clone(project);next.activeNoteId=event.target.value;project=await C.saveProject(next);renderNotes()});
  }
 }
-function renderEditor(){if(!project||project.chatOnly){ui.edit.innerHTML='<div class="editor"><h2>General conversation</h2><p>Ask MICHELLE about any topic. Website editing tools appear only when a website is created.</p></div>';return}const w=project.website;if(w.rawHtml||project.codeWorkspace){ui.edit.innerHTML='<div class="editor"><h2>Edit website code</h2><p>Edit the actual HTML, CSS and JavaScript, or describe changes in the conversation. Your current website is preserved.</p><button class="primary-action" id="editActualCode">Open code editor</button></div>';$('#editActualCode').onclick=()=>queued(async()=>{if(!project.codeWorkspace){project=C.change(project,p=>{p.codeWorkspace=F.fromHtml(C.renderSite(p));}).project;await C.saveProject(project);}switchMobile('files');});return;}
+function renderEditor(){if(!project||project.chatOnly){ui.edit.innerHTML='<div class="editor"><h2>General conversation</h2><p>Ask MICHELLE about any topic. Website editing tools appear only when a website is created.</p></div>';return}const w=project.website;if(w.rawHtml||project.codeWorkspace){ui.edit.innerHTML='<div class="editor"><h2>Edit website code</h2><p>Edit the actual HTML, CSS and JavaScript, or describe changes in the conversation. Your current website is preserved.</p><button class="primary-action" id="editActualCode">Open code editor</button></div>';$('#editActualCode').onclick=()=>queued(async()=>{if(!project.codeWorkspace){const next=C.change(project,p=>{p.codeWorkspace=F.fromHtml(C.renderSite(p));}).project;project=await C.saveProject(next);}switchMobile('files');});return;}
  const pageSelect=w.pages.map((p,i)=>`<option value="${E(p.id)}" ${i===+(w.selectedPageIndex||0)?'selected':''}>${E(p.name)}</option>`).join(''),idx=Math.min(w.pages.length-1,+w.selectedPageIndex||0),pg=w.pages[idx];ui.edit.innerHTML=`<div class="editor"><h2>Website editor</h2><p>Every edit changes the active project's saved document. Use Undo to restore an earlier version.</p><div class="editor-row"><label>Website title<input data-property="title" maxlength="90" value="${E(w.meta.title)}"></label><label>Theme <select data-property="palette">${['midnight','light','indigo','forest'].map(k=>`<option value="${k}" ${JSON.stringify(w.theme)===JSON.stringify(C.palettes[k])?'selected':''}>${k}</option>`).join('')}</select></label></div><div class="editor-row"><label>Contact email<input data-property="email" type="email" maxlength="120" value="${E(w.meta.email||'')}"></label><label>WhatsApp (international digits)<input data-property="whatsapp" inputmode="tel" maxlength="20" placeholder="e.g. 234..." value="${E(w.meta.whatsappNumber||'')}"></label></div><div class="editor-row"><label>Page<select id="editPage">${pageSelect}</select></label><label>Heading size <input data-property="scale" type="range" min="0.7" max="1.9" step="0.1" value="${w.headingScale||1}"></label></div><div class="field-actions"><button data-editor-action="newpage">＋ Add page</button><button data-editor-action="deletepage" ${w.pages.length<=1?'disabled':''}>Delete selected page</button></div><h3>Sections on “${E(pg.name)}”</h3>${pg.sections.map((s,i)=>`<details class="editor-card" data-section="${E(s.id)}" ${i===0?'open':''}><summary>${i+1}. ${E(s.type)} — ${E(s.title||'Untitled')}</summary><label>Heading<input data-section-field="title" maxlength="140" value="${E(s.title||'')}"></label><label>Text<textarea data-section-field="content" maxlength="4000">${E(s.content||'')}</textarea></label>${s.type==='features'?`<label>Cards (title | description, one per line)<textarea data-section-field="cards" maxlength="6000">${E((s.children||[]).filter(c=>c.type==='card').map(c=>(c.props.title||'')+' | '+(c.props.text||'')).join('\n'))}</textarea></label>`:''}<div class="field-actions"><button data-section-action="up" ${i===0?'disabled':''}>↑ Move</button><button data-section-action="down" ${i===pg.sections.length-1?'disabled':''}>↓ Move</button><button data-section-action="delete">Remove</button></div></details>`).join('')}<div class="field-actions"><button data-editor-action="addsection">＋ Add section</button><button data-editor-action="renamepage">Rename page</button></div></div>`;
  ui.edit.querySelectorAll('[data-property]').forEach(input=>input.addEventListener('change',()=>queued(()=>commitSite(p=>{const x=p.website;switch(input.dataset.property){case'title':x.meta.title=input.value.trim()||p.name;p.name=x.meta.title;break;case'email':x.meta.email=input.value.trim();break;case'whatsapp':x.meta.whatsappNumber=input.value.replace(/[^+\d]/g,'');break;case'scale':x.headingScale=Number(input.value);break;case'palette':x.theme=C.clone(C.palettes[input.value]);break}},'Updated website settings.'))));
  $('#editPage').addEventListener('change',e=>queued(async()=>{project.website.selectedPageIndex=project.website.pages.findIndex(x=>x.id===e.target.value);await C.saveProject(project);renderEditor()}));
@@ -473,7 +527,7 @@ async function renderPhotos(){const stamp=project?.id;if(!project){ui.grid.inner
 let imageOps={brightness:100,contrast:100,saturation:100,rotate:0,crop:'original',max:1200};
 async function showPhotoEditor(){photoURL(originalURL);originalURL=null;const a=project.assets.find(a=>a.id===selectedAsset);const blob=await C.getBlob(a.id);if(!blob){ui.photoEditor.textContent='This legacy asset is unavailable. Export your project and reimport it to repair.';return}originalURL=URL.createObjectURL(blob);imageOps={brightness:100,contrast:100,saturation:100,rotate:0,crop:'original',max:1200};ui.photoEditor.innerHTML=`<div class="photo-editor"><h3>${E(a.name)}</h3><div class="before-after"><figure><img id="beforeImg" src="${originalURL}" alt="Original photograph"><figcaption>ORIGINAL</figcaption></figure><figure><canvas id="afterCanvas"></canvas><figcaption>LOCAL EDIT PREVIEW</figcaption></figure></div>${[['brightness','Brightness'],['contrast','Contrast'],['saturation','Saturation']].map(([k,t])=>`<div class="range-row"><label for="filter_${k}">${t}</label><input id="filter_${k}" data-filter="${k}" type="range" min="0" max="200" value="100"><output id="output_${k}">100</output></div>`).join('')}<div class="editor-row"><label>Crop<select id="cropSelect"><option value="original">Full image</option><option value="square">Square (1:1)</option><option value="portrait">Portrait (4:5)</option><option value="landscape">Landscape (16:9)</option></select></label><label>Output max size<select id="resizeSelect"><option value="800">800 px</option><option value="1200" selected>1200 px</option><option value="1600">1600 px</option></select></label></div><div class="field-actions"><button id="rotateBtn">↻ Rotate 90°</button><button id="resetPhoto">↶ Reset edits</button><button id="saveEdited" class="primary-action">Save edited copy</button><button id="addPhoto" class="primary-action">＋ Add to this website</button><button id="analysePhoto">Ask MICHELLE about this photo</button></div><p>Project: <b>${E(project.name)}</b>. Saving creates a new photo asset and keeps the original.</p></div>`;
  const im=new Image();im.onload=()=>{const can=$('#afterCanvas');if(can)drawImageToCanvas(im,can,imageOps)};im.src=originalURL;
- ui.photoEditor.querySelectorAll('[data-filter]').forEach(f=>f.addEventListener('input',()=>{imageOps[f.dataset.filter]=Number(f.value);$('#output_'+f.dataset.filter).textContent=f.value;drawImageToCanvas(im,$('#afterCanvas'),imageOps)}));$('#cropSelect').onchange=e=>{imageOps.crop=e.target.value;drawImageToCanvas(im,$('#afterCanvas'),imageOps)};$('#resizeSelect').onchange=e=>{imageOps.max=Number(e.target.value);drawImageToCanvas(im,$('#afterCanvas'),imageOps)};$('#rotateBtn').onclick=()=>{imageOps.rotate=(imageOps.rotate+90)%360;drawImageToCanvas(im,$('#afterCanvas'),imageOps)};$('#resetPhoto').onclick=()=>{imageOps={brightness:100,contrast:100,saturation:100,rotate:0,crop:'original',max:1200};showPhotoEditor()};$('#saveEdited').onclick=()=>queued(async()=>{const can=$('#afterCanvas');if(!can)throw Error('Canvas preview is unavailable');const blob=await new Promise(resolve=>can.toBlob(resolve,'image/jpeg',.87));if(!blob)throw Error('Could not save image');const asset=await C.addAsset(project,new File([blob],a.name.replace(/\.[^.]+$/,'')+'-edited.jpg',{type:'image/jpeg'}),{originalId:a.originalId||a.id});selectedAsset=asset.id;await renderPhotos();notify('Edited copy saved; original is preserved')});$('#analysePhoto').onclick=()=>queued(async()=>{await attachVision(await C.getBlob(a.id));switchMobile('chat');notify('Photo ready. Type what you want MICHELLE to analyse.');});$('#addPhoto').disabled=!!project.chatOnly;$('#addPhoto').title=project.chatOnly?'Create a website in this conversation before placing images.':'';$('#addPhoto').onclick=()=>queued(async()=>{if(project.chatOnly)throw Error('Create a website in this conversation before placing an image.');if(project.website.rawHtml||project.codeWorkspace){const changed=C.change(project,p=>{const doc=new DOMParser().parseFromString(C.renderSite(p),'text/html');let gallery=doc.querySelector('[data-omniforge-gallery]');if(!gallery){gallery=doc.createElement('section');gallery.dataset.omniforgeGallery='true';gallery.style.cssText='padding:24px;display:flex;gap:16px;flex-wrap:wrap';(doc.querySelector('main')||doc.body).appendChild(gallery)}if(!Array.from(gallery.querySelectorAll('img')).some(im=>im.getAttribute('src')==='omniforge-asset://'+a.id)){const im=doc.createElement('img');im.src='omniforge-asset://'+a.id;im.alt=a.name;im.style.cssText='max-width:100%;width:320px;height:auto;object-fit:contain';gallery.appendChild(im)}p.website.rawHtml='<!doctype html>'+doc.documentElement.outerHTML;if(p.codeWorkspace)F.replaceDocument(p,p.website.rawHtml);});project=changed.project;await C.saveProject(project);await showAll();switchMobile('preview');notify('Photo added to this website. It will be embedded in HTML exports.');return;}const expected=project.id;const res=C.addAssetsToProject(project,[a.id]);if(!res.changed)throw Error('Image is already in the gallery.');if(project.id!==expected)throw Error('Active project changed.');await C.saveProject(res.project);project=res.project;await showAll();switchMobile('preview');notify('Photo added to the correct website gallery')})}
+ ui.photoEditor.querySelectorAll('[data-filter]').forEach(f=>f.addEventListener('input',()=>{imageOps[f.dataset.filter]=Number(f.value);$('#output_'+f.dataset.filter).textContent=f.value;drawImageToCanvas(im,$('#afterCanvas'),imageOps)}));$('#cropSelect').onchange=e=>{imageOps.crop=e.target.value;drawImageToCanvas(im,$('#afterCanvas'),imageOps)};$('#resizeSelect').onchange=e=>{imageOps.max=Number(e.target.value);drawImageToCanvas(im,$('#afterCanvas'),imageOps)};$('#rotateBtn').onclick=()=>{imageOps.rotate=(imageOps.rotate+90)%360;drawImageToCanvas(im,$('#afterCanvas'),imageOps)};$('#resetPhoto').onclick=()=>{imageOps={brightness:100,contrast:100,saturation:100,rotate:0,crop:'original',max:1200};showPhotoEditor()};$('#saveEdited').onclick=()=>queued(async()=>{const can=$('#afterCanvas');if(!can)throw Error('Canvas preview is unavailable');const blob=await new Promise(resolve=>can.toBlob(resolve,'image/jpeg',.87));if(!blob)throw Error('Could not save image');const asset=await C.addAsset(project,new File([blob],a.name.replace(/\.[^.]+$/,'')+'-edited.jpg',{type:'image/jpeg'}),{originalId:a.originalId||a.id});selectedAsset=asset.id;await renderPhotos();notify('Edited copy saved; original is preserved')});$('#analysePhoto').onclick=()=>queued(async()=>{await attachVision(await C.getBlob(a.id));switchMobile('chat');notify('Photo ready. Type what you want MICHELLE to analyse.');});$('#addPhoto').disabled=!!project.chatOnly;$('#addPhoto').title=project.chatOnly?'Create a website in this conversation before placing images.':'';$('#addPhoto').onclick=()=>queued(async()=>{if(project.chatOnly)throw Error('Create a website in this conversation before placing an image.');if(project.website.rawHtml||project.codeWorkspace){const changed=C.change(project,p=>{const doc=new DOMParser().parseFromString(C.renderSite(p),'text/html');let gallery=doc.querySelector('[data-omniforge-gallery]');if(!gallery){gallery=doc.createElement('section');gallery.dataset.omniforgeGallery='true';gallery.style.cssText='padding:24px;display:flex;gap:16px;flex-wrap:wrap';(doc.querySelector('main')||doc.body).appendChild(gallery)}if(!Array.from(gallery.querySelectorAll('img')).some(im=>im.getAttribute('src')==='omniforge-asset://'+a.id)){const im=doc.createElement('img');im.src='omniforge-asset://'+a.id;im.alt=a.name;im.style.cssText='max-width:100%;width:320px;height:auto;object-fit:contain';gallery.appendChild(im)}p.website.rawHtml='<!doctype html>'+doc.documentElement.outerHTML;if(p.codeWorkspace)F.replaceDocument(p,p.website.rawHtml);});project=await C.saveProject(changed.project);await showAll();switchMobile('preview');notify('Photo added to this website. It will be embedded in HTML exports.');return;}const expected=project.id;const res=C.addAssetsToProject(project,[a.id]);if(!res.changed)throw Error('Image is already in the gallery.');if(project.id!==expected)throw Error('Active project changed.');await C.saveProject(res.project);project=res.project;await showAll();switchMobile('preview');notify('Photo added to the correct website gallery')})}
 function drawImageToCanvas(image,canvas,settings){if(!image.complete||!canvas)return;const ratio=({square:1,portrait:4/5,landscape:16/9})[settings.crop];let sw=image.naturalWidth,sh=image.naturalHeight,sx=0,sy=0;if(ratio){if(sw/sh>ratio){const nw=sh*ratio;sx=(sw-nw)/2;sw=nw}else{const nh=sw/ratio;sy=(sh-nh)/2;sh=nh}}const max=Math.min(1600,Math.max(300,settings.max)),size=Math.min(1,max/Math.max(sw,sh)),dw=Math.max(1,Math.round(sw*size)),dh=Math.max(1,Math.round(sh*size)),turn=settings.rotate%180!==0;canvas.width=turn?dh:dw;canvas.height=turn?dw:dh;const ctx=canvas.getContext('2d',{alpha:false});ctx.save();ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(settings.rotate*Math.PI/180);ctx.filter=`brightness(${settings.brightness}%) contrast(${settings.contrast}%) saturate(${settings.saturation}%)`;ctx.drawImage(image,sx,sy,sw,sh,-dw/2,-dh/2,dw,dh);ctx.restore()}
 async function exportAction(action){if(!project)throw Error('Create or open a project first.');if(action==='html'){await C.exportHTML(project);notify('Offline HTML exported')}if(action==='zip'){await C.exportZIP(project);notify('ZIP backup exported')}if(action==='json'){await C.exportJSON(project);notify('JSON backup exported')}}
 function clearVision(){pendingImage=null;const badge=$('#visionAttachment');if(badge)badge.hidden=true;}
@@ -529,8 +583,7 @@ async function init(){
 }
 $('#composer').addEventListener('submit',event=>{
  event.preventDefault();
- const submitted=$('#prompt').value;
- if(!requestPending)queued(()=>send(submitted));
+ queueMessage($('#prompt').value);
 });
 $('#prompt').addEventListener('keydown',event=>{
  if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){
@@ -538,8 +591,8 @@ $('#prompt').addEventListener('keydown',event=>{
   $('#sendBtn').click();
  }
 });
-ui.chips.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{queued(()=>send(b.dataset.prompt))});
-$('#newProject').onclick=()=>queued(async()=>{const p=C.makeProject('New Chat');p.chatOnly=true;await C.saveProject(p);await activate(p.id);switchMobile('chat');notify('New conversation ready. The title will be chosen from your topic.')});$('#deleteProject').onclick=()=>queued(async()=>{if(!project)return;const name=project.name,id=project.id;if(!confirm(`Delete “${name}”? This cannot be undone. Export a ZIP backup first if you need one.`))return;await C.deleteProject(id);const next=(await C.listProjects())[0];await activate(next?.id||null);notify('Project and unused photo data deleted.')});$('#renameChat').onclick=()=>queued(async()=>{if(!project)return;const input=prompt('Rename this chat:',project.name);if(input===null)return;const title=input.trim().replace(/\s+/g,' ').slice(0,60);if(!title)return;project.name=title;project.chatTitlePinned=true;project.updatedAt=Date.now();await C.saveProject(project);await refreshList();await showAll();notify('Chat renamed')});ui.select.onchange=e=>queued(()=>activate(e.target.value));$('#undoBtn').onclick=()=>queued(doUndo);
+ui.chips.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>queueMessage(b.dataset.prompt));
+$('#newProject').onclick=()=>queued(async()=>{const p=C.makeProject('New Chat');p.chatOnly=true;await C.saveProject(p);await activate(p.id);switchMobile('chat');notify('New conversation ready. The title will be chosen from your topic.')});$('#deleteProject').onclick=()=>queued(async()=>{if(!project)return;const name=project.name;if(!confirm(`Delete “${name}”? This cannot be undone. Export a ZIP backup first if you need one.`))return;await C.deleteProject(project);const next=(await C.listProjects())[0];await activate(next?.id||null);notify('Project and unused photo data deleted.')});$('#renameChat').onclick=()=>queued(async()=>{if(!project)return;const input=prompt('Rename this chat:',project.name);if(input===null)return;const title=input.trim().replace(/\s+/g,' ').slice(0,60);if(!title)return;const next=C.clone(project);next.name=title;next.chatTitlePinned=true;next.updatedAt=Date.now();project=await C.saveProject(next);await refreshList();await showAll();notify('Chat renamed')});ui.select.onchange=e=>queued(()=>activate(e.target.value));$('#undoBtn').onclick=()=>queued(doUndo);
 $('#chatSearchBtn').onclick=()=>queued(async()=>{await renderChatSearch();$('#chatSearchDialog').showModal();$('#chatSearchInput').focus()});
 $('#closeChatSearch').onclick=()=>$('#chatSearchDialog').close();
 $('#chatSearchInput').addEventListener('input',()=>renderChatSearch().catch(fail));
@@ -551,7 +604,7 @@ ui.chat.addEventListener('click',event=>{
  if(upgrade){queued(async()=>{const messages=project?.messages||[],i=messages.findIndex(x=>x.id===upgrade.dataset.upgradeImage);if(i<0)return;const original=[...messages.slice(0,i)].reverse().find(x=>x.role==='user');if(!original)throw Error('Could not locate the original image request.');await sendImage(original.text,original.text,{reuse:true})});return}
  const vectorButton=event.target.closest('[data-download-svg]');if(vectorButton){queued(async()=>{const original=(project?.messages||[]).find(m=>m.id===vectorButton.dataset.downloadSvg);if(!original)return;const safe=window.OMNI_VECTOR?.sanitize(original.svgMarkup||window.OMNI_VECTOR?.extract(original.text));if(!safe)throw Error('Vector drawing is unavailable.');C.download(new Blob([safe],{type:'image/svg+xml;charset=utf-8'}),'omniforge-vector-'+Date.now()+'.svg');notify('SVG illustration saved.');});return}
  const save=event.target.closest('[data-save-note]');
- if(save){queued(async()=>{if(!project)return;const message=(project.messages||[]).find(m=>m.id===save.dataset.saveNote);if(!message)return;const note=W.createNote(project,W.replyTitle(message.text),message.text);await C.saveProject(project);changeTab('notes');switchMobile('notes');notify('Reply saved as note: '+note.title)});return}
+ if(save){queued(async()=>{if(!project)return;const message=(project.messages||[]).find(m=>m.id===save.dataset.saveNote);if(!message)return;const next=C.clone(project);const note=W.createNote(next,W.replyTitle(message.text),message.text);project=await C.saveProject(next);changeTab('notes');switchMobile('notes');notify('Reply saved as note: '+note.title)});return}
  const btn=event.target.closest('[data-copy-id]');if(!btn)return;const message=(project?.messages||[]).find(m=>m.id===btn.dataset.copyId);if(!message)return;navigator.clipboard.writeText(message.text||'').then(()=>notify('Reply copied.')).catch(()=>notify('Unable to copy automatically on this browser.'));
 });
 $('#exportChat').onclick=()=>queued(()=>saveChatTranscript());
@@ -559,11 +612,11 @@ $('#exportBtn').onclick=()=>queued(()=>exportAction('html'));$('#zipBtn').onclic
 
 $('#chatFocus').addEventListener('change',event=>queued(async()=>{
  if(requestPending)return;
- if(!project){project=C.makeProject('New Chat');project.chatOnly=true;await C.setPref('lastProjectId',project.id)}
  const focus=event.target.value;
  if(!['general','learn','write','code','create'].includes(focus))return;
- project.focus=focus;project.updatedAt=Date.now();
- await C.saveProject(project);await refreshList();
+ const draft=conversationDraft();
+ draft.focus=focus;draft.updatedAt=Date.now();
+ await saveConversation(draft);await refreshList();
  notify(focus==='general'?'General chat selected.':'Focus changed to '+focus+'. Same AI model, no extra model calls.');
 }));
 $('#toggleSources').onclick=()=>{
@@ -575,14 +628,17 @@ $('#sourceFiles').onchange=event=>queued(async()=>{
 });
 $('#useSources').onchange=()=>queued(async()=>{
  if(!project){$('#useSources').checked=false;return}
- project.useSources=$('#useSources').checked;await C.saveProject(project);renderSources();
+ const draft=conversationDraft();
+ draft.useSources=$('#useSources').checked;
+ await saveConversation(draft);renderSources();
 });
 $('#sourceList').onclick=event=>queued(async()=>{
  const button=event.target.closest('[data-remove-source]');
  if(!button||!project||requestPending)return;
  const index=Number(button.dataset.removeSource);
- project.sources=(project.sources||[]).filter((_,i)=>i!==index);
- await C.saveProject(project);renderSources();
+ const draft=conversationDraft();
+ draft.sources=(draft.sources||[]).filter((_,i)=>i!==index);
+ await saveConversation(draft);renderSources();
  notify('Reference note removed.');
 });
 $('#settingsButton').onclick=()=>{$('#settingsDialog').showModal();Pool.refresh().catch(()=>{})};$('#saveSettings').onclick=()=>queued(async()=>{preferences.name=window.OMNI_CONTEXT.IDENTITY.displayName;await C.setPref('provider','auto');await showAll();notify('Settings saved')});

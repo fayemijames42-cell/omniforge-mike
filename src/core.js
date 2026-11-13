@@ -2,7 +2,13 @@
 (function (global) {
 'use strict';
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-const clone = v => JSON.parse(JSON.stringify(v));
+const projectBases=new WeakMap();
+function clone(value){
+ const copy=JSON.parse(JSON.stringify(value));
+ const base=projectBases.get(value);
+ if(base&&copy?.id===base.id)projectBases.set(copy,base);
+ return copy;
+}
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const id = () => uuid();
 const palettes = {
@@ -59,22 +65,84 @@ function openDB(){
  return dbPromise;
 }
 async function txReq(store,mode,action){const db=await openDB();return new Promise((resolve,reject)=>{const t=db.transaction(store,mode),os=t.objectStore(store);const req=action(os);t.oncomplete=()=>resolve(req?.result);t.onabort=()=>reject(t.error||Error('IndexedDB transaction aborted'));t.onerror=()=>reject(t.error||Error('IndexedDB transaction failed'));})}
-const getProject=async key => (await txReq('projects','readonly',os=>os.get(key)))||null;
+const projectVersion=project=>project?.storageRevision;
+function trackProject(project){
+ if(project&&typeof project==='object'){
+  const revision=projectVersion(project);
+  projectBases.set(project,{id:project.id,revision,legacy:revision===undefined?JSON.stringify(project):null});
+ }
+ return project;
+}
+const getProject=async key=>trackProject(await txReq('projects','readonly',os=>os.get(key)))||null;
 const listProjects=async()=>((await txReq('projects','readonly',os=>os.getAll()))||[]).sort((a,b)=>b.updatedAt-a.updatedAt);
-const saveProject=async p=>{await txReq('projects','readwrite',os=>os.put(p));return p};
-async function deleteProject(key){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(['projects','assetBlobs'],'readwrite'),projects=tx.objectStore('projects'),blobs=tx.objectStore('assetBlobs'),read=projects.getAll();read.onsuccess=()=>{const removed=read.result.find(p=>p.id===key),used=new Set(read.result.filter(p=>p.id!==key).flatMap(p=>(p.assets||[]).map(a=>a.id)));for(const a of removed?.assets||[])if(!used.has(a.id))blobs.delete(a.id);projects.delete(key);};tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||Error('Could not delete project'));tx.onerror=()=>reject(tx.error||Error('Could not delete project'));});}
-async function removeBlobs(ids){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction('assetBlobs','readwrite');for(const id of ids)tx.objectStore('assetBlobs').delete(id);tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error);tx.onerror=()=>reject(tx.error);});}
-const saveBlob=(assetId,blob)=>txReq('assetBlobs','readwrite',os=>os.put({id:assetId,blob}));
+function projectConflict(id){
+ const error=Error('This conversation changed in another tab. Review the latest saved version, then retry your edit.');
+ error.code='PROJECT_CONFLICT';
+ error.projectId=id;
+ return error;
+}
+function assertCurrent(id,stored,base){
+ const matches=base?.id===id
+  ?stored&&projectVersion(stored)===base.revision&&(base.legacy===null||JSON.stringify(stored)===base.legacy)
+  :!stored;
+ if(!matches)throw projectConflict(id);
+}
+async function saveProject(project,files=[]){
+ const base=projectBases.get(project);
+ const record={...clone(project),storageRevision:uuid()};
+ const db=await openDB();
+ await new Promise((resolve,reject)=>{
+  const transaction=db.transaction(files.length?['projects','assetBlobs']:'projects','readwrite');
+  const projects=transaction.objectStore('projects');
+  const read=projects.get(record.id);
+  let failure;
+  transaction.oncomplete=resolve;
+  transaction.onabort=()=>reject(failure||transaction.error||Error('Project storage transaction aborted'));
+  read.onsuccess=()=>{
+   try{
+    assertCurrent(record.id,read.result,base);
+    if(files.length){
+     const blobs=transaction.objectStore('assetBlobs');
+     for(const file of files)blobs.add(file);
+    }
+    projects.put(record);
+   }catch(error){failure=error;transaction.abort()}
+  };
+ });
+ project.storageRevision=record.storageRevision;
+ return trackProject(project);
+}
+async function deleteProject(project){
+ const id=project.id,base=projectBases.get(project);
+ const db=await openDB();
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(['projects','assetBlobs'],'readwrite');
+  const projects=tx.objectStore('projects'),blobs=tx.objectStore('assetBlobs'),read=projects.getAll();
+  let failure;
+  read.onsuccess=()=>{
+   try{
+    const removed=read.result.find(item=>item.id===id);
+    assertCurrent(id,removed,base);
+    const used=new Set(read.result.filter(item=>item.id!==id).flatMap(item=>(item.assets||[]).map(asset=>asset.id)));
+    for(const asset of removed.assets||[])if(!used.has(asset.id))blobs.delete(asset.id);
+    projects.delete(id);
+   }catch(error){failure=error;tx.abort()}
+  };
+  tx.oncomplete=()=>resolve();
+  tx.onabort=()=>reject(failure||tx.error||Error('Could not delete project'));
+ });
+}
 const getBlob=async assetId=> (await txReq('assetBlobs','readonly',os=>os.get(assetId)))?.blob ||null;
 const pref=async(key)=>txReq('prefs','readonly',os=>os.get(key));
 const setPref=(key,value)=>txReq('prefs','readwrite',os=>os.put(value,key));
 function formatMigrated(old){
  const p=clone(old);
- p.messages=Array.isArray(p.messages)?p.messages:[];
+ p.messages=Array.isArray(p.messages)?p.messages.filter(message=>message&&typeof message==='object'):[];
  p.history=Array.isArray(p.history)?p.history:[];
  p.assets=Array.isArray(p.assets)?p.assets:[];
+ p.sources=Array.isArray(p.sources)?p.sources.filter(note=>note&&typeof note.name==='string'&&typeof note.content==='string'):[];
  const base=makeProject(p.name).website;
- if(!p.website)p.website=base;
+ if(!p.website||typeof p.website!=='object'||Array.isArray(p.website))p.website=base;
  p.website.pages=Array.isArray(p.website.pages)?p.website.pages:base.pages;
  p.website.theme={...base.theme,...p.website.theme};
  p.website.meta={...base.meta,...p.website.meta};
@@ -83,17 +151,19 @@ function formatMigrated(old){
  return p;
 }
 
-async function addAsset(p,file,{originalId}={}){
+async function addAsset(p,file,{originalId,reply}={}){
  if(!file.type.match(/^image\/(jpeg|png|webp)$/))throw Error('Use PNG, JPG or WebP photos.');
  if(file.size>8*1024*1024)throw Error(`“${file.name}” exceeds the 8 MB photo limit.`);
  if(p.assets.length>=60)throw Error('This project has reached the 60-photo limit.');
  const data=await imageDimensions(file);if(data.width*data.height>20000000)throw Error('Image exceeds 20 megapixels. Resize it before import.');
  const asset={id:id(),name:file.name.slice(0,100),mimeType:file.type,width:data.width,height:data.height,createdAt:Date.now(),size:file.size,...(originalId?{originalId}:{})};
  const next=clone(p);next.assets.push(asset);next.updatedAt=Date.now();
- const db=await openDB();
- // The file and project metadata either both commit or both roll back.
- await new Promise((resolve,reject)=>{const tx=db.transaction(['projects','assetBlobs'],'readwrite');tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error||Error('Photo storage transaction aborted'));tx.onerror=()=>reject(tx.error||Error('Photo could not be saved'));try{tx.objectStore('assetBlobs').put({id:asset.id,blob:file});tx.objectStore('projects').put(next);}catch(error){tx.abort();reject(error);}});
- p.assets=next.assets;p.updatedAt=next.updatedAt;return asset;
+ if(reply)next.messages=[...next.messages,{...reply,imageId:asset.id}].slice(-100);
+ // Commit the bytes, project metadata and any image reply together.
+ await saveProject(next,[{id:asset.id,blob:file}]);
+ p.assets=next.assets;p.messages=next.messages;p.updatedAt=next.updatedAt;p.storageRevision=next.storageRevision;
+ trackProject(p);
+ return asset;
 }
 
 function imageDimensions(blob){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(blob),im=new Image();im.onload=()=>{URL.revokeObjectURL(url);resolve({width:im.naturalWidth,height:im.naturalHeight})};im.onerror=()=>{URL.revokeObjectURL(url);reject(Error('Image could not be decoded.'))};im.src=url})}
@@ -113,8 +183,8 @@ function renderSite(p,images={}){
 function download(blob,filename){const href=URL.createObjectURL(blob);const a=document.createElement('a');a.href=href;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(href),6000)}
 const fileSafe=t=>slug(t).slice(0,60)||'website';
 async function exportHTML(p){const html=renderSite(p,await assetMap(p));download(new Blob([html],{type:'text/html;charset=utf-8'}),fileSafe(p.name)+'.html');return html}
-async function exportZIP(p){if(!global.JSZip)throw Error('ZIP library unavailable.');const zip=new global.JSZip();const portable=clone(p);portable.history=[];if(portable.codeWorkspace)portable.codeWorkspace.history=[];for(const note of portable.notes||[])note.history=[];portable.assets=portable.assets.map(a=>({...a,dataUrl:undefined}));const metadata=JSON.stringify(portable,null,2);if(new TextEncoder().encode(metadata).length>3000000)throw Error('Project metadata exceeds the portable backup limit. Export the chat separately.');zip.file('project.json',metadata);const map=await assetMap(p,true);for(const a of p.assets){if(map[a.id]){const data=map[a.id].split(',')[1];zip.file('assets/'+a.id+'.'+(a.mimeType==='image/png'?'png':a.mimeType==='image/webp'?'webp':'jpg'),data,{base64:true})}}if(p.codeWorkspace)for(const [name,text] of Object.entries(global.OMNI_FILES.validate(p).files))zip.file(name,text);zip.file('site.html',renderSite(p,map));zip.file('README.txt','OMNIFORGE project backup. Import this ZIP from the Files & Backup tab. site.html is a standalone offline website.');const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:4}});download(blob,fileSafe(p.name)+'.zip');return blob}
-async function exportJSON(p){const copy=clone(p),map=await assetMap(p,true);copy.history=[];if(copy.codeWorkspace)copy.codeWorkspace.history=[];for(const note of copy.notes||[])note.history=[];copy.assets=copy.assets.map(a=>({...a,dataUrl:map[a.id]||''}));const blob=new Blob([JSON.stringify(copy)],{type:'application/json'});download(blob,fileSafe(p.name)+'.omniforge.json');return blob}
+async function exportZIP(p){if(!global.JSZip)throw Error('ZIP library unavailable.');const zip=new global.JSZip();const portable=clone(p);delete portable.storageRevision;portable.history=[];if(portable.codeWorkspace)portable.codeWorkspace.history=[];for(const note of portable.notes||[])note.history=[];portable.assets=portable.assets.map(a=>({...a,dataUrl:undefined}));const metadata=JSON.stringify(portable,null,2);if(new TextEncoder().encode(metadata).length>3000000)throw Error('Project metadata exceeds the portable backup limit. Export the chat separately.');zip.file('project.json',metadata);const map=await assetMap(p,true);for(const a of p.assets){if(map[a.id]){const data=map[a.id].split(',')[1];zip.file('assets/'+a.id+'.'+(a.mimeType==='image/png'?'png':a.mimeType==='image/webp'?'webp':'jpg'),data,{base64:true})}}if(p.codeWorkspace)for(const [name,text] of Object.entries(global.OMNI_FILES.validate(p).files))zip.file(name,text);zip.file('site.html',renderSite(p,map));zip.file('README.txt','OMNIFORGE project backup. Import this ZIP from the Files & Backup tab. site.html is a standalone offline website.');const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:4}});download(blob,fileSafe(p.name)+'.zip');return blob}
+async function exportJSON(p){const copy=clone(p),map=await assetMap(p,true);delete copy.storageRevision;copy.history=[];if(copy.codeWorkspace)copy.codeWorkspace.history=[];for(const note of copy.notes||[])note.history=[];copy.assets=copy.assets.map(a=>({...a,dataUrl:map[a.id]||''}));const blob=new Blob([JSON.stringify(copy)],{type:'application/json'});download(blob,fileSafe(p.name)+'.omniforge.json');return blob}
 function sandboxHTML(source){
  const csp="<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; connect-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'; base-uri 'none'; object-src 'none'; frame-src 'none';\">";
  const html=String(source||'').replace(/<base\b[^>]*>/gi,'').replace(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh\b[^>]*>/gi,'');
@@ -127,8 +197,12 @@ async function migrateLegacySite(){
  if(await pref('legacy-site-imported'))return;
  let html;try{html=global.localStorage?.getItem('omniforge_site');}catch{return;}
  if(typeof html!=='string'||!/<html[\s>][\s\S]*<\/html>/i.test(html)||html.length>1500000)return;
- const key='omniforge-legacy-quick-chat';if(!await getProject(key)){const p=makeProject('Previous MICHELLE website');p.id=key;p.website.rawHtml=html;p.chatOnly=false;await saveProject(p);}
+ const key='omniforge-legacy-quick-chat';
+ if(!await getProject(key)){
+  const project=makeProject('Previous MICHELLE website');project.id=key;project.website.rawHtml=html;project.chatOnly=false;
+  await saveProject(project).catch(error=>{if(error.code!=='PROJECT_CONFLICT')throw error});
+ }
  await setPref('legacy-site-imported',true);
 }
-const API={uuid,clone,esc,palettes,section,page,slug,makeProject,change,undo,addAssetsToProject,formatMigrated,openDB,getProject,listProjects,saveProject,deleteProject,removeBlobs,saveBlob,getBlob,pref,setPref,addAsset,imageDimensions,blobData,assetMap,renderSite,download,exportHTML,exportZIP,exportJSON,importProject,sandboxHTML,migrateLegacySite,snapshot};global.OMNI=API;
+const API={uuid,clone,esc,palettes,section,page,slug,makeProject,change,undo,addAssetsToProject,formatMigrated,openDB,getProject,listProjects,saveProject,deleteProject,getBlob,pref,setPref,addAsset,imageDimensions,blobData,assetMap,renderSite,download,exportHTML,exportZIP,exportJSON,importProject,sandboxHTML,migrateLegacySite,snapshot};global.OMNI=API;
 })(window);
