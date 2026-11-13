@@ -25,7 +25,39 @@ function addAssetsToProject(project,assetIds){
  return change(project,p=>{const all=new Set(p.assets.map(a=>a.id)),chosen=assetIds.filter(id=>all.has(id));if(!chosen.length)throw Error('No selected photos belong to the current project.');const pg=p.website.pages[0];if(!pg)throw Error('Create a website before adding photos.');let gallery=pg.sections.find(s=>s.type==='gallery');if(!gallery){gallery=section('gallery','Photo gallery','');pg.sections.push(gallery)}const present=new Set((gallery.children||[]).map(x=>x.props?.assetId));for(const assetId of chosen)if(!present.has(assetId)){gallery.children.push({id:id(),type:'image',props:{assetId,alt:p.assets.find(a=>a.id===assetId)?.name||'Photo'}});present.add(assetId);}});
 }
 const DB='omniforge-db';let dbPromise;
-function openDB(){if(dbPromise)return dbPromise;dbPromise=new Promise((resolve,reject)=>{const req=indexedDB.open(DB,2);req.onerror=()=>reject(req.error||Error('Unable to access IndexedDB'));req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('projects')){const x=db.createObjectStore('projects',{keyPath:'id'});x.createIndex('updatedAt','updatedAt',{unique:false});}if(!db.objectStoreNames.contains('assetBlobs'))db.createObjectStore('assetBlobs',{keyPath:'id'});if(!db.objectStoreNames.contains('prefs'))db.createObjectStore('prefs');};req.onsuccess=()=>resolve(req.result)});return dbPromise}
+function openDB(){
+ if(dbPromise)return dbPromise;
+ let abandoned=false;
+ const opening=new Promise((resolve,reject)=>{
+  const request=indexedDB.open(DB,2);
+  request.onerror=()=>reject(request.error||Error('Unable to access IndexedDB'));
+  request.onblocked=()=>{
+   abandoned=true;
+   reject(Error('Saved conversations are in use by another OMNIFORGE tab. Close that tab and reload.'));
+  };
+  request.onupgradeneeded=()=>{
+   const db=request.result;
+   if(!db.objectStoreNames.contains('projects')){
+    const projects=db.createObjectStore('projects',{keyPath:'id'});
+    projects.createIndex('updatedAt','updatedAt',{unique:false});
+   }
+   if(!db.objectStoreNames.contains('assetBlobs'))db.createObjectStore('assetBlobs',{keyPath:'id'});
+   if(!db.objectStoreNames.contains('prefs'))db.createObjectStore('prefs');
+  };
+  request.onsuccess=()=>{
+   const db=request.result;
+   if(abandoned){db.close();return}
+   db.onversionchange=()=>{
+    db.close();
+    dbPromise=null;
+   };
+   db.onclose=()=>{dbPromise=null};
+   resolve(db);
+  };
+ });
+ dbPromise=opening.catch(error=>{dbPromise=null;throw error});
+ return dbPromise;
+}
 async function txReq(store,mode,action){const db=await openDB();return new Promise((resolve,reject)=>{const t=db.transaction(store,mode),os=t.objectStore(store);const req=action(os);t.oncomplete=()=>resolve(req?.result);t.onabort=()=>reject(t.error||Error('IndexedDB transaction aborted'));t.onerror=()=>reject(t.error||Error('IndexedDB transaction failed'));})}
 const getProject=async key => (await txReq('projects','readonly',os=>os.get(key)))||null;
 const listProjects=async()=>((await txReq('projects','readonly',os=>os.getAll()))||[]).sort((a,b)=>b.updatedAt-a.updatedAt);
@@ -36,7 +68,20 @@ const saveBlob=(assetId,blob)=>txReq('assetBlobs','readwrite',os=>os.put({id:ass
 const getBlob=async assetId=> (await txReq('assetBlobs','readonly',os=>os.get(assetId)))?.blob ||null;
 const pref=async(key)=>txReq('prefs','readonly',os=>os.get(key));
 const setPref=(key,value)=>txReq('prefs','readwrite',os=>os.put(value,key));
-function formatMigrated(old){const p=clone(old);p.messages=Array.isArray(p.messages)?p.messages:[];p.history=Array.isArray(p.history)?p.history:[];p.assets=Array.isArray(p.assets)?p.assets:[];const base=makeProject(p.name).website;p.website ||=base;p.website.pages=Array.isArray(p.website.pages)?p.website.pages:base.pages;p.website.theme={...base.theme,...p.website.theme};p.website.meta={...base.meta,...p.website.meta};p.website.layout ||= 'general';p.website.headingScale ||=1;return p;}
+function formatMigrated(old){
+ const p=clone(old);
+ p.messages=Array.isArray(p.messages)?p.messages:[];
+ p.history=Array.isArray(p.history)?p.history:[];
+ p.assets=Array.isArray(p.assets)?p.assets:[];
+ const base=makeProject(p.name).website;
+ if(!p.website)p.website=base;
+ p.website.pages=Array.isArray(p.website.pages)?p.website.pages:base.pages;
+ p.website.theme={...base.theme,...p.website.theme};
+ p.website.meta={...base.meta,...p.website.meta};
+ p.website.layout=p.website.layout||'general';
+ p.website.headingScale=p.website.headingScale||1;
+ return p;
+}
 
 async function addAsset(p,file,{originalId}={}){
  if(!file.type.match(/^image\/(jpeg|png|webp)$/))throw Error('Use PNG, JPG or WebP photos.');

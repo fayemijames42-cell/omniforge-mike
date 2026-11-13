@@ -53,7 +53,7 @@ function calculate(source){
    const n=tokens[pos++].value;
    if(n==='pi')return Math.PI;
    if(n==='e')return Math.E;
-   if(!Object.hasOwn(FUNCTIONS,n))throw Error('Unknown function: '+n);
+   if(!Object.prototype.hasOwnProperty.call(FUNCTIONS,n))throw Error('Unknown function: '+n);
    requireToken('(');if(++depth>30)throw Error('Too many nested functions.');
    const x=sum();requireToken(')');depth--;
    return finite(FUNCTIONS[n](x));

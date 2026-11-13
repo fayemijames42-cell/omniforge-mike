@@ -33,7 +33,7 @@ function updateNote(project,id,title,body){
 function undoNote(project,id){
  const note=findNote(project,id);
  if(!note||!note.history?.length)throw Error('This note has no previous saved version.');
- const previous=note.history.at(-1);note.history=note.history.slice(0,-1);
+ const previous=note.history[note.history.length-1];note.history=note.history.slice(0,-1);
  note.title=previous.title;note.body=previous.body;note.updatedAt=Date.now();project.updatedAt=note.updatedAt;
  return note;
 }

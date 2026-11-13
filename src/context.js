@@ -59,7 +59,7 @@ function websiteAction(message,hasWebsite=false,history){
  if(!hasWebsite||explanatory)return 'chat';
  const namesSite=/\b(website|webpage|landing page|site|hero|header|footer|navigation|layout|theme|button|background|colour|color)\b/i.test(text);
  const otherText=/\b(answer|explanation|report|essay|paragraph|lesson|question|letter|story|poem)\b/i.test(text);
- const last=(Array.isArray(history)?history:[]).filter(m=>m?.role==='assistant'&&m.engine!=='ERROR').at(-1);
+ const [last]=(Array.isArray(history)?history:[]).filter(m=>m?.role==='assistant'&&m.engine!=='ERROR').slice(-1);
  const recentWebsite=history===undefined||last?.artifactType==='website'||/<!doctype html|<html[\s>]|^\[Earlier website output;/i.test(body(last));
  const edit=/^(?:edit|redesign|update|modify|fix|improve|change|add|remove|replace|set|restyle|rework|make)\b/i.test(text)||/^(?:create|build|design|generate)\b.{0,50}\b(?:button|header|footer|section|form|navigation|component)\b/i.test(text);
  const contextual=/^(?:make it|improve it|change it|update it|add a|remove the|fix the|redesign it|restyle it)\b/i.test(text);
