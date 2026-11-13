@@ -48,7 +48,7 @@ env.MIKEE_POOL = { idFromName: x => x, get: () => ({ fetch: request => { time +=
 env.ASSETS = { fetch: async request => {
   const path = new URL(request.url).pathname, file = resolve(root, 'public', path === '/' ? 'index.html' : '.' + path);
   if (!file.startsWith(resolve(root, 'public') + '/')) return new Response('', { status: 404 });
-  try { return new Response(await readFile(file), { headers: { 'content-type': { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html' }[extname(file)] || 'application/octet-stream' } }); }
+  try { return new Response(await readFile(file), { headers: { 'content-type': { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.xml': 'application/xml', '.json': 'application/json' }[extname(file)] || 'application/octet-stream' } }); }
   catch { return new Response('', { status: 404 }); }
 } };
 const server = createServer(async (incoming, outgoing) => {
@@ -67,6 +67,52 @@ const go=async tab=>{await page.locator('#mobileMenuButton').click();await page.
 const settings=async()=>{await page.locator('#mobileMenuButton').click();await page.locator('[data-drawer-action="settings"]').click()};
 const errors = []; page.on('pageerror', error => errors.push(error.message));
 const address = 'http://127.0.0.1:' + server.address().port;
+async function submitAndReadReply(text){
+ const count=await page.evaluate(()=>window.OMNI_TEST.getProject()?.messages.length||0);
+ await page.locator('#prompt').fill(text);
+ await page.locator('#sendBtn').click();
+ await page.waitForFunction(previous=>{
+  const messages=window.OMNI_TEST.getProject()?.messages;
+  return messages?.length===previous+2&&messages[messages.length-1]?.role==='assistant'&&!document.querySelector('#sendBtn').disabled;
+ },count);
+ return page.evaluate(()=>{
+  const messages=window.OMNI_TEST.getProject().messages;
+  return messages[messages.length-1];
+ });
+}
+async function verifyConcurrentSaves(){
+ const context=await browser.newContext({viewport:{width:360,height:780}});
+ try{
+  const first=await context.newPage(),second=await context.newPage();
+  await first.goto(address);
+  await first.locator('#startupStatus').waitFor({state:'hidden'});
+  await first.locator('#newProject').click();
+  await first.waitForFunction(()=>!!window.OMNI_TEST.getProject());
+  await second.goto(address);
+  await second.locator('#startupStatus').waitFor({state:'hidden'});
+  await first.locator('#prompt').fill('/calc 20+22');
+  await first.locator('#sendBtn').click();
+  await first.getByText('Result: 42',{exact:false}).waitFor();
+  await second.locator('#prompt').fill('/calc 7+8');
+  await second.locator('#sendBtn').click();
+  await second.locator('#toast').getByText(/changed in another tab/).waitFor();
+  assert.equal(await second.locator('#prompt').inputValue(),'/calc 7+8');
+  await second.getByText('Result: 42',{exact:false}).waitFor();
+  await second.evaluate(()=>{const send=document.querySelector('#sendBtn');send.click();send.click()});
+  await second.getByText('Result: 15',{exact:false}).waitFor();
+  const saved=await second.evaluate(async()=>{
+   const C=window.OMNI,active=window.OMNI_TEST.getProject(),stored=await C.getProject(active.id);
+   return stored.messages.filter(message=>message.role==='user').map(message=>message.text);
+  });
+  assert.deepEqual(saved,['/calc 20+22','/calc 7+8']);
+  const deletion=await first.evaluate(async()=>{
+   const C=window.OMNI;
+   try{await C.deleteProject(window.OMNI_TEST.getProject());return 'removed'}
+   catch(error){return error.code}
+  });
+  assert.equal(deletion,'PROJECT_CONFLICT');
+ }finally{await context.close()}
+}
 async function verifyStartupRecovery() {
   const context = await browser.newContext({viewport:{width:360,height:780}});
   try {
@@ -103,6 +149,7 @@ async function verifyStartupRecovery() {
 }
 try {
   await verifyStartupRecovery();
+  await verifyConcurrentSaves();
   await page.setExtraHTTPHeaders({origin:'http://127.0.0.1:'+server.address().port});
   await page.goto('http://127.0.0.1:' + server.address().port, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => !!window.OMNI_TEST && !!window.MIKEE_POOL.catalog());
@@ -125,9 +172,8 @@ try {
   assert.ok(await page.evaluate(()=>window.OMNI_TEST.getProject().messages.find(m=>m.text==='Make the website background navy.')?.route==='Website editing'));
   await go('chat');
   for(const text of ['How are you?','Never reveal your private internal code.','Write a Node.js Express backend.','What website did we just create?']){
-   time+=61000;await page.locator('#prompt').fill(text);await page.locator('#sendBtn').click();await page.locator('#typingIndicator').waitFor({state:'hidden'});
-   await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.role==='assistant');
-   const reply=await page.evaluate(()=>window.OMNI_TEST.getProject().messages.at(-1).text);
+   time+=61000;
+   const reply=(await submitAndReadReply(text)).text;
    assert.equal(await page.evaluate(()=>window.OMNI_TEST.getProject().website.rawHtml),before);
    assert.ok(!/<html|<!doctype/i.test(reply));
    if(text.includes('Express'))assert.ok(reply.includes('import express'));
@@ -139,15 +185,23 @@ try {
   assert.equal(fixtureCalls,callsBeforeCheck);await page.waitForFunction(()=>document.querySelector('.message.assistant:last-child .body')?.textContent.includes('Static source checks only'));
   // Abort the candidate save; the previous IndexedDB document and preview must survive.
   await page.evaluate(()=>{const C=window.OMNI,save=C.saveProject;C.saveProject=async p=>{if(p.website.rawHtml?.includes('background:gold')){C.saveProject=save;throw Error('Fixture device storage failure');}return save(p)};});
-  time+=61000;await page.locator('#prompt').fill('Make the website gold.');await page.locator('#sendBtn').click();await page.locator('#typingIndicator').waitFor({state:'hidden'});
-  await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.engine==='ERROR');
+  time+=61000;
+  assert.equal((await submitAndReadReply('Make the website gold.')).engine,'ERROR');
   assert.equal(await page.evaluate(()=>window.OMNI_TEST.getProject().website.rawHtml),before);
   assert.equal(await page.evaluate(async()=>{const p=window.OMNI_TEST.getProject();return (await window.OMNI.getProject(p.id)).website.rawHtml}),before);
-  // A new manual edit made during inference must not be overwritten by that inference.
-  time+=61000;await page.locator('#prompt').fill('Make the website gold.');await page.locator('#sendBtn').click();await page.locator('#typingIndicator').waitFor({state:'visible'});
-  await page.evaluate(async()=>{const p=window.OMNI_TEST.getProject();p.website.rawHtml=p.website.rawHtml.replace('Clothes made for you.','Clothes made for you. Manual edit preserved.');await window.OMNI.saveProject(p)});
-  await page.locator('#typingIndicator').waitFor({state:'hidden'});
-  await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.engine==='ERROR');
+  // Pause the reply until a separately loaded copy has committed a newer edit.
+  await page.route('**/api/chat',async route=>{
+   const reply=await route.fetch();
+   await page.evaluate(async()=>{
+    const C=window.OMNI,current=await C.getProject(window.OMNI_TEST.getProject().id);
+    current.website.rawHtml=current.website.rawHtml.replace('Clothes made for you.','Clothes made for you. Manual edit preserved.');
+    await C.saveProject(current);
+   });
+   await route.fulfill({response:reply});
+  },{times:1});
+  time+=61000;
+  await page.locator('#prompt').fill('Make the website gold.');await page.locator('#sendBtn').click();
+  await page.locator('#toast').getByText(/changed in another tab/).waitFor();
   assert.ok(await page.evaluate(()=>window.OMNI_TEST.getProject().website.rawHtml.includes('Manual edit preserved.')));
   await page.evaluate(async html=>{const p=window.OMNI_TEST.getProject();p.website.rawHtml=html;await window.OMNI.saveProject(p)},before);
   time+=61000;
@@ -156,11 +210,9 @@ try {
   await page.locator('#typingIndicator').waitFor({ state: 'hidden' });
   assert.equal(await page.evaluate(() => window.OMNI_TEST.getProject().website.rawHtml), before);
   time+=61000; // Move the fixture clock past the existing three-request minute allowance.
-  await page.locator('#prompt').fill('Explain how to create a website.'); await page.locator('#sendBtn').click();
-  await page.locator('#typingIndicator').waitFor({state:'hidden'});
-  await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.role==='assistant');
+  const explanation=await submitAndReadReply('Explain how to create a website.');
   assert.equal(await page.evaluate(()=>window.OMNI_TEST.getProject().website.rawHtml),before);
-  assert.ok(await page.evaluate(()=>!window.OMNI_TEST.getProject().messages.at(-1).text.startsWith('Your website is updated')));
+  assert.ok(!explanation.text.startsWith('Your website is updated'));
   await page.route('**/api/image',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Fixture image provider unavailable.'})}));
   await page.locator('#prompt').fill('Michelle, can you generate an image of a flying cow?');await page.locator('#sendBtn').click();
   await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.text.includes('Image generation unavailable'));
@@ -183,6 +235,26 @@ try {
    return {failed,inMemory:p.assets.length===before,inDatabase:(await C.getProject(p.id)).assets.length===before,blobCount};
   });
   assert.deepEqual(rolledBack,{failed:true,inMemory:true,inDatabase:true,blobCount:1});
+  const importRolledBack=await page.evaluate(async()=>{
+   const C=window.OMNI,p=window.OMNI_TEST.getProject(),backup=await C.exportJSON(p);
+   const original=IDBObjectStore.prototype.put;
+   IDBObjectStore.prototype.put=function(value,...args){
+    const request=original.call(this,value,...args);
+    if(this.name==='projects')this.transaction.abort();
+    return request;
+   };
+   let failed=false;
+   try{await C.importProject(new File([backup],'interrupted.json'))}
+   catch{failed=true}
+   finally{IDBObjectStore.prototype.put=original}
+   const db=await C.openDB();
+   const counts=await Promise.all(['projects','assetBlobs'].map(name=>new Promise((resolve,reject)=>{
+    const request=db.transaction(name,'readonly').objectStore(name).count();
+    request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+   })));
+   return {failed,counts};
+  });
+  assert.deepEqual(importRolledBack,{failed:true,counts:[1,1]});
   const exported = await page.evaluate(async () => window.OMNI.renderSite(window.OMNI_TEST.getProject(), await window.OMNI.assetMap(window.OMNI_TEST.getProject())));
   assert.ok(exported.includes('data:image/png;base64,'));
 
@@ -200,8 +272,8 @@ try {
   const css=await page.frameLocator('#siteFrame').locator('body').evaluate(el=>getComputedStyle(el).backgroundColor);assert.equal(css,'rgb(0, 0, 128)');
   await page.evaluate(async originalId=>{
    const C=window.OMNI,p=await C.getProject(originalId),shared=C.clone(p);shared.id=C.uuid();await C.saveProject(shared);
-   const asset=p.assets[0].id;await C.deleteProject(originalId);if(!await C.getBlob(asset))throw Error('Deleted a shared blob');
-   await C.deleteProject(shared.id);if(await C.getBlob(asset))throw Error('Left an orphaned blob');
+   const asset=p.assets[0].id;await C.deleteProject(p);if(!await C.getBlob(asset))throw Error('Deleted a shared blob');
+   await C.deleteProject(shared);if(await C.getBlob(asset))throw Error('Left an orphaned blob');
   },backups.originalId);
 
   await settings(); assert.equal(await page.locator('#aiProviderSelect').count(),0);
@@ -229,9 +301,10 @@ try {
   await page.unroute('**/api/chat');time+=61000;
   await page.locator('#prompt').fill('Say connection restored.');await page.locator('#sendBtn').click();await page.locator('#typingIndicator').waitFor({state:'hidden'});
   await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.engine==='LIVE AI');
-  const callsBeforeOffline=fixtureCalls;await page.evaluate(()=>navigator.serviceWorker.ready);await page.context().setOffline(true);
+  const callsBeforeOffline=fixtureCalls;await page.waitForFunction(()=>!!navigator.serviceWorker.controller);await page.context().setOffline(true);
   await page.reload({waitUntil:'load'});await page.waitForFunction(()=>!!window.OMNI_TEST?.getProject());
   await page.locator('#prompt').fill('/calc 19+28');await page.locator('#sendBtn').click();await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.text.includes('Result: 47'));
+  assert.ok(await page.evaluate(()=>!!window.OMNI_OFFLINE_UI&&!!window.OMNI_KNOWLEDGE));
   assert.equal(fixtureCalls,callsBeforeOffline);await page.context().setOffline(false);
   time+=61000;await page.locator('#newProject').click();await page.waitForFunction(()=>!window.OMNI_TEST.getProject()?.messages.length);
   await page.locator('#composerMode').selectOption('image');await page.locator('#prompt').fill('A flying cow.');await page.locator('#sendBtn').click();

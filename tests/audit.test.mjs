@@ -53,13 +53,13 @@ test('HTML imports preserve CSS and JavaScript instead of silently flattening th
 });
 test('JSON restore remaps images in chat, website and source files while preserving source code',async()=>{
  const root=local(),C=root.OMNI,F=root.OMNI_FILES,p=C.makeProject('Photo site');p.assets=[{id:'old-image',mimeType:'image/png',name:'Picture',dataUrl:'data:image/png;base64,iVBORw0KGgo='}];p.messages=[{role:'assistant',imageId:'old-image'}];p.website.rawHtml='<html><body><img src="omniforge-asset://old-image"></body></html>';p.codeWorkspace=F.fromHtml(p.website.rawHtml);
- const writes=new Map();C.saveBlob=async(id,blob)=>writes.set(id,blob);C.saveProject=async()=>{};const result=await C.importProject(new File([JSON.stringify(p)],'backup.json'));
- const id=result.assets[0].id;assert.notEqual(id,'old-image');assert.equal(result.messages[0].imageId,id);assert.match(result.website.rawHtml,new RegExp(id));assert.match(result.codeWorkspace.files['index.html'],new RegExp(id));assert.ok(writes.has(id));
+ const writes=[];C.saveProject=async (project,files)=>writes.push({project,files});const result=await C.importProject(new File([JSON.stringify(p)],'backup.json'));
+ const id=result.assets[0].id;assert.notEqual(id,'old-image');assert.equal(result.messages[0].imageId,id);assert.match(result.website.rawHtml,new RegExp(id));assert.match(result.codeWorkspace.files['index.html'],new RegExp(id));assert.equal(writes.length,1);assert.equal(writes[0].project,result);assert.equal(writes[0].files[0].id,id);
 });
-test('A failed restore removes only its new blobs and never commits a half-restored project',async()=>{
- const root=local(),C=root.OMNI,p=C.makeProject('Incomplete');p.assets=[{id:'first',mimeType:'image/png',dataUrl:'data:image/png;base64,iVBORw0KGgo='},{id:'second',mimeType:'image/png'}];let saved=false;const created=[],removed=[];
- C.saveBlob=async id=>created.push(id);C.saveProject=async()=>{saved=true;};C.removeBlobs=async ids=>removed.push(...ids);
- await assert.rejects(C.importProject(new File([JSON.stringify(p)],'bad.json')),/missing photo/);assert.equal(saved,false);assert.equal(created.length,1);assert.deepEqual(removed,created);
+test('A backup missing a photo is rejected before any project or photo write',async()=>{
+ const root=local(),C=root.OMNI,p=C.makeProject('Incomplete');p.assets=[{id:'first',mimeType:'image/png',dataUrl:'data:image/png;base64,iVBORw0KGgo='},{id:'second',mimeType:'image/png'}];let saved=false;
+ C.saveProject=async()=>{saved=true;};
+ await assert.rejects(C.importProject(new File([JSON.stringify(p)],'bad.json')),/missing photo/);assert.equal(saved,false);
 });
 test('Legacy project shape is normalized without changing its raw HTML',()=>{
  const C=local().OMNI,html='<html><body>Old site</body></html>',p=C.formatMigrated({id:'old',name:'Old',website:{rawHtml:html}});assert.equal(p.website.rawHtml,html);assert.ok(p.website.meta);assert.ok(p.website.theme);assert.ok(Array.isArray(p.assets));
