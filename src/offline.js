@@ -71,13 +71,16 @@ async function importFile(file){
 async function syncBundled({force=false}={}){
  if(typeof navigator!=='undefined'&&navigator.onLine===false)return {status:'offline'};
  if(!force&&Date.now()-(await getMeta('checkedAt')||0)<HOUR)return {status:'recent'};
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),10000);
  try{
-  const response=await fetch('/src/knowledge.xml',{cache:'no-cache',signal:AbortSignal.timeout(10000)});
+  const response=await fetch('/src/knowledge.xml',{cache:'no-cache',signal:controller.signal});
   if(!response.ok)throw Error('Starter pack unavailable.');
   const entries=parseXML(await response.text(),{prefix:'builtin',source:'OMNIFORGE bundled reference'});
   if(entries.length)await addMany(entries);
   await setMeta('checkedAt',Date.now());return {status:'updated',count:entries.length};
  }catch(e){return {status:'unavailable',message:String(e?.message||e)}}
+ finally{clearTimeout(timer)}
 }
 async function answer(query){
  const match=bestMatch(query,await list());

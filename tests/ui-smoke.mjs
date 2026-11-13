@@ -66,7 +66,43 @@ const page = await browser.newPage({ viewport: { width: 360, height: 780 }, devi
 const go=async tab=>{await page.locator('#mobileMenuButton').click();await page.locator('[data-mobile="'+tab+'"]').click()};
 const settings=async()=>{await page.locator('#mobileMenuButton').click();await page.locator('[data-drawer-action="settings"]').click()};
 const errors = []; page.on('pageerror', error => errors.push(error.message));
+const address = 'http://127.0.0.1:' + server.address().port;
+async function verifyStartupRecovery() {
+  const context = await browser.newContext({viewport:{width:360,height:780}});
+  try {
+    const blocker=await context.newPage();
+    await blocker.route(address+'/storage-fixture',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>Storage fixture</title>'}));
+    await blocker.goto(address+'/storage-fixture');
+    await blocker.evaluate(()=>new Promise((resolve,reject)=>{
+      const request=indexedDB.open('omniforge-db',1);
+      request.onupgradeneeded=()=>request.result.createObjectStore('projects',{keyPath:'id'});
+      request.onsuccess=()=>{
+        const db=request.result;
+        const transaction=db.transaction('projects','readwrite');
+        transaction.objectStore('projects').put({id:'older-chat',name:'Older chat',updatedAt:1,chatOnly:true,messages:[{role:'user',text:'Saved before the upgrade'}]});
+        transaction.oncomplete=()=>resolve();
+        transaction.onerror=()=>reject(transaction.error);
+      };
+      request.onerror=()=>reject(request.error);
+    }));
+    const mobile=await context.newPage();
+    await mobile.goto(address);
+    await mobile.locator('#startupStatus').getByText(/in use by another OMNIFORGE tab/).waitFor();
+    assert.ok(await mobile.locator('#chatPane').isVisible());
+    assert.ok(await mobile.locator('#startupReload').isVisible());
+    await blocker.close();
+    await mobile.locator('#startupReload').click();
+    await mobile.getByText('Saved before the upgrade',{exact:true}).waitFor();
+    assert.equal(await mobile.locator('#projectSelect').inputValue(),'older-chat');
+    await mobile.locator('#newProject').click();
+    await mobile.waitForFunction(()=>document.querySelector('#projectSelect').selectedOptions[0]?.text.startsWith('New Chat'));
+    assert.equal(await mobile.locator('#projectSelect option[value="older-chat"]').count(),1);
+  } finally {
+    await context.close();
+  }
+}
 try {
+  await verifyStartupRecovery();
   await page.setExtraHTTPHeaders({origin:'http://127.0.0.1:'+server.address().port});
   await page.goto('http://127.0.0.1:' + server.address().port, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => !!window.OMNI_TEST && !!window.MIKEE_POOL.catalog());
@@ -203,5 +239,5 @@ try {
   await go('photos');await page.locator('.asset-tile').click();await page.locator('#addPhoto').waitFor({state:'visible'});assert.equal(await page.locator('#addPhoto').isDisabled(),true);
   await page.screenshot({ path: resolve(root, '../mikee-mobile-qa.png'), fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS mobile UI: Michelle identity with legacy preferences, typing feedback, website edits, ordinary chat and Express code preserve the site, active-project recall, static diagnostics, failed saves and concurrent edits preserve newer work, incomplete HTML protection, image failure without a placeholder, image generation/save/placement/export, encrypted owner connection, audio draft, faithful ZIP/JSON restore, restored JavaScript/CSS, image remapping, safe blob cleanup, network recovery and offline reload; provider responses are fixtures. Calls:', fixtureCalls);
+  console.log('PASS mobile UI: blocked database recovery with preserved chats, Michelle identity with legacy preferences, typing feedback, website edits, ordinary chat and Express code preserve the site, active-project recall, static diagnostics, failed saves and concurrent edits preserve newer work, incomplete HTML protection, image failure without a placeholder, image generation/save/placement/export, encrypted owner connection, audio draft, faithful ZIP/JSON restore, restored JavaScript/CSS, image remapping, safe blob cleanup, network recovery and offline reload; provider responses are fixtures. Calls:', fixtureCalls);
 } catch(error) {console.log('UI failure state',JSON.stringify(await page.evaluate(()=>({messages:window.OMNI_TEST?.getProject()?.messages?.slice(-2),assets:window.OMNI_TEST?.getProject()?.assets?.length,toast:document.querySelector('#toast')?.textContent,local:window.OMNI_OFFLINE_UI?.isOffline()}))),errors);throw error;} finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

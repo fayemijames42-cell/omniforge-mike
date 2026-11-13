@@ -1,5 +1,8 @@
 /* OMNIFORGE mobile UI - local/manual MVP. No fabricated AI or hosted uploads. */
-(function(){'use strict';const C=window.OMNI,W=window.OMNI_WORKSPACE,F=window.OMNI_FILES,Pool=window.MIKEE_POOL;const $=s=>document.querySelector(s);let project=null,all=[],activeView='preview',mobileView=innerWidth>800?'preview':'chat',preferences={name:'MICHELLE'},selectedAsset=null,originalURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message',pendingImage=null,activeAbort=null,imageJob=null,providerRetryUntil=0;
+(function(){'use strict';const C=window.OMNI,W=window.OMNI_WORKSPACE,F=window.OMNI_FILES,Pool=window.MIKEE_POOL;const $=s=>document.querySelector(s);
+if(!C||!W||!F||!Pool||!window.OMNI_CONTEXT)return;
+const mobileLayout=matchMedia('(max-width: 800px)');
+let project=null,activeView='preview',mobileView=mobileLayout.matches?'chat':'preview',preferences={name:'MICHELLE'},selectedAsset=null,originalURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message',pendingImage=null,activeAbort=null,imageJob=null,providerRetryUntil=0;
 const ui={chat:$('#chatStream'),chips:$('#chips'),edit:$('#editControls'),grid:$('#assetGrid'),photoEditor:$('#photoEditor'),frame:$('#siteFrame'),previewEmpty:$('#previewEmpty'),select:$('#projectSelect')};
 const E=C.esc, uid=C.uuid, K=window.OMNI_KNOWLEDGE;const imagePreviewURLs=new Set();function notify(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>t.style.display='none',3600)}
 function fail(e){const msg=e?.name==='QuotaExceededError'?'Device storage is full. Export a backup, remove unused photos, then try again.':e?.message||String(e);notify(msg);console.warn('OMNIFORGE action failed:',e)}
@@ -48,10 +51,11 @@ function saveChatTranscript(){
 async function renderChatSearch(){
  const q=$('#chatSearchInput').value.trim().toLowerCase();
  const saved=await C.listProjects();
- const matches=saved.filter(item=>!q||String(item.name||'').toLowerCase().includes(q)||(item.messages||[]).some(m=>String(m.text||'').toLowerCase().includes(q))).slice(0,25);
+ const messages=item=>Array.isArray(item.messages)?item.messages:[];
+ const matches=saved.filter(item=>!q||String(item.name||'').toLowerCase().includes(q)||messages(item).some(m=>String(m?.text||'').toLowerCase().includes(q))).slice(0,25);
  $('#chatSearchResults').innerHTML=matches.length?matches.map(item=>{
-  const found=q?(item.messages||[]).find(m=>String(m.text||'').toLowerCase().includes(q)):null;
-  const short=found?String(found.text).replace(/\s+/g,' ').slice(0,125):(item.messages?.length||0)+' saved messages';
+  const found=q?messages(item).find(m=>String(m?.text||'').toLowerCase().includes(q)):null;
+  const short=found?String(found.text).replace(/\s+/g,' ').slice(0,125):messages(item).length+' saved messages';
   return '<button type="button" data-open-chat="'+E(item.id)+'"><strong>'+E(item.name||'New Chat')+'</strong><small>'+E(short)+'</small></button>';
  }).join(''):'<div class="search-empty">No saved conversations match this search.</div>';
 }
@@ -86,23 +90,50 @@ async function addReferenceNotes(fileList){
  $('#sourceShelf').hidden=false;$('#toggleSources').setAttribute('aria-expanded','true');
  notify(next.length+' reference note(s) attached. Note contents are sent only when you send a message with Include notes enabled.');
 }
-async function refreshList(){all=await C.listProjects();ui.select.innerHTML=all.length?all.map(p=>`<option value="${E(p.id)}">${E(p.name||'Untitled')} · ${new Date(p.updatedAt).toLocaleDateString()}</option>`).join(''):'<option value="">No projects yet</option>';if(project)ui.select.value=project.id;$('#deleteProject').disabled=requestPending||!project;$('#renameChat').disabled=requestPending||!project}
-async function activate(projectId){project=projectId?await C.getProject(projectId):null;if(project)project=C.formatMigrated(project);clearVision();selectedAsset=null;if(originalURL)URL.revokeObjectURL(originalURL);originalURL=null;await refreshList();await showAll();if(project)await C.setPref('lastProjectId',project.id)}
+async function refreshList(saved){
+ const items=saved??await C.listProjects();
+ const placeholder=project?'':`<option value="">${items.length?'Choose a conversation':'No projects yet'}</option>`;
+ ui.select.innerHTML=placeholder+items.map(p=>`<option value="${E(p.id)}">${E(p.name||'Untitled')} · ${new Date(p.updatedAt).toLocaleDateString()}</option>`).join('');
+ ui.select.value=project?.id||'';
+ $('#deleteProject').disabled=requestPending||!project;
+ $('#renameChat').disabled=requestPending||!project;
+ $('#storageState').textContent=`Saved projects: ${items.length} · Current storage: this browser on this device`;
+}
+async function activate(projectId,saved){
+ const previous=project;
+ try{
+  const stored=projectId?await C.getProject(projectId):null;
+  project=stored?C.formatMigrated(stored):null;
+  clearVision();
+  selectedAsset=null;
+  if(originalURL)URL.revokeObjectURL(originalURL);
+  originalURL=null;
+  await showAll();
+ }catch(error){
+  project=previous;
+  await showAll();
+  await refreshList(saved);
+  throw error;
+ }
+ await refreshList(saved);
+ if(project)await C.setPref('lastProjectId',project.id).catch(fail);
+ $('#startupStatus').hidden=true;
+}
 function setMobileDrawer(open,restoreFocus=true){
  const layer=$('#mobileDrawerLayer');
- if(innerWidth>800)open=false;
+ if(!mobileLayout.matches)open=false;
  if(layer.hidden===!open)return;
  layer.hidden=!open;
  const menu=$('#mobileMenuButton');
  menu.setAttribute('aria-expanded',String(open));
  menu.setAttribute('aria-label',open?'Close workspace menu':'Open workspace menu');
  if(open){$('#drawerFocus').value=$('#chatFocus').value;$('#closeMobileDrawer').focus()}
- else if(restoreFocus&&innerWidth<=800)menu.focus();
+ else if(restoreFocus&&mobileLayout.matches)menu.focus();
 }
 function switchMobile(tab){
  if(!['chat','preview','edit','photos','notes','files'].includes(tab))tab='chat';
  mobileView=tab;
- const mobile=innerWidth<=800;
+ const mobile=mobileLayout.matches;
  $('.workarea').className=mobile?'workarea mobile-'+(tab==='chat'?'chat':'result'):'workarea';
  document.querySelectorAll('[data-mobile]').forEach(b=>{
   const active=b.dataset.mobile===tab;
@@ -347,7 +378,7 @@ async function send(text){
   else if(allowsWebsite){answer=document.complete?'The AI returned website code that failed validation. Your previous website is unchanged. Ask for browser-only HTML, CSS and JavaScript.':'The AI returned incomplete HTML. Your previous website is unchanged. Ask for a shorter complete website.';}
 
   const m=msg('assistant',answer,toolOnly?(data.provider==='local-project-context'?'LOCAL PROJECT CONTEXT · NO AI':'NEXUS CALCULATOR · NO AI'):'LIVE AI');m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount,toolsUsed:data.orchestration?.toolsUsed,warnings:data.quality?.warnings};clearVision();m.aiContent=allowsWebsite?(match?'[Earlier website output; use the current project when editing.]':'[Website generation failed validation; the previous project was kept.]'):data.reply;if(match)m.artifactType='website';m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';m.uncitedSources=data.quality?.sourceUse?.uncited===true;const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}candidate.messages.push(m);candidate.messages=candidate.messages.slice(-100);
-  await C.saveProject(candidate);project=candidate;await refreshList();await showAll();if(match&&innerWidth<=800)switchMobile('preview');
+  await C.saveProject(candidate);project=candidate;await refreshList();await showAll();if(match&&mobileLayout.matches)switchMobile('preview');
   }catch(e){
   const cancelled=activeAbort?.signal.aborted===true;
   const message=cancelled?'Request cancelled.':e?.name==='AbortError'?'Request timed out':String(e?.message||e)+providerFailureDetails(e);
@@ -467,8 +498,47 @@ async function transcribeFile(file){
 }
 
 
-async function init(){try{await C.openDB();await C.migrateLegacySite();preferences={name:window.OMNI_CONTEXT.IDENTITY.displayName};await C.setPref('provider','auto');$('#assistantNameInput').value=preferences.name;const items=await C.listProjects(),last=await C.pref('lastProjectId'),target=items.some(p=>p.id===last)?last:items[0]?.id;await activate(target||null);switchMobile(mobileView);await Pool.mount();$('#storageState').textContent=`Saved projects: ${items.length} · Current storage: this browser on this device`;}catch(e){fail(e);ui.chat.innerHTML=`<p style="padding:20px;color:#f7c0af">Browser storage is unavailable (${E(e.message)}). Open this page on Chrome using HTTPS or localhost. No changes will be saved.</p>`}}
-$('#composer').addEventListener('submit',e=>{e.preventDefault();(()=>{const submitted=$('#prompt').value;if(!requestPending)queued(()=>send(submitted));})()});$('#prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#composer').requestSubmit()}});ui.chips.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{queued(()=>send(b.dataset.prompt))});
+function startupMessage(message,reload=false){
+ $('#startupMessage').textContent=message;
+ $('#startupReload').hidden=!reload;
+ $('#startupStatus').hidden=false;
+}
+async function init(){
+ $('#startupStatus').dataset.started='true';
+ switchMobile(mobileView);
+ const timer=setTimeout(()=>startupMessage('Opening saved conversations is taking longer than usual.',true),4000);
+ try{
+  await showAll();
+  await C.openDB();
+  await C.migrateLegacySite().catch(fail);
+  const items=await C.listProjects();
+  const last=await C.pref('lastProjectId').catch(fail);
+  const target=items.some(p=>p.id===last)?last:items[0]?.id;
+  try{
+   await activate(target||null,items);
+  }catch(error){
+   fail(error);
+   startupMessage('The last conversation could not open. Choose another conversation or start a new chat.');
+  }
+ }catch(error){
+  fail(error);
+  startupMessage('Saved conversations could not load. '+error.message,true);
+ }finally{
+  clearTimeout(timer);
+ }
+}
+$('#composer').addEventListener('submit',event=>{
+ event.preventDefault();
+ const submitted=$('#prompt').value;
+ if(!requestPending)queued(()=>send(submitted));
+});
+$('#prompt').addEventListener('keydown',event=>{
+ if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){
+  event.preventDefault();
+  $('#sendBtn').click();
+ }
+});
+ui.chips.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{queued(()=>send(b.dataset.prompt))});
 $('#newProject').onclick=()=>queued(async()=>{const p=C.makeProject('New Chat');p.chatOnly=true;await C.saveProject(p);await activate(p.id);switchMobile('chat');notify('New conversation ready. The title will be chosen from your topic.')});$('#deleteProject').onclick=()=>queued(async()=>{if(!project)return;const name=project.name,id=project.id;if(!confirm(`Delete “${name}”? This cannot be undone. Export a ZIP backup first if you need one.`))return;await C.deleteProject(id);const next=(await C.listProjects())[0];await activate(next?.id||null);notify('Project and unused photo data deleted.')});$('#renameChat').onclick=()=>queued(async()=>{if(!project)return;const input=prompt('Rename this chat:',project.name);if(input===null)return;const title=input.trim().replace(/\s+/g,' ').slice(0,60);if(!title)return;project.name=title;project.chatTitlePinned=true;project.updatedAt=Date.now();await C.saveProject(project);await refreshList();await showAll();notify('Chat renamed')});ui.select.onchange=e=>queued(()=>activate(e.target.value));$('#undoBtn').onclick=()=>queued(doUndo);
 $('#chatSearchBtn').onclick=()=>queued(async()=>{await renderChatSearch();$('#chatSearchDialog').showModal();$('#chatSearchInput').focus()});
 $('#closeChatSearch').onclick=()=>$('#chatSearchDialog').close();
@@ -543,10 +613,14 @@ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>changeTab(b.da
    else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
   }
  });
- window.addEventListener('resize',()=>switchMobile(mobileView));
+ const resizeWorkspace=()=>switchMobile(mobileView);
+ if(mobileLayout.addEventListener)mobileLayout.addEventListener('change',resizeWorkspace);
+ else mobileLayout.addListener(resizeWorkspace);
 for(const id of ['chatPhotoFiles','photoFiles'])$('#'+id).onchange=e=>queued(async()=>{await uploadFiles(e.target.files);e.target.value=''});
 $('#importFile').onchange=e=>queued(async()=>{const file=e.target.files[0];if(!file)return;const p=await C.importProject(file);await activate(p.id);switchMobile('preview');notify('Project imported. Changes are local to this device.');e.target.value=''});
 $('#chooseVision').onclick=()=>{if(!requestPending)$('#visionFile').click()};$('#visionFile').onchange=e=>queued(async()=>{const file=e.target.files[0];if(file)await attachVision(file);e.target.value='';});$('#removeVision').onclick=clearVision;$('#audioFile').onchange=e=>queued(async()=>{try{await transcribeFile(e.target.files[0])}finally{e.target.value=''}});$('#cancelRequest').onclick=()=>activeAbort?.abort();
 
-init();window.OMNI_TEST={getProject:()=>project,getUI:()=>({mobileView,activeView}),queue:()=>queue};
+queue=init();
+void Pool.mount().catch(fail);
+window.OMNI_TEST={getProject:()=>project,getUI:()=>({mobileView,activeView}),queue:()=>queue};
 })();
