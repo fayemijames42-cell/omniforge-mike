@@ -1,4 +1,6 @@
 import {fetchBounded,ProviderError,retryDelay} from './server/providers.js';
+import './src/wikipedia.js';
+const wiki=globalThis.OMNI_WIKIPEDIA;
 /* OMNIFORGE web evidence adapter.
  * Server-only outbound requests to documented, fixed-host search APIs.
  * Wikipedia offers keyless encyclopedic lookups; Tavily free Researcher plan
@@ -49,10 +51,7 @@ export function researchIntent(message){
  return {requested:intent.researchMode!=='none',fresh:intent.fresh,query:intent.query};
 }
 export function publicReferenceQuery(value){
- if(typeof value!=='string'||value.length>150)return '';
- const topic=value.trim().replace(/\s+/g,' ');
- if(topic.length<2||PRIVACY.test(topic)||/\b(?:my|mine|our|ours)\b|https?:|www\.|@|\b\d{7,}\b/i.test(topic))return '';
- return topic;
+ return wiki.topic(value);
 }
 function clean(value,n=600){
  return String(value||'').replace(/<[^>]*>/g,' ').replace(/&(?:amp|quot|lt|gt|nbsp|#39);/gi,x=>({'&amp;':'&','&quot;':'"','&lt;':'<','&gt;':'>','&nbsp;':' ','&#39;':"'"}[x.toLowerCase()]||' ')).replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,n);
@@ -68,7 +67,7 @@ function urlCheck(url){
 async function jsonLimited(url,options={},fetcher=fetch,validate){
  const {bytes}=await fetchBounded(fetcher,url,options,{timeout:6500,maximum:95000,validate:response=>{
   validate?.(response);
-  if(!response.ok)throw Error('Search source is unavailable (HTTP '+response.status+').');
+  if(!response.ok)throw new ProviderError('reference_upstream',{status:response.status});
  }});
  return JSON.parse(new TextDecoder().decode(bytes));
 }
@@ -78,8 +77,8 @@ async function jsonLimited(url,options={},fetcher=fetch,validate){
  */
 const WIKI_HEADERS={
  'Accept':'application/json',
- 'Api-User-Agent':'OMNIFORGE-Research/0.2 (https://omniforge-mike.fayemijames42.workers.dev/; Wikipedia reference)',
- 'User-Agent':'OMNIFORGE-Research/0.2 (https://omniforge-mike.fayemijames42.workers.dev/; Wikipedia reference)'
+ 'Api-User-Agent':wiki.agent,
+ 'User-Agent':wiki.agent,
 };
 function wikiSource(page){
  const key=String(page.key||page.title||'').trim();
@@ -108,12 +107,13 @@ async function wikiAction(query,fetcher,validate){
   .map(p=>wikiSource({title:p.title,key:p.title,snippet:p.snippet})).filter(Boolean);
 }
 export async function lookupWikipedia(topic,fetcher){
- const sources=await wikiAction(topic,fetcher,response=>{
+ const data=await jsonLimited(wiki.lookupUrl(topic),{headers:WIKI_HEADERS},fetcher,response=>{
   if(response.status===429||response.headers.has('retry-after')){
    throw new ProviderError('reference_throttled',{status:429,retryAfter:retryDelay(response.headers.get('retry-after'))||300000});
   }
  });
- return {scope:'wikipedia',retrievedAt:new Date().toISOString(),sources};
+ if(data.error)throw new ProviderError('reference_upstream');
+ return {scope:'wikipedia',retrievedAt:new Date().toISOString(),sources:wiki.sources(data)};
 }
 async function encyclopedia(query,fetcher){
  let firstError='';

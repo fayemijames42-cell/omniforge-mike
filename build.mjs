@@ -14,6 +14,7 @@ const shellAssets=Object.fromEntries(await Promise.all(
  [...template.matchAll(shellLink)].map(async ([,,path])=>[versionedPath(path),await integrity(path)])
 ));
 shellAssets['/src/knowledge.xml']=await integrity('src/knowledge.xml');
+shellAssets[versionedPath('src/reference-seed.json')]=await integrity('src/reference-seed.json');
 const html=template.replace('</title>','</title><meta name="omniforge-build" content="'+buildId+'">');
 const versionedHTML=html.replace(shellLink,(_,prefix,path)=>{
  const url=versionedPath(path);

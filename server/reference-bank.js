@@ -1,24 +1,19 @@
 import {fetchBounded, ProviderError, retryDelay} from './providers.js';
+import '../src/wikipedia.js';
 
+const wiki = globalThis.OMNI_WIKIPEDIA;
 const DAY = 86400000;
-const LIMIT = 64;
-const BATCH = 8;
-const ANCHORS = 6;
-const KEY = 'reference-bank-v1';
-const LICENSE = 'https://creativecommons.org/licenses/by-sa/4.0/';
-const PROJECT = 'https://github.com/fayemijames42-cell/omniforge-mike';
-const HEADERS = {
-  Accept: 'application/json',
-  'User-Agent': 'OMNIFORGE-Reference/1.0 (' + PROJECT + ')',
-  'Api-User-Agent': 'OMNIFORGE-Reference/1.0 (' + PROJECT + ')',
-};
+const ANCHORS = 7;
+const ROTATING = 7;
+const SEED_SIZE = 20;
 const TOPICS = [
   ['Mathematics', 'maths math numbers'],
   ['Physics', 'physical science matter energy'],
   ['Satoru Gojo', 'saturo gojo satori gojo jjk jujutsu kaisen character'],
-  ['List of tallest buildings', 'tallest highest building buildings skyscraper world'],
+  ['List of tallest buildings', 'tallest highest building buildings skyscraper world burj khalifa'],
   ['Chemistry', 'chemical science reactions'],
   ['Biology', 'life science organisms'],
+  ['Pythagorean theorem', 'pythagoras theorem right triangle hypotenuse'],
   ['Electricity', 'electric charge energy'],
   ['Computer science', 'computing computers'],
   ['Artificial intelligence', 'AI machine intelligence'],
@@ -60,103 +55,81 @@ const TOPICS = [
 ];
 
 const dayOf = time => new Date(time).toISOString().slice(0, 10);
-const plain = (value, limit) => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, limit) : '';
-const emptyState = () => ({attemptedDay: '', attemptedBy: null, updatedAt: null, nextTopic: 0, retryAt: 0, status: 'pending', entries: []});
+const headers = {Accept: 'application/json', 'User-Agent': wiki.agent, 'Api-User-Agent': wiki.agent};
+const retriesOn = (response, now) => {
+  const retryAfter = retryDelay(response.headers.get('retry-after'), now);
+  if (response.status === 429 || retryAfter > 0) return retryAfter || DAY;
+  return 0;
+};
 
-function chooseTopics(previous) {
-  const today = TOPICS.slice(0, ANCHORS);
-  const rotation = TOPICS.slice(today.length);
-  const start = previous.nextTopic % rotation.length;
-  for (let i = 0; i < BATCH - ANCHORS; i++) today.push(rotation[(start + i) % rotation.length]);
-  return {topics: today, nextTopic: (start + BATCH - ANCHORS) % rotation.length};
-}
-
-export function referenceRequest(env, method = 'GET', scheduledTime) {
-  if (!env.DAILY_BUDGET?.getByName) throw Error('Reference storage is unavailable.');
-  const stub = env.DAILY_BUDGET.getByName('omniforge-public-reference-v1');
-  const options = method === 'POST' ? {
-    method,
-    headers: {'content-type': 'application/json'},
-    body: JSON.stringify({scheduledTime}),
-  } : {method};
-  return stub.fetch(new Request('https://budget.internal/reference-bank', options));
-}
-
-export async function refreshScheduledReference(env, scheduledTime) {
-  const response = await referenceRequest(env, 'POST', scheduledTime);
-  if (!response.ok) throw Error('Scheduled reference refresh failed.');
-  return response.json();
-}
-
-export async function updateReferenceBank(state, fetcher = fetch, scheduledTime = Date.now(), now = Date.now, source = 'scheduled') {
-  const day = dayOf(scheduledTime);
-  const claimed = await state.storage.transaction(async tx => {
-    const current = await tx.get(KEY) || emptyState();
-    if (current.attemptedDay >= day || current.retryAt > now()) return null;
-    await tx.put(KEY, {...current, attemptedDay: day, attemptedBy: source, status: 'checking'});
-    return current;
-  });
-  if (!claimed) return {status: 'already-attempted'};
-  const {topics, nextTopic} = chooseTopics(claimed);
-  const url = new URL('https://en.wikipedia.org/w/api.php');
-  for (const [name, value] of Object.entries({
-    action: 'query', prop: 'extracts|info', titles: topics.map(topic => topic[0]).join('|'),
-    exlimit: 'max', exintro: '1', explaintext: '1', exchars: '620',
-    redirects: '1', format: 'json', formatversion: '2',
-  })) url.searchParams.set(name, value);
-  let entries, retryAt = 0;
+export async function refreshReferenceBank(previous, {fetcher = fetch, now = Date.now, source = 'scheduled'} = {}) {
+  const start = now(), day = dayOf(start);
+  if (previous?.attemptedDay >= day || Number(previous?.retryAt) > start) return previous;
+  const last = previous ? wiki.validateSnapshot(previous) : {entries: []};
+  const rotation = TOPICS.slice(ANCHORS);
+  const offset = Number.isInteger(last.nextTopic) && last.nextTopic >= 0 ? last.nextTopic % rotation.length : 0;
+  const topics = previous ? TOPICS.slice(0, ANCHORS) : TOPICS.slice(0, SEED_SIZE);
+  if (previous) {
+    for (let i = 0; i < ROTATING; i++) topics.push(rotation[(offset + i) % rotation.length]);
+  }
+  const nextTopic = (offset + topics.length - ANCHORS) % rotation.length;
+  const attempted = {...last, attemptedDay: day, attemptedBy: source};
   try {
-    const {bytes} = await fetchBounded(fetcher, url.toString(), {headers: HEADERS}, {
-      timeout: 6500, maximum: 70000, validate(response) {
-        if (!response.ok) throw new ProviderError('reference_unavailable', {
-          retryAfter: retryDelay(response.headers.get('retry-after'), now()),
-        });
+    const url = wiki.apiUrl({...wiki.introduction, titles: topics.map(topic => topic[0]).join('|'), exlimit: 'max', redirects: '1', maxlag: '5'});
+    const {bytes} = await fetchBounded(fetcher, url, {headers}, {
+      timeout: 18000, maximum: 95000, validate(response) {
+        const retryAfter = retriesOn(response, now());
+        if (!response.ok || retryAfter) throw new ProviderError('reference_unavailable', {retryAfter});
       },
     });
-    const query = JSON.parse(new TextDecoder().decode(bytes)).query;
+    const data = JSON.parse(new TextDecoder().decode(bytes));
+    if (data.error?.code === 'maxlag') throw new ProviderError('reference_unavailable', {retryAfter: DAY});
+    const query = data.query;
     const aliases = new Map(topics);
     const redirects = Array.isArray(query?.redirects) ? query.redirects : [];
     for (const {from, to} of redirects) {
       if (aliases.has(from) && typeof to === 'string') aliases.set(to, aliases.get(from));
     }
     const retrievedAt = new Date(now()).toISOString();
-    const byId = new Map(claimed.entries.map(entry => [entry.id, entry]));
-    for (const page of (Array.isArray(query?.pages) ? query.pages : []).slice(0, BATCH)) {
-      if (!page || !aliases.has(page.title) || !Number.isSafeInteger(page.pageid) || page.pageid < 1 ||
-          !Number.isSafeInteger(page.lastrevid) || page.lastrevid < 1) continue;
-      const title = plain(page.title, 130), answer = plain(page.extract, 680);
-      if (answer.length < 70) continue;
+    const byId = new Map(last.entries.map(entry => [entry.id, entry]));
+    let refreshed = 0;
+    for (const page of (Array.isArray(query?.pages) ? query.pages : []).slice(0, topics.length)) {
+      const article = wiki.article(page);
+      if (!article || !aliases.has(page.title) || !Number.isSafeInteger(page.pageid) || page.pageid < 1) continue;
       const id = 'wiki-' + page.pageid;
       const aliasesForPage = [byId.get(id)?.tags, aliases.get(page.title)].filter(Boolean).join(' ').split(' ');
       byId.set(id, {
-        id, question: title, tags: plain([...new Set(aliasesForPage)].join(' '), 160), answer,
-        url: 'https://en.wikipedia.org/w/index.php?oldid=' + page.lastrevid,
-        retrievedAt,
+        id, question: article.title, tags: wiki.plain([...new Set(aliasesForPage)].join(' '), 160),
+        answer: article.excerpt, url: article.url, retrievedAt,
       });
-      entries = byId;
+      refreshed++;
     }
+    if (!refreshed) throw Error('Wikipedia returned no usable introductions.');
+    const entries = [...byId.values()].sort((left, right) =>
+      right.retrievedAt.localeCompare(left.retrievedAt) || left.question.localeCompare(right.question)).slice(0, wiki.maxRecords);
+    return wiki.validateSnapshot({
+      ...attempted, format: 1, publisher: 'Wikipedia', license: wiki.license, updatedAt: retrievedAt,
+      nextTopic, retryAt: 0, status: 'updated', entries,
+    });
   } catch (error) {
-    if (error instanceof ProviderError && error.retryAfter > 0) retryAt = now() + error.retryAfter;
+    if (!previous) throw error;
+    return {...attempted, status: 'unavailable', retryAt: error?.retryAfter > 0 ? now() + error.retryAfter : 0};
   }
-
-  return state.storage.transaction(async tx => {
-    const current = await tx.get(KEY);
-    if (current?.attemptedDay !== day) return {status: 'superseded'};
-    if (!entries) {
-      await tx.put(KEY, {...current, retryAt, status: 'unavailable'});
-      return {status: 'unavailable'};
-    }
-    const ordered = [...entries.values()].sort((left, right) => right.retrievedAt.localeCompare(left.retrievedAt)).slice(0, LIMIT);
-    const updatedAt = new Date(now()).toISOString();
-    await tx.put(KEY, {...current, updatedAt, nextTopic, retryAt: 0, status: 'updated', entries: ordered});
-    return {status: 'updated', updatedAt, count: ordered.length};
-  });
 }
 
-export async function referenceSnapshot(state) {
-  const value = await state.storage.get(KEY) || emptyState();
-  return {
-    format: 1, updatedAt: value.updatedAt, attemptedDay: value.attemptedDay || null, attemptedBy: value.attemptedBy,
-    status: value.status, publisher: 'Wikipedia', license: LICENSE, entries: value.entries,
-  };
+export async function publishedReference(seed, fetcher = fetch) {
+  try {
+    const {bytes} = await fetchBounded(fetcher, wiki.snapshotUrl, {
+      headers: {Accept: 'application/json'},
+      cf: {cacheEverything: true, cacheTtlByStatus: {'200-299': 300, '404': 60, '500-599': 0}},
+    }, {
+      timeout: 3500, maximum: wiki.maxBytes,
+      validate(response) {
+        if (!response.ok) throw Error('Published reference unavailable.');
+      },
+    });
+    const latest = wiki.validateSnapshot(JSON.parse(new TextDecoder().decode(bytes)));
+    if (latest.updatedAt >= seed.updatedAt) return {...latest, delivery: 'published'};
+  } catch {}
+  return {...seed, delivery: 'bundled'};
 }

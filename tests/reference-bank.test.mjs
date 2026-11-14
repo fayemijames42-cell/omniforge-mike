@@ -1,7 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import worker, {DailyBudget} from '../worker.js';
-import {referenceSnapshot,updateReferenceBank} from '../server/reference-bank.js';
+import {refreshReferenceBank} from '../server/reference-bank.js';
+import seed from '../src/reference-seed.json' with {type:'json'};
 
 function makeStorage() {
   const data = new Map();
@@ -27,8 +28,7 @@ function wikipedia(pages,redirects) {
   return Response.json({query:{pages,redirects}});
 }
 
-test('Daily reference update fetches the fixed public selection once and exposes attributed records',async()=>{
-  const state={storage:makeStorage()};
+test('Daily reference update fetches the fixed public selection once and preserves revision attribution',async()=>{
   let calls=0;
   const fetcher=async(url,init)=>{
     calls++;
@@ -36,18 +36,14 @@ test('Daily reference update fetches the fixed public selection once and exposes
     assert.equal(request.origin,'https://en.wikipedia.org');
     assert.equal(request.pathname,'/w/api.php');
     assert.equal(request.searchParams.get('explaintext'),'1');
-    assert.equal(request.searchParams.get('titles').split('|').length,8);
+    assert.equal(request.searchParams.get('titles').split('|').length,20);
     assert.ok(request.searchParams.get('titles').includes('Satoru Gojo'));
     assert.match(init.headers['User-Agent'],/OMNIFORGE-Reference/);
     return wikipedia([article(),article('Unexpected user topic',32,41),article('Physics',33,42)]);
   };
-  const concurrency=await Promise.all([
-    updateReferenceBank(state,fetcher,day,()=>day),
-    updateReferenceBank(state,fetcher,day,()=>day),
-  ]);
+  const snapshot=await refreshReferenceBank(null,{fetcher,now:()=>day});
+  assert.equal(await refreshReferenceBank(snapshot,{fetcher,now:()=>day}),snapshot);
   assert.equal(calls,1);
-  assert.deepEqual(concurrency.map(x=>x.status).sort(),['already-attempted','updated']);
-  const snapshot=await referenceSnapshot(state);
   assert.equal(snapshot.updatedAt,new Date(day).toISOString());
   assert.equal(snapshot.attemptedBy,'scheduled');
   assert.equal(snapshot.license,'https://creativecommons.org/licenses/by-sa/4.0/');
@@ -57,57 +53,78 @@ test('Daily reference update fetches the fixed public selection once and exposes
 });
 
 test('A throttled refresh keeps the last good references and waits for Retry-After',async()=>{
-  const state={storage:makeStorage()};
-  const first=async()=>wikipedia([article()]);
-  await updateReferenceBank(state,first,day,()=>day);
-  const original=await referenceSnapshot(state);
+  const original=await refreshReferenceBank(null,{fetcher:async()=>wikipedia([article()]),now:()=>day});
   let failed=0;
   const later=day+oneDay;
-  assert.equal((await updateReferenceBank(state,async()=>{
-    failed++;
-    return new Response('',{status:429,headers:{'retry-after':String(2*oneDay/1000)}});
-  },later,()=>later)).status,'unavailable');
-  assert.equal((await updateReferenceBank(state,()=>{throw Error('Unexpected upstream call');},later+oneDay,()=>later+oneDay)).status,'already-attempted');
+  const retained=await refreshReferenceBank(original,{
+    now:()=>later,fetcher:async()=>{
+      failed++;
+      return new Response('',{status:429,headers:{'retry-after':String(2*oneDay/1000)}});
+    },
+  });
+  const cached=await refreshReferenceBank(retained,{now:()=>later+oneDay,fetcher:()=>{failed++;throw Error('Unexpected upstream call');}});
+  assert.equal(cached,retained);
   assert.equal(failed,1);
-  const retained=await referenceSnapshot(state);
   assert.deepEqual(retained.entries,original.entries);
   assert.equal(retained.updatedAt,original.updatedAt);
   assert.equal(retained.status,'unavailable');
   const recovered=later+2*oneDay;
-  await updateReferenceBank(state,async()=>wikipedia([article('Mathematics',31,88),article('Nigeria',82,93)]),recovered,()=>recovered);
-  const refreshed=await referenceSnapshot(state);
-  assert.equal(refreshed.status,'updated');
+  const refreshed=await refreshReferenceBank(retained,{
+    now:()=>recovered,fetcher:async url=>{
+      const titles=new URL(url).searchParams.get('titles').split('|');
+      assert.equal(titles.length,14);
+      assert.ok(titles.includes('Pythagorean theorem'));
+      assert.ok(titles.includes('Jujutsu Kaisen'));
+      return wikipedia([article('Mathematics',31,88),article('Jujutsu Kaisen',82,93)]);
+    },
+  });
   assert.equal(refreshed.entries.find(item=>item.question==='Mathematics').url,'https://en.wikipedia.org/w/index.php?oldid=88');
+  assert.equal(refreshed.entries.length,2);
 });
 
-test('Public read and scheduled update use a separate Durable Object instance and no inference',async()=>{
-  let outbound=0;
-  const names=[];
-  const storage=makeStorage();
-  const database=new DailyBudget({storage},{REFERENCE_FETCH:async()=>{
-    outbound++;
-    return wikipedia([article()]);
-  }});
-  const env={DAILY_BUDGET:{getByName(name){
-    names.push(name);
-    return {fetch:request=>database.fetch(request)};
-  }},AI:{run(){assert.fail('Reference refresh does not spend AI quota');}}};
+test('A malformed daily result leaves the last good publication intact',async()=>{
+  const nextDay=Date.parse(seed.updatedAt)+oneDay;
+  const failed=await refreshReferenceBank(seed,{now:()=>nextDay,fetcher:async()=>wikipedia([article('Unknown topic')])});
+  assert.equal(failed.status,'unavailable');
+  assert.equal(failed.updatedAt,seed.updatedAt);
+  assert.equal(failed.nextTopic,seed.nextTopic);
+  assert.deepEqual(failed.entries,seed.entries);
+});
+
+test('Public reference downloads use no storage binding or inference, with a real bundled fallback',async()=>{
+  const refreshed=await refreshReferenceBank(seed,{
+    now:()=>Date.parse(seed.updatedAt)+oneDay,fetcher:async()=>wikipedia([article()]),
+  });
+  let publication=Response.json(refreshed);
+  const env={
+    REFERENCE_FETCH:async url=>{
+      assert.match(url,/^https:\/\/raw\.githubusercontent\.com\/fayemijames42-cell\/omniforge-mike\/reference-snapshots\/snapshot\.json$/);
+      return publication;
+    },
+    DAILY_BUDGET:{getByName(){assert.fail('Public downloads require no Durable Object');}},
+    AI:{run(){assert.fail('Reference refresh does not spend AI quota');}},
+  };
   const route='https://unit.test/api/reference-bank';
   const response=await worker.fetch(new Request(route),env);
   assert.equal(response.status,200);
   assert.equal(response.headers.get('cache-control'),'public, max-age=300');
   const first=await response.json();
-  assert.equal(first.entries.length,1);
-  assert.equal(first.attemptedBy,'initial-download');
+  assert.equal(first.delivery,'published');
+  assert.equal(first.updatedAt,refreshed.updatedAt);
+  assert.ok(first.entries.some(entry=>entry.url.endsWith('oldid=40')));
   assert.equal((await worker.fetch(new Request(route,{method:'POST'}),env)).status,405);
-  assert.equal((await worker.fetch(new Request(route),{})).status,503);
-  let work;
-  worker.scheduled({scheduledTime:Date.now()+oneDay},env,{waitUntil(value){work=value;}});
-  assert.equal((await work).status,'updated');
-  assert.equal((await referenceSnapshot({storage})).attemptedBy,'scheduled');
-  assert.equal(outbound,2);
-  assert.deepEqual(names,['omniforge-public-reference-v1','omniforge-public-reference-v1']);
-  assert.equal(await storage.get('research'),undefined);
+  for(const bad of [
+    new Response('',{status:503}),
+    Response.json({...refreshed,entries:[{...refreshed.entries[0],url:'https://unrelated.test/article'}]}),
+    Response.json({...seed,updatedAt:'2020-01-01T00:00:00.000Z'}),
+  ]){
+    publication=bad;
+    const backup=await worker.fetch(new Request(route),env);
+    assert.equal(backup.status,200);
+    assert.equal((await backup.json()).delivery,'bundled');
+  }
+  assert.equal(seed.entries.length,20);
+  assert.ok(seed.entries.some(entry=>entry.question==='Satoru Gojo'));
 });
 
 test('Cloud capacity errors can return already-retrieved Wikipedia excerpts without asserting inference',async()=>{
@@ -145,9 +162,9 @@ test('Direct Wikipedia lookup uses only its own allowance, rejects private input
     calls++;
     const address=new URL(url);
     assert.equal(address.origin,'https://en.wikipedia.org');
-    assert.equal(address.searchParams.get('srsearch'),'Satoru Gojo');
+    assert.equal(address.searchParams.get('gsrsearch'),'Satoru Gojo');
     if(calls>1)return new Response('',{status:429,headers:{'retry-after':'120'}});
-    return Response.json({query:{search:[{title:'Satoru Gojo',snippet:extract}]}});
+    return wikipedia([article('Satoru Gojo',34,41)]);
   };
   assert.equal((await post('my private address')).status,400);
   assert.equal((await post('Satoru Gojo','https://unrelated.test')).status,403);
@@ -157,6 +174,7 @@ test('Direct Wikipedia lookup uses only its own allowance, rejects private input
   const body=await result.json();
   assert.equal(body.live,false);
   assert.equal(body.sources[0].title,'Satoru Gojo');
+  assert.equal(body.sources[0].url,'https://en.wikipedia.org/w/index.php?oldid=41');
   assert.equal(await storage.get('wikipedia'),1);
   assert.equal(await storage.get('research'),undefined);
   const throttled=await post('Satoru Gojo');

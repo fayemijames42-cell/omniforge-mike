@@ -64,6 +64,43 @@
       return data;
     }, signal, timeout);
   }
+  function lookupWikipedia(topic, signal) {
+    return withDeadline(async requestSignal => {
+      const wiki = window.OMNI_WIKIPEDIA;
+      const query = wiki.topic(topic);
+      if (!query) {
+        const error = Error('Enter a short public topic. Leave out private information, email addresses and links.');
+        error.invalidTopic = true;
+        throw error;
+      }
+      const response = await fetch(wiki.lookupUrl(query, true), {
+        signal: requestSignal, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer',
+        headers: { 'Api-User-Agent': wiki.agent, Accept: 'application/json' },
+      }).catch(error => {
+        if (requestSignal.aborted) throw error;
+        throw Error('Could not reach Wikipedia. Try again when connected.');
+      });
+      if (response.status === 429 || response.headers.has('retry-after')) {
+        void response.body?.cancel().catch(() => {});
+        const error = Error('Wikipedia asked us to wait before retrying. Saved references remain available.');
+        error.status = 429;
+        error.retryAfter = retrySeconds(response, {}) || 300;
+        throw error;
+      }
+      if (!response.ok) {
+        void response.body?.cancel().catch(() => {});
+        throw Error('Wikipedia is temporarily unavailable.');
+      }
+      const data = await wiki.readJSON(response, requestSignal).catch(error => {
+        if (requestSignal.aborted) throw error;
+        throw Error('Wikipedia returned an unreadable response.');
+      });
+      if (data.error) throw Error('Wikipedia is temporarily unavailable.');
+      const sources = wiki.sources(data);
+      if (!sources.length) throw Error('Wikipedia returned no matching excerpts.');
+      return wiki.reply({ scope: 'wikipedia', retrievedAt: new Date().toISOString(), sources });
+    }, signal, 9000);
+  }
   function downloadImage(url, signal) {
     const maximum = 2250000;
     return withDeadline(async requestSignal => {
@@ -177,5 +214,5 @@
     await refresh().catch(() => {});
   }
   function showError(error) { $('#connectionNotice').textContent = error.message || 'Connection action failed.'; }
-  window.MIKEE_POOL = { request, downloadImage, receipt, mount, refresh, catalog: () => catalog };
+  window.MIKEE_POOL = { request, lookupWikipedia, downloadImage, receipt, mount, refresh, catalog: () => catalog };
 })();

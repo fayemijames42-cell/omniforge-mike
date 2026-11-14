@@ -429,7 +429,8 @@ async function localReply(text,route,body,engine,{existing=false,data,retrieval}
   reply.researchScope='saved-wikipedia';
  }
  if(retrieval){
-  reply.sources=retrieval.sources.slice(0,4);reply.researchScope='wikipedia';reply.retrievedAt=retrieval.research?.retrievedAt;
+  reply.sources=retrieval.sources.slice(0,4).map(({title,publisher,url})=>({title,publisher,url}));
+  reply.researchScope='wikipedia';reply.retrievedAt=retrieval.research?.retrievedAt;
   reply.researchNote=retrieval.research?.note;
  }
  draft.messages.push(reply);aiState=engine;
@@ -476,15 +477,18 @@ async function searchReferences(text,topic){
   return;
  }
  activeAbort=new AbortController();setPending(true,'reference');pendingKind='reference';updatePendingText();
+ $('#composerHint').textContent='Looking up a public topic on Wikipedia';
  try{
-  const data=await Pool.request('/api/reference-search',{body:{topic},signal:activeAbort.signal,timeout:9000});
+  const data=await Pool.lookupWikipedia(topic,activeAbort.signal);
   if(data.provider!=='reference-retrieval'||data.live!==false||data.toolOnly!==true||typeof data.reply!=='string'||!Array.isArray(data.sources)||!data.sources.length)
    throw Error('No usable reference was returned.');
   await localReply(text,'Wikipedia lookup',data.reply,'WIKIPEDIA RETRIEVAL · NO AI',{retrieval:data});
+  await K?.saveLookups(data).then(()=>window.OMNI_OFFLINE_UI?.updateStatus()).catch(()=>notify('Wikipedia answered. Its excerpts could not be kept for offline lookup.'));
  }catch(error){
   if(activeAbort.signal.aborted)return notify('Wikipedia lookup cancelled.');
+  if(error?.code==='PROJECT_CONFLICT')throw error;
   rememberProviderDelay('reference',error);
-  if(error.status===429||error.status>=500||error.code==='REQUEST_TIMEOUT'||error.name==='TypeError'){
+  if(!error.invalidTopic){
    if(await respondOffline(text,{query:topic,reason:'Wikipedia is unavailable. Showing saved information.',onlyIfFound:true}))return;
   }
   notify(error.message);
@@ -534,7 +538,7 @@ async function send(text){
   throw Error('Cloud AI could not load. Reload to reconnect. Local tools are available.');
  }
  if(waitingForProvider('chat')){
-  if(canRetrieve)await respondOffline(text,{reason:'Cloud AI is waiting for capacity. Showing saved information.',onlyIfFound:true});
+  if(canRetrieve)return respondOffline(text,{reason:'Cloud AI is waiting for capacity.'});
   return;
  }
  let promptSaved=false;
@@ -575,11 +579,13 @@ async function send(text){
   aiState='AI REQUEST FAILED';
   if(!promptSaved||e?.code==='PROJECT_CONFLICT')throw e;
   const cancelled=activeAbort?.signal.aborted===true;
-  const message=cancelled?'Request cancelled.':e?.name==='AbortError'?'Request timed out':String(e?.message||e)+providerFailureDetails(e);
+  let message=cancelled?'Request cancelled.':e?.name==='AbortError'?'Request timed out':String(e?.message||e)+providerFailureDetails(e);
   if(!cancelled){
    rememberProviderDelay('chat',e);
-   if(canRetrieve&&(e?.status===429||e?.status>=500||e?.code==='REQUEST_TIMEOUT'||e?.name==='TypeError')&&
-      await respondOffline(text,{existing:true,reason:'Cloud AI is unavailable. Showing saved information.',onlyIfFound:true,details:providerFailureDetails(e)}))return;
+   if(canRetrieve&&(e?.status===429||e?.status>=500||e?.code==='REQUEST_TIMEOUT'||e?.name==='TypeError')){
+    if(await respondOffline(text,{existing:true,reason:'Cloud AI is unavailable. Showing saved information.',onlyIfFound:true,details:providerFailureDetails(e)}))return;
+    message+='\n\nFor a public topic, choose Wikipedia lookup. The local calculator and saved projects are also available.';
+   }
   }
   if(project){const draft=conversationDraft();draft.messages.push(msg('assistant',message,'ERROR'));await saveConversation(draft);await showAll()}else fail(e)
  }finally{activeAbort=null;setPending(false);Pool?.refresh().catch(()=>{})}
