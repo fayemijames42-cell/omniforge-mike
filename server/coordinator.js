@@ -208,15 +208,22 @@ export class MikeeCoordinator {
   }
   async route(data, capability = 'chat', audio) {
     if(capability!=='transcribe'&&(!Array.isArray(data.messages)||!data.messages.length))return json({error:'A prepared conversation is required.'},400);
-    if (!await this.globalPermit()) return this.unavailable([{ reason: 'daily_budget' }], nextDay(this.now()));
     const requested = data.provider || 'auto';
     if (requested !== 'auto' && !BY_ID[requested]) return json({ error: 'Unknown provider.' }, 400);
+    const requestedBudget=Number(data.budgetMs);
+    const budget=Number.isFinite(requestedBudget)?Math.min(85000,requestedBudget):85000;
+    const end=this.now()+budget,remaining=()=>end-this.now();
+    const timedOut=()=>json({error:'The AI request timed out. Try again or use local tools.',code:'REQUEST_TIMEOUT'},504);
+    if(remaining()<1000)return timedOut();
+    if (!await this.globalPermit()) return this.unavailable([{ reason: 'daily_budget' }], nextDay(this.now()));
     let candidates = PROFILES.filter(p => p.capabilities.includes(capability) && (requested === 'auto' || requested === p.id));
     if (capability === 'transcribe') candidates = candidates.sort((a, b) => (a.id === 'groq' ? -1 : b.id === 'groq' ? 1 : 0));
     const messages = capability === 'transcribe' ? null : data.messages;
-    const maxTokens = Math.min(3000,Math.max(500,Number(data.maxTokens)||3000)), attempts = [], started = this.now(); let calls = 0, retryAt = 0;
+    const maxTokens = Math.min(3000,Math.max(500,Number(data.maxTokens)||3000)), attempts = [];
+    let calls = 0, retryAt = 0;
     for (const profile of candidates) {
-      if (calls >= Math.min(5,Math.max(1,Number(data.maxProviderCalls)||5)) || this.now() - started > 75000) break;
+      if(remaining()<1000)return timedOut();
+      if (calls >= Math.min(5,Math.max(1,Number(data.maxProviderCalls)||5))) break;
       const model = this.model(profile, capability);
       let tokens = capability === 'transcribe' ? profile.id === 'gemini' ? 16000 : 2000 : estimateTokens(messages, maxTokens);
       let reservation;
@@ -228,8 +235,9 @@ export class MikeeCoordinator {
         if (profile.creditBudget) {
           const check = await this.reserve(profile, tokens, { preview: true });
           if (!check.ok) { attempts.push({ provider: profile.id, reason: check.reason }); if (check.retryAt && (!retryAt || check.retryAt < retryAt)) retryAt = check.retryAt; continue; }
-          micros = await gatewayPrice(this.fetcher, profile, key, model, tokens - maxTokens, maxTokens);
+          micros = await gatewayPrice(this.fetcher, profile, key, model, tokens - maxTokens, maxTokens, Math.min(12000,Math.max(1,remaining())));
         }
+        if(remaining()<1000)return timedOut();
         const grant = await this.reserve(profile, tokens, { audio: capability === 'transcribe', micros });
         if (!grant.ok) {
           attempts.push({ provider: profile.id, reason: grant.reason });
@@ -237,7 +245,11 @@ export class MikeeCoordinator {
           continue;
         }
         reservation = grant.reservation; calls++;
-        const timeout = Math.max(1000, Math.min(maxTokens >= 3000 ? 45000 : 30000, 85000 - (this.now() - started)));
+        const timeout = Math.min(maxTokens >= 3000 ? 45000 : 30000,remaining());
+        if(timeout<=0){
+          await this.finish(profile,reservation,new ProviderError('timeout',{retryAfter:30000}));
+          return timedOut();
+        }
         const result = capability === 'transcribe'
           ? await transcribeCall({ fetcher: this.fetcher, profile, key, model, ...audio, timeout })
           : await chatCall({ fetcher: this.fetcher, env: this.env, profile, key, model, messages, maxTokens, timeout });
@@ -253,7 +265,7 @@ export class MikeeCoordinator {
         const next = this.now() + (issue.retryAfter || 30000); if (!retryAt || next < retryAt) retryAt = next;
       }
     }
-    return this.unavailable(attempts, retryAt);
+    return remaining()<1000?timedOut():this.unavailable(attempts, retryAt);
   }
   async image(data) {
     if (!await this.globalPermit()) return this.unavailable([{ reason: 'daily_budget' }], nextDay(this.now()));
@@ -281,6 +293,8 @@ export class MikeeCoordinator {
         await this.finish(profile, grant.reservation, issue);
         if (issue.definitive) return json({ error: 'The image request was declined. Please revise it.' }, 422);
         attempts.push({ provider: profile.id, reason: issue.kind });
+        const next=this.now()+(issue.retryAfter||30000);
+        if(!retryAt||next<retryAt)retryAt=next;
       }
     }
     return this.unavailable(attempts, retryAt);
@@ -300,8 +314,18 @@ export class MikeeCoordinator {
     try {
       const result = await checkHorde(this.fetcher, job.externalId, cancel);
       const response = { ...result, provider: job.provider, providerName: 'AI Horde Images', live: result.state === 'done', pollAfter: 10 };
-      if (cancel || result.state === 'done') await this.locked(async () => {
-        const current = this.data.jobs[id]; if (current) { current.state = result.state; if (!cancel) current.result = response; if(result.state==='done')this.ledger(job.provider,this.now()).verifiedAt=this.now(); await this.persist(); }
+      if (cancel || result.state === 'done') return await this.locked(async () => {
+        const current = this.data.jobs[id];
+        if(!current||current.expires<this.now())return json({error:'Image job expired or was not found.'},404);
+        if(current.result)return json(current.result);
+        if(current.state==='cancelled')return json({state:'cancelled'});
+        current.state=result.state;
+        if(!cancel){
+          current.result=response;
+          this.ledger(job.provider,this.now()).verifiedAt=this.now();
+        }
+        await this.persist();
+        return json(response);
       });
       return json(response);
     } catch (error) { return json({ error: error?.kind === 'refused' ? 'The image was declined by the provider.' : 'The image queue is unavailable. Please try again later.' }, error?.kind === 'refused' ? 422 : 502); }

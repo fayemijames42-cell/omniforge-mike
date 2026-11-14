@@ -5,6 +5,20 @@ const CACHE=PREFIX+BUILD;
 const ASSETS='__SHELL_ASSETS__';
 const MARKER=/<meta name="omniforge-build" content="([0-9]+\.[0-9]+\.[0-9]+-[a-f0-9]{12})">/;
 
+async function cached(path,build=BUILD){
+ try{return await caches.match(path,{cacheName:PREFIX+build})}catch{return undefined}
+}
+async function network(request,options,timeout,validate){
+ const controller=new AbortController();
+ let timer;
+ try{
+  return await Promise.race([
+   (async()=>{const response=await fetch(request,{...options,signal:controller.signal});await validate?.(response);return response})(),
+   new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(Error('Workspace network deadline exceeded'))},timeout)})
+  ]);
+ }finally{clearTimeout(timer)}
+}
+
 async function workspacePage(response){
  const type=response.headers.get('content-type')||'';
  if(response.status!==200||response.redirected||!type.includes('text/html'))throw Error('Workspace page unavailable');
@@ -16,19 +30,20 @@ async function workspacePage(response){
 }
 
 async function fetchAsset(path,cache='no-cache'){
- const response=await fetch(path,{cache,integrity:ASSETS[path],redirect:'error'});
- const type=response.headers.get('content-type')||'';
- const expected=path.startsWith('/src/knowledge.xml')?/xml/i:path.includes('.css?')?/text\/css/i:/(javascript|ecmascript)/i;
- if(response.status!==200||!expected.test(type))throw Error('Offline asset unavailable: '+path);
- return response;
+ return network(path,{cache,integrity:ASSETS[path],redirect:'error'},15000,response=>{
+  const type=response.headers.get('content-type')||'';
+  const expected=path.startsWith('/src/knowledge.xml')?/xml/i:path.includes('.css?')?/text\/css/i:/(javascript|ecmascript)/i;
+  if(response.status!==200||!expected.test(type))throw Error('Offline asset unavailable: '+path);
+ });
 }
 
 self.addEventListener('install',event=>{
  event.waitUntil((async()=>{
   const cache=await caches.open(CACHE);
   try{
-   const root=await fetch('/',{cache:'reload',redirect:'error'});
-   if(await workspacePage(root)!==BUILD)throw Error('Workspace page is from a different release');
+   const root=await network('/',{cache:'reload',redirect:'error'},15000,async response=>{
+    if(await workspacePage(response)!==BUILD)throw Error('Workspace page is from a different release');
+   });
    const results=await Promise.allSettled(Object.keys(ASSETS).map(async path=>{
     await cache.put(path,await fetchAsset(path,'reload'));
    }));
@@ -55,18 +70,14 @@ self.addEventListener('activate',event=>{
 });
 
 async function navigate(request){
- const cache=await caches.open(CACHE);
- const saved=await cache.match('/');
+ const saved=cached('/');
  try{
-  const response=await fetch(request,{cache:'no-cache'});
-  const build=await workspacePage(response);
-  if(build&&build!==BUILD&&saved){
-   const next=await caches.match('/',{cacheName:PREFIX+build});
-   return next||saved;
-  }
+  let build;
+  const response=await network(request,{cache:'no-cache'},5000,async response=>{build=await workspacePage(response)});
+  if(build&&build!==BUILD)return await cached('/',build)||await saved||response;
   return response;
  }catch{
-  return saved||new Response('OMNIFORGE is unavailable. Reconnect and reload to try again.',{status:503,headers:{'content-type':'text/plain; charset=utf-8'}});
+  return await saved||new Response('OMNIFORGE is unavailable. Reconnect and reload to try again.',{status:503,headers:{'content-type':'text/plain; charset=utf-8'}});
  }
 }
 
@@ -80,15 +91,18 @@ self.addEventListener('fetch',event=>{
  const path=url.pathname+url.search;
  if(path==='/src/knowledge.xml'){
   // Check the network for updated reference data, keeping the verified bundled copy for offline use.
-  event.respondWith(fetch(request,{cache:'no-cache'}).then(response=>{
+  event.respondWith(network(request,{cache:'no-cache'},8000,response=>{
    if(!response.ok||!/(xml)/i.test(response.headers.get('content-type')||''))throw Error('Reference pack unavailable');
-   return response;
-  }).catch(async()=>await (await caches.open(CACHE)).match(path)||new Response('Knowledge pack unavailable offline',{status:503})));
+  }).catch(async()=>await cached(path)||new Response('Knowledge pack unavailable offline',{status:503})));
   return;
  }
  if(Object.prototype.hasOwnProperty.call(ASSETS,path)){
-  event.respondWith((async()=>await (await caches.open(CACHE)).match(path)||fetchAsset(path))());
+  event.respondWith((async()=>await cached(path)||fetchAsset(path))());
  }else if(/^\/(?:src|vendor)\/[^?]+\.(?:js|css)\?v=[a-z0-9.-]+$/i.test(path)){
-  event.respondWith((async()=>await caches.match(path,{cacheName:PREFIX+url.searchParams.get('v')})||fetch(request))());
+  event.respondWith((async()=>await cached(path,url.searchParams.get('v'))||network(request,{},15000))());
  }
+});
+
+self.addEventListener('message',event=>{
+ if(event.data==='OMNIFORGE_BUILD')event.ports[0]?.postMessage(BUILD);
 });

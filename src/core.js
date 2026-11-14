@@ -151,14 +151,15 @@ function formatMigrated(old){
  return p;
 }
 
-async function addAsset(p,file,{originalId,reply}={}){
+async function addAsset(p,file,{originalId,reply,signal}={}){
  if(!file.type.match(/^image\/(jpeg|png|webp)$/))throw Error('Use PNG, JPG or WebP photos.');
  if(file.size>8*1024*1024)throw Error(`“${file.name}” exceeds the 8 MB photo limit.`);
  if(p.assets.length>=60)throw Error('This project has reached the 60-photo limit.');
  const data=await imageDimensions(file);if(data.width*data.height>20000000)throw Error('Image exceeds 20 megapixels. Resize it before import.');
+ if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
  const asset={id:id(),name:file.name.slice(0,100),mimeType:file.type,width:data.width,height:data.height,createdAt:Date.now(),size:file.size,...(originalId?{originalId}:{})};
  const next=clone(p);next.assets.push(asset);next.updatedAt=Date.now();
- if(reply)next.messages=[...next.messages,{...reply,imageId:asset.id}].slice(-100);
+ if(reply)next.messages=[...next.messages,{...reply,imageId:asset.id}];
  // Commit the bytes, project metadata and any image reply together.
  await saveProject(next,[{id:asset.id,blob:file}]);
  p.assets=next.assets;p.messages=next.messages;p.updatedAt=next.updatedAt;p.storageRevision=next.storageRevision;
@@ -168,7 +169,31 @@ async function addAsset(p,file,{originalId,reply}={}){
 
 function imageDimensions(blob){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(blob),im=new Image();im.onload=()=>{URL.revokeObjectURL(url);resolve({width:im.naturalWidth,height:im.naturalHeight})};im.onerror=()=>{URL.revokeObjectURL(url);reject(Error('Image could not be decoded.'))};im.src=url})}
 function blobData(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onerror=()=>reject(r.error);r.onload=()=>resolve(r.result);r.readAsDataURL(blob)})}
-async function assetMap(p,strict=false){const map={};for(const a of p.assets){const blob=await getBlob(a.id);if(blob)map[a.id]=await blobData(blob);else if(a.dataUrl?.startsWith('data:image/'))map[a.id]=a.dataUrl;else if(strict)throw Error('Saved photo data is missing: '+(a.name||a.id));}return map}
+async function assetMap(project,strict=false,source){
+ const map=Object.create(null);
+ let placed;
+ if(typeof source==='string'){
+  placed=new Set();
+  if(project.codeWorkspace||project.website.rawHtml){
+   for(const match of source.matchAll(/omniforge-asset:\/\/([a-zA-Z0-9-]+)/g))placed.add(match[1]);
+  }else{
+   for(const page of project.website.pages){
+    for(const section of page.sections){
+     if(section.type!=='gallery')continue;
+     for(const child of section.children||[])if(child.type==='image')placed.add(child.props?.assetId);
+    }
+   }
+  }
+ }
+ for(const asset of project.assets){
+  if(placed&&!placed.has(asset.id))continue;
+  const blob=await getBlob(asset.id);
+  if(blob)map[asset.id]=await blobData(blob);
+  else if(/^data:image\/(jpeg|png|webp);base64,/i.test(asset.dataUrl||''))map[asset.id]=asset.dataUrl;
+  else if(strict)throw Error('Saved photo data is missing: '+(asset.name||asset.id));
+ }
+ return map;
+}
 function renderSite(p,images={}){
  const active=p.codeWorkspace?global.OMNI_FILES.exportDocument(p):p.website.rawHtml;
  if(active)return active.replace(/omniforge-asset:\/\/([a-zA-Z0-9-]+)/g,(source,id)=>/^data:image\/(jpeg|png|webp);base64,/i.test(images[id]||'')?images[id]:source);
@@ -182,9 +207,59 @@ function renderSite(p,images={}){
 }
 function download(blob,filename){const href=URL.createObjectURL(blob);const a=document.createElement('a');a.href=href;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(href),6000)}
 const fileSafe=t=>slug(t).slice(0,60)||'website';
-async function exportHTML(p){const html=renderSite(p,await assetMap(p));download(new Blob([html],{type:'text/html;charset=utf-8'}),fileSafe(p.name)+'.html');return html}
-async function exportZIP(p){if(!global.JSZip)throw Error('ZIP library unavailable.');const zip=new global.JSZip();const portable=clone(p);delete portable.storageRevision;portable.history=[];if(portable.codeWorkspace)portable.codeWorkspace.history=[];for(const note of portable.notes||[])note.history=[];portable.assets=portable.assets.map(a=>({...a,dataUrl:undefined}));const metadata=JSON.stringify(portable,null,2);if(new TextEncoder().encode(metadata).length>3000000)throw Error('Project metadata exceeds the portable backup limit. Export the chat separately.');zip.file('project.json',metadata);const map=await assetMap(p,true);for(const a of p.assets){if(map[a.id]){const data=map[a.id].split(',')[1];zip.file('assets/'+a.id+'.'+(a.mimeType==='image/png'?'png':a.mimeType==='image/webp'?'webp':'jpg'),data,{base64:true})}}if(p.codeWorkspace)for(const [name,text] of Object.entries(global.OMNI_FILES.validate(p).files))zip.file(name,text);zip.file('site.html',renderSite(p,map));zip.file('README.txt','OMNIFORGE project backup. Import this ZIP from the Files & Backup tab. site.html is a standalone offline website.');const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:4}});download(blob,fileSafe(p.name)+'.zip');return blob}
-async function exportJSON(p){const copy=clone(p),map=await assetMap(p,true);delete copy.storageRevision;copy.history=[];if(copy.codeWorkspace)copy.codeWorkspace.history=[];for(const note of copy.notes||[])note.history=[];copy.assets=copy.assets.map(a=>({...a,dataUrl:map[a.id]||''}));const blob=new Blob([JSON.stringify(copy)],{type:'application/json'});download(blob,fileSafe(p.name)+'.omniforge.json');return blob}
+async function exportHTML(p){const html=renderSite(p,await assetMap(p,false,renderSite(p)));download(new Blob([html],{type:'text/html;charset=utf-8'}),fileSafe(p.name)+'.html');return html}
+function portableProject(project){
+ const copy=clone(project);
+ delete copy.storageRevision;
+ copy.history=[];
+ if(copy.codeWorkspace)copy.codeWorkspace.history=[];
+ for(const note of copy.notes||[])note.history=[];
+ copy.assets=copy.assets.map(asset=>({...asset,dataUrl:undefined}));
+ if(!global.OMNI_BACKUP)throw Error('Backup support did not load. Refresh the page.');
+ global.OMNI_BACKUP.validate(copy);
+ return copy;
+}
+function portableAssets(project,map){
+ for(const asset of project.assets){
+  const encoded=map[asset.id].match(/^data:(image\/(?:jpeg|png|webp));base64,([a-z0-9+/]+={0,2})$/i);
+  const payload=encoded?.[2]||'';
+  const size=Math.floor(payload.replace(/=+$/,'').length*3/4);
+  if(!encoded||encoded[1].toLowerCase()!==asset.mimeType||size===0||size>global.OMNI_BACKUP.MAX_IMAGE){
+   throw Error('Saved photo cannot be included in a restorable backup: '+(asset.name||asset.id));
+  }
+ }
+ return map;
+}
+function downloadBackup(blob,name){
+ if(blob.size>global.OMNI_BACKUP.MAX_FILE)throw Error('The backup exceeds the 55 MB restore limit. Export the chat or website separately, or remove unused photos.');
+ download(blob,name);
+ return blob;
+}
+async function exportZIP(project){
+ if(!global.JSZip)throw Error('ZIP library unavailable.');
+ const zip=new global.JSZip(),portable=portableProject(project);
+ const metadata=JSON.stringify(portable,null,2);
+ if(new TextEncoder().encode(metadata).length>global.OMNI_BACKUP.MAX_META)throw Error('Project metadata exceeds the portable ZIP limit. Export the conversation as Markdown.');
+ zip.file('project.json',metadata);
+ const map=portableAssets(project,await assetMap(project,true));
+ for(const asset of project.assets){
+  const data=map[asset.id].split(',')[1];
+  const extension=asset.mimeType==='image/png'?'png':asset.mimeType==='image/webp'?'webp':'jpg';
+  zip.file('assets/'+asset.id+'.'+extension,data,{base64:true});
+ }
+ if(project.codeWorkspace)for(const [name,text] of Object.entries(global.OMNI_FILES.validate(project).files))zip.file(name,text);
+ zip.file('site.html',renderSite(project,map));
+ zip.file('README.txt','OMNIFORGE project backup. Import this ZIP from the Files & Backup tab. site.html is a standalone offline website.');
+ const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:4}});
+ return downloadBackup(blob,fileSafe(project.name)+'.zip');
+}
+async function exportJSON(project){
+ const copy=portableProject(project),map=portableAssets(project,await assetMap(project,true));
+ copy.assets=copy.assets.map(asset=>({...asset,dataUrl:map[asset.id]}));
+ const blob=new Blob([JSON.stringify(copy)],{type:'application/json'});
+ return downloadBackup(blob,fileSafe(project.name)+'.omniforge.json');
+}
+
 function sandboxHTML(source){
  const csp="<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; connect-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'; base-uri 'none'; object-src 'none'; frame-src 'none';\">";
  const html=String(source||'').replace(/<base\b[^>]*>/gi,'').replace(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh\b[^>]*>/gi,'');

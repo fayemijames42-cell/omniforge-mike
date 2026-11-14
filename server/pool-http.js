@@ -67,7 +67,7 @@ export default {
       if (path === '/api/image' && request.method === 'POST') {
         const parsed = await bodyJSON(request, 6000); if (parsed.error) return parsed.error;
         const data = parsed.data;
-        if (typeof data.prompt !== 'string' || data.prompt.trim().length < 3 || data.prompt.length > 1500) return json({ error: 'Describe an image in 3–1,500 characters.' }, 400);
+        if (typeof data.prompt !== 'string' || data.prompt.trim().length < 2 || data.prompt.trim().length > 900) return json({ error: 'Describe an image in 2–900 characters.' }, 400);
         return await forward(stub, '/image', 'POST', { prompt: data.prompt.trim(), provider: data.provider || 'auto' });
       }
       if (/^\/api\/image\/[a-f0-9-]{36}$/.test(path) && ['GET', 'DELETE'].includes(request.method)) return await forward(stub, path.slice(4), request.method);

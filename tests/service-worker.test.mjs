@@ -47,9 +47,12 @@ function harness(){
    return response;
   }
  };
- vm.runInNewContext(source,{URL,Response,self:{location:{origin:'https://app.test'},addEventListener:(type,fn)=>handlers[type]=fn,skipWaiting:async()=>{skipped++},clients:{claim:async()=>{claimed++}}},
-  fetch:network,caches:{open:cacheFor,delete:async key=>stores.delete(key),keys:async()=>[...stores.keys()],
-   match:async(path,{cacheName:key})=>stores.has(key)?(await cacheFor(key)).match(path):undefined}});
+ const cacheStorage={open:cacheFor,delete:async key=>stores.delete(key),keys:async()=>[...stores.keys()],
+   match:async(path,{cacheName:key})=>stores.has(key)?(await cacheFor(key)).match(path):undefined};
+ result.cacheStorage=cacheStorage;
+ vm.runInNewContext(source,{URL,Response,AbortController,setTimeout:(fn,ms)=>setTimeout(fn,ms/100),clearTimeout,
+  self:{location:{origin:'https://app.test'},addEventListener:(type,fn)=>handlers[type]=fn,skipWaiting:async()=>{skipped++},clients:{claim:async()=>{claimed++}}},
+  fetch:network,caches:cacheStorage});
  return result;
 }
 
@@ -117,4 +120,19 @@ test('Local reference refresh uses the network and falls back to the verified bu
  assert.equal(h.requests[h.requests.length-1].options.cache,'no-cache');
  h.respond=async()=>new Response('Unexpected page',{headers:{'content-type':'text/html'}});
  assert.equal(await(await h.fetch('/src/knowledge.xml')).text(),'/src/knowledge.xml');
+});
+
+test('A stalled navigation falls back to the installed workspace',async()=>{
+ const h=harness();
+ await h.run('install');
+ h.respond=()=>new Promise(()=>{});
+ assert.equal(await(await h.fetch('/?slow','navigate')).text(),rootFor(build));
+ assert.equal(h.requests[h.requests.length-1].options.signal.aborted,true);
+});
+
+test('Cache storage failure does not block online navigation or current scripts',async()=>{
+ const h=harness();
+ h.cacheStorage.match=async()=>{throw Error('Cache storage denied')};
+ assert.equal(await(await h.fetch('/','navigate')).text(),rootFor(build));
+ assert.equal(await(await h.fetch(script)).text(),script);
 });

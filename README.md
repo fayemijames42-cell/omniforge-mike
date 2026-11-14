@@ -4,11 +4,11 @@ OMNIFORGE by ADEN INC. is a conversation-first AI workspace. MICHELLE is the ass
 
 Public app: https://omniforge-mike.fayemijames42.workers.dev/
 
-## Current implementation — v0.11.3
+## Current implementation — v0.11.6
 
 | Capability | Current behavior |
 | --- | --- |
-| Conversation | Real inference through the persistent free-service coordinator, with bounded earlier requirements and recent turns. |
+| Conversation | Real inference through the persistent free-service coordinator. The model receives bounded context and the browser keeps saved turns, with earlier turns available on demand. |
 | Website creation/editing | Only an explicitly requested website action can save validated browser HTML. Incomplete output, server code in browser scripts, failed saves and concurrent edits preserve the prior/newer work. |
 | Code workspace | Three editable files, actual combined-document preview/export, saved edits and Undo. AI website edits update the same active document. |
 | Images | Cloudflare FLUX, Pollinations Classic and queued AI Horde adapters; completed images are saved as local project assets. Availability depends on the provider and its free allowance. |
@@ -17,7 +17,7 @@ Public app: https://omniforge-mike.fayemijames42.workers.dev/
 | Mathematics | Bounded local arithmetic, polynomial calculus and linear/quadratic equations. Compound arithmetic explanations can use an observed calculator result. |
 | References | Keyless Wikipedia REST/Action lookup; optional Tavily for broader/current search. At most two separately budgeted queries and four returned source excerpts. |
 | Notes and local knowledge | Local notes, a 36-topic starter reference pack and user-imported XML. Local retrieval is explicitly labelled and is not an offline neural model. |
-| Backup | ZIP/JSON restore preserves saved source, current notes/chat, images and image references. Active code files are exported consistently. Undo history is omitted from portable backups. |
+| Backup | ZIP/JSON restore preserves saved source, current notes/chat, images and image references. Exports check portable size limits before download. Undo history is omitted from portable backups. |
 
 A retrieved source is not a verified claim. Citation checks identify source markers actually used by the response; `factChecked` remains false. Provider bindings and successful deployments are also distinct from live inference.
 
@@ -50,7 +50,7 @@ npm run deploy
 
 The build runs syntax checks and the automated suite before generating `public/`. Browser workflow tests in `tests/ui-smoke.mjs` are optional development tests with explicitly identified model fixtures. They require an installed Playwright/Chromium test environment; no browser dependency is shipped to the phone.
 
-The current audit adds integration coverage for streamed input limits, actual project/code synchronization, backup/restore fidelity, image remapping, safe blob cleanup, update installation, recovery after connection errors and offline reload. Preserve both existing Durable Object bindings and migration tags in `wrangler.jsonc`; they contain accounting state, not obsolete scaffold.
+The read-only CI also runs the mobile browser suite and the offline update and rollback regression using v0.11.5 as a compatibility fixture. See [the foundation engineering record](docs/FOUNDATION_ENGINEERING.md) for reproducible commands, the release gates, storage contracts and incident recovery. Both Durable Object bindings and migration tags in `wrangler.jsonc` carry existing accounting state.
 
 See [28 October engineering report](docs/ENGINEERING_REPORT_2026-10-28.md), [earlier audit and acceptance record](docs/INTEGRATION_AUDIT_2026-10-25.md), [offline reference behavior](docs/OFFLINE_REFERENCE.md), and [the public-beta answer-quality gate](docs/MIKEE_QUALITY_GATE.md). Earlier version notes and research documents are historical records, not alternate installation instructions.
 

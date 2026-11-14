@@ -26,47 +26,66 @@ export function classify(status, body = '', headers = new Headers(), now = Date.
   if (status >= 500 || status === 408) return new ProviderError('capacity', { retryAfter: retryAfter || 30000 });
   return new ProviderError('request_rejected', { status: 400, definitive: true });
 }
-const pendingResponses = new WeakMap();
-function closeResponse(response) {
-  const pending = pendingResponses.get(response);
-  if (pending) { clearTimeout(pending.timer); pendingResponses.delete(response); }
-}
-async function readLimited(response, maximum = 900000) {
-  if (Number(response.headers.get('content-length')) > maximum) {closeResponse(response);await response.body?.cancel().catch(()=>{});throw new ProviderError('response_too_large');}
+async function readLimited(response, maximum, signal) {
   const reader = response.body?.getReader();
   if (!reader) return new Uint8Array();
-  const chunks = []; let size = 0;
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  signal.addEventListener('abort', cancel, { once: true });
   try {
+    if (Number(response.headers.get('content-length')) > maximum) throw new ProviderError('response_too_large');
+    const chunks = [];
+    let size = 0;
     for (;;) {
-      const { done, value } = await reader.read(); if (done) break;
+      const { done, value } = await reader.read();
+      if (signal.aborted) throw new ProviderError('timeout', { retryAfter: 30000 });
+      if (done) break;
       size += value.length;
       if (size > maximum) throw new ProviderError('response_too_large');
       chunks.push(value);
     }
-  } catch (error) {
-    if (error?.name === 'AbortError') throw new ProviderError('timeout', { retryAfter: 30000 });
-    throw error;
-  } finally { closeResponse(response); await reader.cancel().catch(() => {}); }
-  const result = new Uint8Array(size); let offset = 0;
-  for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
-  return result;
-}
-export async function timedFetch(fetcher, url, init = {}, timeout = 18000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetcher(url, { ...init, signal: controller.signal, redirect: 'error' });
-    pendingResponses.set(response, { timer, controller }); return response;
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+    return bytes;
+  } finally {
+    signal.removeEventListener('abort', cancel);
+    cancel();
   }
-  catch (error) {
-    clearTimeout(timer);
+}
+
+export async function fetchBounded(fetcher, url, init = {}, { timeout = 18000, maximum = 900000, validate } = {}) {
+  const controller = new AbortController();
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new ProviderError('timeout', { retryAfter: 30000 }));
+      controller.abort();
+    }, timeout);
+  });
+  const transfer = async () => {
+    const response = await fetcher(url, { ...init, signal: controller.signal, redirect: 'error' });
+    try {
+      if (controller.signal.aborted) throw new ProviderError('timeout', { retryAfter: 30000 });
+      validate?.(response);
+    } catch (error) {
+      void response.body?.cancel().catch(() => {});
+      throw error;
+    }
+    return { response, bytes: await readLimited(response, maximum, controller.signal) };
+  };
+  try {
+    return await Promise.race([transfer(), deadline]);
+  } catch (error) {
     if (error instanceof ProviderError) throw error;
     throw new ProviderError(error?.name === 'AbortError' ? 'timeout' : 'network', { retryAfter: 30000 });
+  } finally {
+    clearTimeout(timer);
   }
 }
+
 export async function jsonRequest(fetcher, url, init, timeout) {
-  const response = await timedFetch(fetcher, url, init, timeout);
-  const raw = new TextDecoder().decode(await readLimited(response));
+  const { response, bytes } = await fetchBounded(fetcher, url, init, { timeout });
+  const raw = new TextDecoder().decode(bytes);
   let data; try { data = JSON.parse(raw); } catch { data = null; }
   if (!response.ok) throw classify(response.status, data || raw, response.headers);
   if (!data || typeof data !== 'object') throw new ProviderError('invalid_response', { retryAfter: 30000 });
@@ -84,8 +103,8 @@ function extract(data, fallbackModel) {
 }
 
 // Select only models explicitly classified as TURBO. Selectors such as "default" can change tier.
-export async function turboModel(fetcher, profile, key) {
-  const data = await jsonRequest(fetcher, profile.base + '/models', { headers: headers(key) });
+export async function turboModel(fetcher, profile, key, timeout) {
+  const data = await jsonRequest(fetcher, profile.base + '/models', { headers: headers(key) }, timeout);
   const model = (data.data || []).find(m => m.tier === 'turbo' && m.model_type === 'chat' &&
     m.modalities?.output?.includes('text') && typeof m.id === 'string');
   if (!model) throw new ProviderError('free_model_unverified', { retryAfter: 3600000 });
@@ -94,8 +113,8 @@ export async function turboModel(fetcher, profile, key) {
 
 // Vercel pricing is USD/token. The owner must first confirm an unbilled Free-tier account.
 // The provider enforces Free-tier model access; this app never purchases/activates paid credits.
-export async function gatewayPrice(fetcher, profile, key, model, inputTokens, outputTokens) {
-  const data = await jsonRequest(fetcher, profile.base + '/models', { headers: headers(key) });
+export async function gatewayPrice(fetcher, profile, key, model, inputTokens, outputTokens, timeout) {
+  const data = await jsonRequest(fetcher, profile.base + '/models', { headers: headers(key) }, timeout);
   const record = (data.data || []).find(m => m.id === model);
   const pricing = record?.pricing;
   const input = Number(pricing?.input), output = Number(pricing?.output);
@@ -124,7 +143,12 @@ export async function chatCall({ fetcher, env, profile, key, model, messages, ma
       body: JSON.stringify({ model, messages, stream: false, options: { num_predict: maxTokens } }) }, timeout);
     return extract(data, model);
   }
-  if (profile.id === 'llm7') model = await turboModel(fetcher, profile, key);
+  if (profile.id === 'llm7') {
+    const started = Date.now();
+    model = await turboModel(fetcher, profile, key, Math.min(timeout, 10000));
+    timeout -= Date.now() - started;
+    if (timeout <= 0) throw new ProviderError('timeout', { retryAfter: 30000 });
+  }
   const body = { messages, max_tokens: maxTokens, stream: false };
   if (profile.id !== 'pollinations') body.model = model;
   if (profile.id === 'groq') { body.max_completion_tokens = maxTokens; delete body.max_tokens; }
@@ -160,12 +184,15 @@ export async function transcribeCall({ fetcher, profile, key, model, audio, mime
 }
 
 export async function pollinationsImage(fetcher, prompt, seed) {
-  const response = await timedFetch(fetcher, 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) +
-    '?width=768&height=768&safe=true&seed=' + seed, { headers: { accept: 'image/jpeg' } }, 30000);
-  if (!response.ok) { closeResponse(response); await response.body?.cancel().catch(() => {}); throw classify(response.status, '', response.headers); }
-  const type = (response.headers.get('content-type') || '').split(';')[0];
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(type)) { closeResponse(response); await response.body?.cancel().catch(() => {}); throw new ProviderError('invalid_image', { retryAfter: 60000 }); }
-  const bytes = await readLimited(response, 2200000);
+  const mimeType = response => (response.headers.get('content-type') || '').split(';')[0];
+  const { response, bytes } = await fetchBounded(fetcher, 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) +
+    '?width=768&height=768&safe=true&seed=' + seed, { headers: { accept: 'image/jpeg' } }, {
+    timeout: 30000, maximum: 2200000, validate: response => {
+      if (!response.ok) throw classify(response.status, '', response.headers);
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType(response))) throw new ProviderError('invalid_image', { retryAfter: 60000 });
+    }
+  });
+  const type = mimeType(response);
   if (bytes.length < 100) throw new ProviderError('invalid_image');
   const signature=String.fromCharCode(...bytes.subarray(0,16));
   if(!(type==='image/jpeg'?signature.startsWith('\xff\xd8\xff'):type==='image/png'?signature.startsWith('\x89PNG\r\n\x1a\n'):signature.startsWith('RIFF')&&signature.slice(8,12)==='WEBP'))throw new ProviderError('invalid_image');
@@ -187,11 +214,11 @@ export async function startHorde(fetcher, prompt) {
 }
 export async function checkHorde(fetcher, id, cancel = false) {
   const data = await jsonRequest(fetcher, HORDE + '/generate/' + (cancel ? 'status/' : 'check/') + id,
-    { method: cancel ? 'DELETE' : 'GET', headers: HORDE_HEADERS });
+    { method: cancel ? 'DELETE' : 'GET', headers: HORDE_HEADERS }, 10000);
   if (cancel) return { state: 'cancelled' };
   if (data.faulted || data.is_possible === false) throw new ProviderError('capacity');
   if (!data.done) return { state: 'queued', waitSeconds: Math.max(0, Number(data.wait_time) || 0), queuePosition: Number(data.queue_position) || 0 };
-  const result = await jsonRequest(fetcher, HORDE + '/generate/status/' + id, { headers: HORDE_HEADERS });
+  const result = await jsonRequest(fetcher, HORDE + '/generate/status/' + id, { headers: HORDE_HEADERS }, 10000);
   const generation = result.generations?.[0];
   if (generation?.censored) throw new ProviderError('refused', { status: 422, definitive: true });
   // r2 URLs are never fetched server-side. The browser validates and loads only an HTTPS image.
