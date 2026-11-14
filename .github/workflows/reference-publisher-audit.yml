@@ -1,0 +1,26 @@
+name: Verify the reference publisher end to end
+on:
+  push:
+    branches: [audit/reference-publisher-20261114]
+    paths: ['.github/workflows/reference-publisher-audit.yml']
+permissions:
+  contents: write
+jobs:
+  verify:
+    if: github.repository == 'fayemijames42-cell/omniforge-mike' && github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - name: Fetch and validate a fresh Wikipedia snapshot
+        run: |
+          node tools/publish-reference-bank.mjs verified-snapshot.json
+          node --input-type=module -e "import './src/wikipedia.js'; import {readFileSync} from 'node:fs'; const data=OMNI_WIKIPEDIA.validateSnapshot(JSON.parse(readFileSync('verified-snapshot.json','utf8'))); if(data.status!=='updated'||data.entries.length!==20) throw Error('Initial daily publication is incomplete.');"
+      - name: Verify the runner can publish to an isolated branch
+        run: |
+          git add -- verified-snapshot.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Verify a real reference publisher run'
+          git push origin HEAD:refs/heads/audit/reference-publisher-20261114
