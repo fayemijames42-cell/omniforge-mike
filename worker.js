@@ -1,8 +1,9 @@
 import poolHTTP, {complete,validImage,bodyJSON} from './server/pool-http.js';
 import {ownerAuthorized} from './server/coordinator.js';
 export {MikeeCoordinator} from './server/coordinator.js';
-import {collectEvidence,evidenceText} from './research.js';
+import {collectEvidence,evidenceText,lookupWikipedia,publicReferenceQuery} from './research.js';
 import {planRequest,planGuidance,reviewAnswer} from './server/nexus.js';
+import {referenceRequest,referenceSnapshot,refreshScheduledReference,updateReferenceBank} from './server/reference-bank.js';
 // OMNIFORGE MICHELLE — Cloudflare Worker, Workers AI binding named AI.
 // Real model calls only; no scripted pretend responses.
 import {VERSION,IDENTITY} from './server/config.js';
@@ -26,16 +27,44 @@ async function guardAiRequest(request,env,kind){
 
 /* Central daily request-attempt gate. Each UTC date maps to one SQLite-backed Durable Object.
    Counters are NOT Neurons: verify Cloudflare's Neuron dashboard before raising caps. */
-const DAY_CAPS=Object.freeze({research:24}); // conservative public-beta trial caps; revisit using measured consumption
+const DAY_CAPS=Object.freeze({research:24,wikipedia:48}); // Shared request limits, independent of model allowances.
 const resetUtc=()=>new Date(Date.now()+86400000).toISOString().slice(0,10)+'T00:00:00Z';
 export class DailyBudget {
- constructor(state){this.state=state}
+ constructor(state,env){this.state=state;this.env=env}
  async fetch(request){
+  if(new URL(request.url).pathname==='/reference-bank'){
+   if(request.method==='GET'){
+    const snapshot=await referenceSnapshot(this.state);
+    if(snapshot.attemptedDay)return json(snapshot);
+    // The first visitor can download a snapshot before the daily schedule
+    // runs. The durable daily claim also covers concurrent first visits.
+    await updateReferenceBank(this.state,this.env?.REFERENCE_FETCH||fetch,Date.now(),Date.now,'initial-download');
+    return json(await referenceSnapshot(this.state));
+   }
+   if(request.method!=='POST')return json({error:'Method not allowed'},405);
+   const {scheduledTime}=await request.json();
+   if(!Number.isFinite(scheduledTime))return json({error:'Scheduled time required'},400);
+   return json(await updateReferenceBank(this.state,this.env?.REFERENCE_FETCH||fetch,scheduledTime));
+  }
   if(request.method!=='POST')return new Response('Not found',{status:404});
+  const path=new URL(request.url).pathname;
+  if(path==='/reference-backoff'){
+   const {until}=await request.json();
+   if(!Number.isSafeInteger(until)||until<=Date.now())return json({error:'Invalid retry deadline.'},400);
+   await this.state.storage.transaction(async tx=>{
+    const previous=Number(await tx.get('wikipediaRetryAt')||0);
+    if(until>previous)await tx.put('wikipediaRetryAt',until);
+   });
+   return json({ok:true});
+  }
   let kind;try{({kind}=await request.json())}catch{return new Response('Bad request',{status:400})}
-  const cap=DAY_CAPS[kind];
+  const cap=Object.hasOwn(DAY_CAPS,kind)?DAY_CAPS[kind]:0;
   if(!cap)return new Response('Unknown budget type',{status:400});
   const usage=await this.state.storage.transaction(async tx=>{
+   if(kind==='wikipedia'){
+    const retryAt=Number(await tx.get('wikipediaRetryAt')||0);
+    if(retryAt>Date.now())return {allowed:false,retryAt};
+   }
    const n=Number(await tx.get(kind)||0);
    if(n>=cap)return {allowed:false,attempts:n,remaining:0};
    await tx.put(kind,n+1);
@@ -44,14 +73,19 @@ export class DailyBudget {
   return new Response(JSON.stringify({...usage,kind,cap}),{headers:{'content-type':'application/json','cache-control':'no-store'}});
  }
 }
+const dailyBudget=env=>env.DAILY_BUDGET.getByName('omniforge-'+new Date().toISOString().slice(0,10));
+const sendBudget=(stub,path,body)=>stub.fetch('https://budget.internal'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
 async function guardDailyBudget(env,kind){
  if(!env.DAILY_BUDGET?.getByName)return json({error:'Reference-search accounting is not configured. Chat and local tools remain available.',protectionUnavailable:true},503);
  try{
-  const day=new Date().toISOString().slice(0,10);
-  const response=await env.DAILY_BUDGET.getByName('omniforge-'+day).fetch('https://budget.internal/reserve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind})});
+  const response=await sendBudget(dailyBudget(env),'/reserve',{kind});
   if(!response.ok)throw Error('Budget storage error');
   const value=await response.json();
-  if(value.allowed!==true)return json({error:'The shared reference-search allowance is exhausted for today. Chat and local tools remain available. Search resets at 00:00 UTC (1:00 AM Nigeria time).',dailyLimit:true,resetAt:resetUtc(),kind},429);
+  if(value.retryAt)return json({error:'Wikipedia asked us to wait before retrying. Saved references remain available.',retryAfter:Math.ceil((value.retryAt-Date.now())/1000)},429);
+  if(value.allowed!==true){
+   const resetAt=resetUtc(),retryAfter=Math.ceil((Date.parse(resetAt)-Date.now())/1000);
+   return json({error:'The shared reference-search allowance is exhausted for today. Chat and local tools remain available. Search resets at 00:00 UTC (1:00 AM Nigeria time).',dailyLimit:true,resetAt,retryAfter,kind},429);
+  }
   return null;
  }catch{
   return json({error:'Reference-search accounting is temporarily unavailable. Chat and local tools remain available.',protectionUnavailable:true},503);
@@ -59,8 +93,46 @@ async function guardDailyBudget(env,kind){
 }
 
 const json=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
-export default {async fetch(request,env){const url=new URL(request.url);
+function referenceReply(evidence,cloudRetryAfter=null){
+ return {
+  reply:(cloudRetryAfter!==null?'Cloud AI is unavailable. ':'')+'Wikipedia returned these excerpts:\n\n'+evidence.sources.map(item=>'**'+item.title+'**\n'+item.excerpt).join('\n\n')+'\n\nRetrieved reference · no AI inference.',
+  live:false,toolOnly:true,provider:'reference-retrieval',providerName:'Wikipedia reference retrieval',artifact:{type:'text'},cloudRetryAfter,
+  research:{scope:evidence.scope,retrievedAt:evidence.retrievedAt,note:'Search excerpts may be incomplete. Open the sources for their full context.'},
+  sources:evidence.sources,orchestration:{kind:'reference-retrieval',toolsUsed:['reference-search']},
+ };
+}
+async function directReference(request,env,url){
+ if(request.method!=='POST')return json({error:'Method not allowed'},405);
+ if(request.headers.get('origin')!==url.origin)return json({error:'Wikipedia lookup requires a same-origin request.'},403);
+ const parsed=await bodyJSON(request,1200);if(parsed.error)return parsed.error;
+ const topic=publicReferenceQuery(parsed.data.topic);
+ if(!topic)return json({error:'Enter a short public topic of 2–150 characters. Leave out private information, email addresses and links.'},400);
+ const limit=await guardDailyBudget(env,'wikipedia');if(limit)return limit;
+ try{
+  const evidence=await lookupWikipedia(topic,env.RESEARCH_FETCH||fetch);
+  if(!evidence.sources.length)return json({error:'Wikipedia returned no matching excerpts. Try a more specific topic.'},404);
+  return json(referenceReply(evidence));
+ }catch(error){
+  if(error?.kind==='reference_throttled'){
+   await sendBudget(dailyBudget(env),'/reference-backoff',{until:Date.now()+error.retryAfter}).catch(()=>{});
+   return json({error:'Wikipedia asked us to wait before retrying. Saved references remain available.',retryAfter:Math.ceil(error.retryAfter/1000)},429);
+  }
+  return json({error:'Wikipedia lookup is temporarily unavailable. Saved references remain available.'},503);
+ }
+}
+export default {
+ scheduled(controller,env,ctx){ctx.waitUntil(refreshScheduledReference(env,controller.scheduledTime));},
+ async fetch(request,env){const url=new URL(request.url);
  if(url.pathname==='/quick-chat')return Response.redirect(url.origin+'/',302);
+ if(url.pathname==='/api/reference-search')return directReference(request,env,url);
+ if(url.pathname==='/api/reference-bank'){
+  if(request.method!=='GET')return json({error:'Method not allowed'},405);
+  try{
+   const response=await referenceRequest(env);
+   if(!response.ok)throw Error('Reference snapshot unavailable');
+   return new Response(response.body,{headers:{'content-type':'application/json; charset=utf-8','cache-control':'public, max-age=300','x-content-type-options':'nosniff'}});
+  }catch{return json({error:'Daily reference snapshot is temporarily unavailable. Saved knowledge remains available.'},503)}
+ }
  if(url.pathname==='/api/transcribe'&&request.method==='POST'){const origin=request.headers.get('origin');if(origin&&origin!==url.origin)return json({error:'Cross-origin requests not allowed'},403);const limited=await guardAiRequest(request,env,'chat');if(limited)return limited;}
  if(['/api/providers','/api/transcribe','/api/admin/providers'].includes(url.pathname)||/^\/api\/image\/[a-f0-9-]{36}$/.test(url.pathname))return poolHTTP.fetch(request,env);
  if(url.pathname==='/api/health')return json({ok:true,version:VERSION,identity:IDENTITY,mode:'free-pool',poolBound:!!env.MIKEE_POOL,ownerSetup:typeof env.MIKEE_ADMIN_TOKEN==='string'&&env.MIKEE_ADMIN_TOKEN.length>=24,aiBound:!!env.AI,budgetBound:!!env.DAILY_BUDGET,webSearchConfigured:!!env.TAVILY_API_KEY,encyclopediaSearch:true,verified:false});
@@ -103,6 +175,8 @@ export default {async fetch(request,env){const url=new URL(request.url);
   const summary=inputSummary&&typeof inputSummary==='object'&&!Array.isArray(inputSummary)?{name:String(inputSummary.name||'').slice(0,140),title:String(inputSummary.title||'').slice(0,140),headings:Array.isArray(inputSummary.headings)?inputSummary.headings.slice(0,6).map(x=>String(x).slice(0,140)):[],savedLocally:inputSummary.savedLocally===true}:null;
   const plan=planRequest({message,history:data.history,currentHtml,focus,image:data.image,sources});
   const history=plan.history,websiteTask=plan.website;
+  const identityReply=!data.image&&globalThis.OMNI_CONTEXT.identityReply(message);
+  if(identityReply)return json({reply:identityReply,live:false,toolOnly:true,provider:'platform-information',providerName:'OMNIFORGE platform information',artifact:{type:'text'},orchestration:{kind:'platform-information',toolsUsed:['platform-information']}});
   if(summary&&globalThis.OMNI_CONTEXT.projectRecallQuestion(message))return json({reply:globalThis.OMNI_CONTEXT.projectRecallReply(summary),live:false,toolOnly:true,provider:'local-project-context',providerName:'Current project context',model:'browser-supplied project metadata',artifact:{type:'text'},orchestration:{kind:'project-context',contextTurns:history.length,parts:1,toolsUsed:['project-context']}});
   if(plan.kind==='image')return json({error:'Use the image-generation workflow for this request. No text model or SVG substitute was used.',code:'IMAGE_WORKFLOW_REQUIRED'},409);
   const limited=await guardAiRequest(request,env,'chat');if(limited)return limited;
@@ -146,7 +220,15 @@ export default {async fetch(request,env){const url=new URL(request.url);
    const provider=typeof data.provider==='string'&&data.provider!=='auto'&&await ownerAuthorized(request,env)?data.provider:'auto';
    const remainingBudget=()=>Math.max(0,CHAT_BUDGET_MS-(Date.now()-requestStarted));
    const response=await complete(request,env,{messages,maxTokens:websiteTask?3000:2000,provider,budgetMs:remainingBudget(),...(data.image?{image:data.image}:{})});
-   if(!response.ok)return response;
+   if(!response.ok){
+    if((response.status>=500||response.status===429)&&evidence?.scope==='wikipedia'&&evidence.sources.length&&
+       !data.image&&!websiteTask&&!['image','code','vector'].includes(plan.kind)){
+     const result=referenceReply(evidence,Number(response.headers.get('retry-after'))||0);
+     result.research.mode=lookup.researchMode;
+     return json(result);
+    }
+    return response;
+   }
    let out=await response.json(),modelAttempts=1;
    // A model may accidentally continue a previous website draft on a normal chat turn.
    // Do not display generated project HTML as conversational text or save it as an edit.

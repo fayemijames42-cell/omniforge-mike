@@ -6,6 +6,9 @@
   "ai": {
     "binding": "AI"
   },
+  "triggers": {
+    "crons": ["15 2 * * *"]
+  },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",

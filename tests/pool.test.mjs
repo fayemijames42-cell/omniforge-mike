@@ -272,7 +272,7 @@ test('Website generation failure identifies each attempted free provider without
   assert.equal(cfCalls,1);
   assert.equal(anonymousCalls,2);
   assert.deepEqual(result.diagnostics.providers,[
-    {provider:'Cloudflare Workers AI',reason:'Free allowance reached'},
+    {provider:'Cloudflare Workers AI',reason:'Free allowance reached',retryAt:Date.parse('2026-10-25T13:00:00Z')},
     {provider:'Pollinations Classic',reason:'Connection unavailable'},
     {provider:'OVHcloud Anonymous',reason:'Service busy'}
   ]);

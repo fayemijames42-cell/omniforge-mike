@@ -15,7 +15,7 @@ function renderMode(){
  button.textContent=active?'◈ Local knowledge':'☁ Cloud AI';
  button.classList.toggle('local-active',active);
  button.setAttribute('aria-pressed',String(active));
- button.title=active?'Only stored information. No AI model is used.':'Try the connected free AI pool for the next question.';
+ button.title=active?'Use saved references and local tools.':'Try Cloud AI first, with saved references available during an outage.';
  const status=document.querySelector('.status span');
  if(status)status.textContent=active?'LOCAL KNOWLEDGE · NO AI':'CLOUD AI · READY TO TRY';
  const hint=$('#composerHint');
@@ -32,7 +32,7 @@ async function updateStatus(){
  const status=$('#memoryStatus');if(!status)return;
  try{
   const stats=await K.stats(),size=n=>n==null?'unknown':(n/1048576).toFixed(1)+' MB';
-  status.textContent=stats.records+' saved knowledge entries. Browser storage: '+size(stats.usage)+' used (estimated quota '+size(stats.quota)+'). Last bundled check: '+(stats.checkedAt?new Date(stats.checkedAt).toLocaleString():'not yet')+'.';
+  status.textContent=stats.records+' starter and personal entries. '+stats.publicRecords+' Wikipedia references saved on this device. Last public snapshot: '+(stats.publicUpdatedAt?new Date(stats.publicUpdatedAt).toLocaleString():'waiting for a download')+'. Browser storage: '+size(stats.usage)+' used (estimated quota '+size(stats.quota)+').';
  }catch(e){status.textContent='Knowledge storage unavailable: '+e.message}
 }
 async function fileImport(event){
@@ -81,10 +81,13 @@ function bind(){
  $('#modeToggle')?.addEventListener('click',()=>{
   setOffline(!active);toast(active?'Local knowledge on — no model requests.':'Cloud AI selected for your next message.');
  });
+ const refresh=async(force=false)=>{
+  const results=await Promise.allSettled([K.syncBundled({force}),K.syncDaily({force})]);
+  await updateStatus();
+  return results.map(result=>result.status==='fulfilled'?result.value.status:'unavailable');
+ };
  $('#memoryCheck')?.addEventListener('click',()=>{
-  void K.syncBundled({force:true}).then(async result=>{
-   await updateStatus();toast(result.status==='updated'?'Built-in reference refreshed.':'Update status: '+result.status);
-  }).catch(()=>toast('Local reference updates are unavailable. Try again later.'));
+  void refresh(true).then(([starter,daily])=>toast('Starter references: '+starter+'. Daily Wikipedia snapshot: '+daily+'.')).catch(()=>toast('Reference updates are unavailable. Saved references are kept.'));
  });
  $('#memoryImport')?.addEventListener('change',fileImport);
  $('#memorySave')?.addEventListener('click',saveMemory);
@@ -96,8 +99,9 @@ function bind(){
  });
  document.addEventListener('click',saveReply);
  renderMode();
- void K.syncBundled().then(updateStatus).catch(()=>{});
- setInterval(()=>{void K.syncBundled().then(updateStatus).catch(()=>{})},3600000);
+ void refresh().catch(()=>{});
+ root.addEventListener('online',()=>{void refresh().catch(()=>{})});
+ setInterval(()=>{void refresh().catch(()=>{})},3600000);
 }
 root.OMNI_OFFLINE_UI={isOffline,setOffline,updateStatus};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind,{once:true});else bind();
