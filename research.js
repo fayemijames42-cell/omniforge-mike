@@ -1,3 +1,4 @@
+import {fetchBounded} from './server/providers.js';
 /* OMNIFORGE web evidence adapter.
  * Server-only outbound requests to documented, fixed-host search APIs.
  * Wikipedia offers keyless encyclopedic lookups; Tavily free Researcher plan
@@ -59,16 +60,10 @@ function urlCheck(url){
  }catch{return ''}
 }
 async function jsonLimited(url,options={},fetcher=fetch){
- const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),6500);
- try{
-  const response=await fetcher(url,{...options,signal:controller.signal,redirect:'error'});
+ const {bytes}=await fetchBounded(fetcher,url,options,{timeout:6500,maximum:95000,validate:response=>{
   if(!response.ok)throw Error('Search source is unavailable (HTTP '+response.status+').');
-  const contentLength=Number(response.headers?.get('content-length')||0);
-  if(contentLength>95000)throw Error('Search result exceeded the safety size limit.');
-  const body=await response.text();
-  if(body.length>95000)throw Error('Search result exceeded the safety size limit.');
-  return JSON.parse(body);
- }finally{clearTimeout(timeout)}
+ }});
+ return JSON.parse(new TextDecoder().decode(bytes));
 }
 /* Wikipedia has two documented read APIs. Try the REST endpoint once,
  * then the legacy Action API if it is unavailable/empty. No model call, no

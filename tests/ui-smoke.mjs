@@ -67,6 +67,89 @@ const go=async tab=>{await page.locator('#mobileMenuButton').click();await page.
 const settings=async()=>{await page.locator('#mobileMenuButton').click();await page.locator('[data-drawer-action="settings"]').click()};
 const errors = []; page.on('pageerror', error => errors.push(error.message));
 const address = 'http://127.0.0.1:' + server.address().port;
+async function verifyLongHistoryAndOptionalModules(){
+ const context=await browser.newContext({viewport:{width:360,height:780},acceptDownloads:true});
+ const restoredContext=await browser.newContext({viewport:{width:360,height:780}});
+ try{
+  const mobile=await context.newPage(),errors=[];
+  mobile.on('pageerror',error=>errors.push(error.message));
+  await mobile.addInitScript(()=>Object.defineProperty(navigator,'serviceWorker',{value:undefined}));
+  await mobile.route(/\/src\/(?:pool|offline)\.js(?:\?|$)/,route=>route.abort());
+  await mobile.goto(address);
+  await mobile.locator('#startupStatus').waitFor({state:'hidden'});
+  await mobile.locator('#newProject').click();
+  await mobile.waitForFunction(()=>!!window.OMNI_TEST.getProject());
+  const saved=await mobile.evaluate(async()=>{
+   const project=window.OMNI_TEST.getProject(),core=window.OMNI;
+   project.messages=Array.from({length:101},(_,i)=>({id:'history-'+i,at:i,role:i%2?'assistant':'user',text:'Saved fixture message '+i}));
+   await core.saveProject(project);
+   return project.id;
+  });
+  await mobile.reload();
+  await mobile.locator('#startupStatus').waitFor({state:'hidden'});
+  assert.equal(await mobile.evaluate(()=>typeof window.MIKEE_POOL),'undefined');
+  assert.equal(await mobile.locator('#projectSelect').inputValue(),saved);
+  assert.equal(await mobile.locator('.message').count(),100);
+  await mobile.locator('#prompt').fill('/calc 39+3');
+  await mobile.locator('#sendBtn').click();
+  await mobile.getByText(/Result: 42/).waitFor();
+  await mobile.getByRole('button',{name:'Load earlier messages'}).click();
+  await mobile.getByText('Saved fixture message 0',{exact:true}).waitFor();
+  assert.equal(await mobile.locator('.message').count(),103);
+  await mobile.locator('#prompt').fill('This draft stays visible when cloud cannot load.');
+  await mobile.locator('#sendBtn').click();
+  await mobile.locator('#toast').getByText(/Cloud AI could not load/).waitFor();
+  assert.equal(await mobile.locator('#prompt').inputValue(),'This draft stays visible when cloud cannot load.');
+  await mobile.locator('#mobileMenuButton').click();
+  await mobile.locator('[data-mobile="files"]').click();
+  const [download]=await Promise.all([mobile.waitForEvent('download'),mobile.locator('#fileJSON').click()]);
+  const bytes=await readFile(await download.path());
+  const restored=await restoredContext.newPage();
+  await restored.goto(address);
+  await restored.locator('#startupStatus').waitFor({state:'hidden'});
+  await restored.locator('#mobileMenuButton').click();
+  await restored.locator('[data-mobile="files"]').click();
+  await restored.locator('#importFile').setInputFiles({name:'long-history.json',mimeType:'application/json',buffer:bytes});
+  await restored.waitForFunction(()=>window.OMNI_TEST.getProject()?.messages.length===103);
+  const observed=await restored.evaluate(()=>({id:window.OMNI_TEST.getProject().id,messages:window.OMNI_TEST.getProject().messages}));
+  assert.notEqual(observed.id,saved);
+  assert.deepEqual(observed.messages,JSON.parse(bytes).messages);
+  assert.deepEqual(errors,[]);
+ }finally{await Promise.all([context.close(),restoredContext.close()])}
+}
+async function verifyRequestRecovery(){
+ const context=await browser.newContext({viewport:{width:360,height:780}});
+ try{
+  const mobile=await context.newPage();
+  await mobile.addInitScript(()=>{
+   const original=window.setTimeout;
+   window.setTimeout=(fn,ms,...args)=>original(fn,ms===110000?80:ms,...args);
+   const fetcher=window.fetch;
+   window.fetch=(url,options)=>url==='/api/chat'&&window.fixtureStall?new Promise(()=>{}):fetcher(url,options);
+  });
+  await mobile.goto(address);
+  await mobile.locator('#startupStatus').waitFor({state:'hidden'});
+  await mobile.evaluate(()=>{window.fixtureStall=true});
+  await mobile.locator('#prompt').fill('Synthetic stalled request.');
+  await mobile.locator('#sendBtn').click();
+  await mobile.locator('#chatStream').getByText(/request timed out/i).waitFor();
+  assert.equal(await mobile.locator('#sendBtn').isEnabled(),true);
+  await mobile.evaluate(()=>{window.fixtureStall=false});
+  let calls=0;
+  await mobile.route('**/api/chat',route=>{
+   calls++;
+   return route.fulfill({status:429,contentType:'application/json',headers:{'Retry-After':'60'},body:'{"error":"Fixture quota limit"}'});
+  });
+  await mobile.locator('#prompt').fill('Synthetic quota request.');
+  await mobile.locator('#sendBtn').click();
+  await mobile.locator('#chatStream').getByText('Fixture quota limit').waitFor();
+  await mobile.locator('#prompt').fill('This draft must not use quota.');
+  await mobile.locator('#sendBtn').click();
+  await mobile.locator('#toast').getByText(/waiting for free capacity/).waitFor();
+  assert.equal(calls,1);
+  assert.equal(await mobile.locator('#prompt').inputValue(),'This draft must not use quota.');
+ }finally{await context.close()}
+}
 async function submitAndReadReply(text){
  const count=await page.evaluate(()=>window.OMNI_TEST.getProject()?.messages.length||0);
  await page.locator('#prompt').fill(text);
@@ -150,6 +233,8 @@ async function verifyStartupRecovery() {
 try {
   await verifyStartupRecovery();
   await verifyConcurrentSaves();
+  await verifyLongHistoryAndOptionalModules();
+  await verifyRequestRecovery();
   await page.setExtraHTTPHeaders({origin:'http://127.0.0.1:'+server.address().port});
   await page.goto('http://127.0.0.1:' + server.address().port, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => !!window.OMNI_TEST && !!window.MIKEE_POOL.catalog());

@@ -15,7 +15,13 @@ async function zipBytes(entry,maximum){
 function validate(project){
  if(!project||typeof project!=='object'||!project.website||!Array.isArray(project.website.pages)||!Array.isArray(project.assets))throw Error('Invalid OMNIFORGE project.');
  if(project.website.pages.length>35||project.assets.length>60)throw Error('Project exceeds the page or photo limit.');
- for(const page of project.website.pages)if(!page||!Array.isArray(page.sections)||page.sections.length>200)throw Error('Invalid page sections.');
+ for(const page of project.website.pages){
+  if(!page||!Array.isArray(page.sections)||page.sections.length>200)throw Error('Invalid page sections.');
+  for(const section of page.sections){
+   if(!section||typeof section!=='object'||(section.children!=null&&!Array.isArray(section.children)))throw Error('Invalid section contents.');
+   if(section.children?.some(child=>!child||typeof child!=='object'))throw Error('Invalid section contents.');
+  }
+ }
  const ids=new Set();for(const asset of project.assets){if(typeof asset?.id!=='string'||!/^[a-zA-Z0-9-]{1,100}$/.test(asset.id)||ids.has(asset.id)||!imageType(asset.mimeType))throw Error('Invalid or duplicated photo entry.');ids.add(asset.id);}
  if(project.website.rawHtml!=null&&(typeof project.website.rawHtml!=='string'||project.website.rawHtml.length>1500000))throw Error('Website HTML exceeds 1.5 MB.');
  if(project.codeWorkspace)root.OMNI_FILES.validate(project);
@@ -39,7 +45,6 @@ async function importProject(file){
  const mapping=new Map(project.assets.map(a=>[a.id,C.uuid()])),photos=project.assets;
  const remap=text=>String(text).replace(/omniforge-asset:\/\/([a-zA-Z0-9-]+)/g,(all,id)=>mapping.has(id)?'omniforge-asset://'+mapping.get(id):all);
  const restored=C.clone(project);restored.id=C.uuid();restored.createdAt=Date.now();restored.updatedAt=Date.now();restored.version=1;restored.history=[];
- restored.messages=Array.isArray(restored.messages)?restored.messages.slice(-100):[];
  restored.assets=photos.map(a=>({...a,id:mapping.get(a.id),originalId:mapping.get(a.originalId)||null,dataUrl:undefined}));
  restored.selectedAssetId=mapping.get(restored.selectedAssetId)||null;
  for(const page of restored.website.pages)for(const section of page.sections)for(const child of section.children||[])if(child.props?.assetId)child.props.assetId=mapping.get(child.props.assetId)||'';
@@ -63,5 +68,5 @@ async function importProject(file){
  await C.saveProject(restored,files);
  return restored;
 }
-root.OMNI_BACKUP=Object.freeze({importProject});
+root.OMNI_BACKUP=Object.freeze({importProject,validate,MAX_FILE,MAX_META,MAX_IMAGE});
 })(window);

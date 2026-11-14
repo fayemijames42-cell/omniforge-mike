@@ -53,3 +53,14 @@ jobs:
         run: node build.mjs
       - name: Verify mobile UI, provider selection, artifact exports and recovery
         run: node tests/ui-smoke.mjs
+      - name: Check out the v0.11.5 storage and offline compatibility fixture
+        uses: actions/checkout@v7
+        with:
+          ref: 79ab1726bb30aead1ab72332323dcd27d62c40f7
+          path: foundation-baseline
+          persist-credentials: false
+      - name: Build the compatibility fixture
+        working-directory: foundation-baseline
+        run: node build.mjs
+      - name: Verify failed update, recovery, offline use and rollback
+        run: node tests/foundation-browser.mjs upgrade foundation-baseline/public public

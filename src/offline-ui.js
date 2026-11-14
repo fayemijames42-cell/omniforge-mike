@@ -71,12 +71,20 @@ async function saveReply(event){
  }catch(e){toast('Could not save memory: '+e.message)}
 }
 function bind(){
+ try{void navigator.serviceWorker?.register('/sw.js',{updateViaCache:'none'}).catch(()=>{})}catch{}
+ if(!K){
+  $('#modeToggle').disabled=true;
+  $('#memoryStatus').textContent='Local reference tools could not load. Reload to try again.';
+  for(const id of ['memoryCheck','memoryImport','memorySave','memoryExport','memoryPersist'])$('#'+id).disabled=true;
+  return;
+ }
  $('#modeToggle')?.addEventListener('click',()=>{
   setOffline(!active);toast(active?'Local knowledge on — no model requests.':'Cloud AI selected for your next message.');
  });
- $('#memoryCheck')?.addEventListener('click',async()=>{
-  const result=await K.syncBundled({force:true});
-  await updateStatus();toast(result.status==='updated'?'Built-in reference refreshed.':'Update status: '+result.status);
+ $('#memoryCheck')?.addEventListener('click',()=>{
+  void K.syncBundled({force:true}).then(async result=>{
+   await updateStatus();toast(result.status==='updated'?'Built-in reference refreshed.':'Update status: '+result.status);
+  }).catch(()=>toast('Local reference updates are unavailable. Try again later.'));
  });
  $('#memoryImport')?.addEventListener('change',fileImport);
  $('#memorySave')?.addEventListener('click',saveMemory);
@@ -90,7 +98,6 @@ function bind(){
  renderMode();
  void K.syncBundled().then(updateStatus).catch(()=>{});
  setInterval(()=>{void K.syncBundled().then(updateStatus).catch(()=>{})},3600000);
- if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).catch(()=>{});
 }
 root.OMNI_OFFLINE_UI={isOffline,setOffline,updateStatus};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind,{once:true});else bind();

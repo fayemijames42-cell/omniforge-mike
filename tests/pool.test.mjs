@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import worker from '../worker.js';
 import { MikeeCoordinator } from '../server/coordinator.js';
 import { PROFILES } from '../server/catalog.js';
+import { fetchBounded, jsonRequest } from '../server/providers.js';
 
 const req = (body, origin = 'https://mikee.test', path = '/api/chat', extra = {}) => new Request('https://mikee.test' + path, {
   method: 'POST', headers: { 'content-type': 'application/json', origin, ...extra }, body: JSON.stringify(body)
@@ -319,4 +320,84 @@ test('Frontend retains only bounded, safe provider diagnostics for a failed requ
     assert.ok(!JSON.stringify(error.providerDiagnostics).includes('must-not-leak'));
     return true;
   });
+});
+
+test('Provider deadlines cover stalled headers and a stalled response body',async()=>{
+ const url='https://provider.fixture/';
+ await assert.rejects(jsonRequest(()=>new Promise(()=>{}),url,{},20),{kind:'timeout'});
+ let cancelled=false;
+ const fetcher=async()=>new Response(new ReadableStream({cancel(){cancelled=true}}));
+ await assert.rejects(jsonRequest(fetcher,url,{},20),{kind:'timeout'});
+ assert.equal(cancelled,true);
+});
+
+test('An oversized provider body is cancelled even without a declared length',async()=>{
+ let cancelled=false;
+ const fetcher=async()=>new Response(new ReadableStream({
+  start(controller){controller.enqueue(new Uint8Array(11))},
+  cancel(){cancelled=true}
+ }));
+ await assert.rejects(fetchBounded(fetcher,'https://provider.fixture/',{},{maximum:10}),{kind:'response_too_large'});
+ assert.equal(cancelled,true);
+});
+
+test('An exhausted operation deadline does not start the next provider or reserve quota',async()=>{
+ const h=await harness({env:{AI:{run:async()=>{throw Error('No call should start')}}}});
+ const result=await h.pool.route({messages:[{role:'user',content:'Fixture'}],budgetMs:800});
+ assert.equal(result.status,504);
+ assert.equal((await result.json()).code,'REQUEST_TIMEOUT');
+ assert.equal(h.pool.data.global.requests,undefined);
+});
+
+test('A late image poll cannot replace a confirmed cancellation',async()=>{
+ let release,started;
+ const polling=new Promise(resolve=>{started=resolve});
+ const answer=new Promise(resolve=>{release=resolve});
+ const h=await harness({active:['horde-image'],fetcher:async(url,options)=>{
+  if(url.endsWith('/generate/async'))return Response.json({id:'12345678-1234-1234-1234-123456789abc'},{status:202});
+  if(options.method==='DELETE')return Response.json({done:true});
+  if(url.includes('/generate/check/')){started();await answer;return Response.json({done:true})}
+  return Response.json({generations:[{img:'https://fixture.r2.dev/image.png',model:'fixture'}]});
+ }});
+ const job=(await(await h.pool.image({prompt:'A classroom'})).json()).jobId;
+ const pending=h.pool.job(job);
+ await polling;
+ assert.equal((await(await h.pool.job(job,true)).json()).state,'cancelled');
+ release();
+ assert.equal((await(await pending).json()).state,'cancelled');
+ assert.equal((await(await h.pool.job(job)).json()).state,'cancelled');
+ assert.equal(h.pool.data.ledger['horde-image'].verifiedAt,undefined);
+});
+
+test('Client distinguishes cancellation and timeout and uses the longer retry header',async()=>{
+ const source=readFileSync(new URL('../src/pool.js',import.meta.url),'utf8');
+ const sandbox={window:{OMNI:{esc:value=>value}},document:{querySelector:()=>null},AbortController,DOMException,FormData,Blob,clearTimeout,setTimeout,
+  fetch:()=>new Promise(()=>{})};
+ vm.runInNewContext(source,sandbox);
+ const client=sandbox.window.MIKEE_POOL;
+ await assert.rejects(client.request('/api/chat',{timeout:20}),{code:'REQUEST_TIMEOUT'});
+ const controller=new AbortController();
+ const pending=client.request('/api/chat',{signal:controller.signal});
+ controller.abort();
+ await assert.rejects(pending,{name:'AbortError'});
+ sandbox.fetch=async()=>Response.json({error:'Busy',retryAfter:10},{status:429,headers:{'retry-after':'61'}});
+ await assert.rejects(client.request('/api/chat'),{status:429,retryAfter:61});
+});
+
+test('Image download rejects an oversized stream and omits credentials and redirects',async()=>{
+ const source=readFileSync(new URL('../src/pool.js',import.meta.url),'utf8');
+ let options,cancelled=false;
+ const sandbox={window:{OMNI:{esc:value=>value}},document:{querySelector:()=>null},AbortController,DOMException,FormData,Blob,clearTimeout,setTimeout,
+  fetch:async(_,init)=>{
+   options=init;
+   return new Response(new ReadableStream({
+    start(controller){controller.enqueue(new Uint8Array(2250001))},
+    cancel(){cancelled=true}
+   }),{headers:{'content-type':'image/png'}});
+  }};
+ vm.runInNewContext(source,sandbox);
+ await assert.rejects(sandbox.window.MIKEE_POOL.downloadImage('https://image.fixture/'),/exceeded/);
+ assert.equal(cancelled,true);
+ assert.equal(options.credentials,'omit');
+ assert.equal(options.redirect,'error');
 });

@@ -3,19 +3,52 @@
   'use strict';
   const E = window.OMNI.esc, $ = s => document.querySelector(s);
   let ownerToken = '', catalog = null;
-  async function request(path, { body, method = body ? 'POST' : 'GET', signal, timeout = 110000, owner = false } = {}) {
-    const controller = new AbortController(), abort = () => controller.abort();
-    if (signal?.aborted) controller.abort(); else signal?.addEventListener('abort', abort, { once: true });
-    const timer = setTimeout(abort, timeout), headers = {};
-    if (body && !(body instanceof FormData)) headers['content-type'] = 'application/json';
-    if (owner) headers.authorization = 'Bearer ' + ownerToken;
+  async function withDeadline(work, signal, timeout) {
+    const controller = new AbortController();
+    let timer, abort;
+    const stopped = new Promise((_, reject) => {
+      abort = () => {
+        reject(new DOMException('Request cancelled.', 'AbortError'));
+        controller.abort();
+      };
+      if (signal?.aborted) abort();
+      else signal?.addEventListener('abort', abort, { once: true });
+      timer = setTimeout(() => {
+        const error = Error('The request timed out. Please try again.');
+        error.code = 'REQUEST_TIMEOUT';
+        reject(error);
+        controller.abort();
+      }, timeout);
+    });
     try {
-      const response = await fetch(path, { method, headers, body: body ? body instanceof FormData ? body : JSON.stringify(body) : undefined, signal: controller.signal });
-      let data; try { data = await response.json(); } catch { throw Error('The server returned an unreadable response.'); }
+      return await Promise.race([stopped, Promise.resolve().then(() => {
+        if (!controller.signal.aborted) return work(controller.signal);
+      })]);
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+    }
+  }
+  function retrySeconds(response, data) {
+    const header = response.headers.get('retry-after');
+    const seconds = header && /^\d+$/.test(header) ? Number(header) : (Date.parse(header) - Date.now()) / 1000;
+    const valid = [seconds, data.retryAfter].map(Number).filter(value => Number.isFinite(value) && value > 0);
+    return valid.length ? Math.ceil(Math.max(...valid)) : null;
+  }
+  async function request(path, { body, method = body ? 'POST' : 'GET', signal, timeout = 110000, owner = false } = {}) {
+    return withDeadline(async requestSignal => {
+      const headers = {};
+      if (body && !(body instanceof FormData)) headers['content-type'] = 'application/json';
+      if (owner) headers.authorization = 'Bearer ' + ownerToken;
+      const response = await fetch(path, { method, headers, body: body ? body instanceof FormData ? body : JSON.stringify(body) : undefined, signal: requestSignal });
+      let data;
+      try { data = await response.json(); } catch { throw Error('The server returned an unreadable response.'); }
+      if (!data || typeof data !== 'object' || Array.isArray(data)) throw Error('The server returned an unreadable response.');
       if (!response.ok) {
-        const error = Error(data.error || 'Request failed.');
+        const error = Error(typeof data.error === 'string' ? data.error.slice(0, 400) : 'Request failed.');
         error.code = data.code;
-        error.retryAfter = Number.isFinite(Number(data.retryAfter)) ? Number(data.retryAfter) : null;
+        error.status = response.status;
+        error.retryAfter = retrySeconds(response, data);
         // Deliberately accept only short human-readable status fields. Upstream
         // provider error bodies, credentials and raw request data are never shown.
         const diagnostic = data.diagnostics;
@@ -28,7 +61,32 @@
         throw error;
       }
       return data;
-    } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+    }, signal, timeout);
+  }
+  function downloadImage(url, signal) {
+    const maximum = 2250000;
+    return withDeadline(async requestSignal => {
+      const response = await fetch(url, { signal: requestSignal, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer' });
+      const type = (response.headers.get('content-type') || '').split(';')[0].toLowerCase();
+      if (!response.ok || !/^image\/(jpeg|png|webp)$/.test(type) || Number(response.headers.get('content-length')) > maximum) {
+        void response.body?.cancel().catch(() => {});
+        throw Error('The generated image was unavailable or exceeded the supported size.');
+      }
+      const reader = response.body?.getReader();
+      if (!reader) throw Error('The generated image could not be downloaded.');
+      const chunks = [];
+      let size = 0;
+      try {
+        for (;;) {
+          const {value,done} = await reader.read();
+          if (done) break;
+          size += value.length;
+          if (size > maximum) throw Error('The generated image exceeded the supported size.');
+          chunks.push(value);
+        }
+      } finally { void reader.cancel().catch(() => {}); }
+      return new Blob(chunks, {type});
+    }, signal, 20000);
   }
   function receipt(data) {
     return '<details class="response-details"><summary>Response details</summary><p>' + E(data.providerName || data.provider || 'AI provider') +
@@ -118,5 +176,5 @@
     await refresh().catch(() => {});
   }
   function showError(error) { $('#connectionNotice').textContent = error.message || 'Connection action failed.'; }
-  window.MIKEE_POOL = { request, receipt, mount, refresh, catalog: () => catalog };
+  window.MIKEE_POOL = { request, downloadImage, receipt, mount, refresh, catalog: () => catalog };
 })();
