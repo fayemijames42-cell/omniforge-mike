@@ -1,7 +1,7 @@
 import poolHTTP, {complete,validImage,bodyJSON} from './server/pool-http.js';
 import {ownerAuthorized} from './server/coordinator.js';
 export {MikeeCoordinator} from './server/coordinator.js';
-import {collectEvidence,evidenceText} from './research.js';
+import {collectEvidence,evidenceText,lookupWikipedia,publicReferenceQuery} from './research.js';
 import {planRequest,planGuidance,reviewAnswer} from './server/nexus.js';
 import {referenceRequest,referenceSnapshot,refreshScheduledReference,updateReferenceBank} from './server/reference-bank.js';
 // OMNIFORGE MICHELLE — Cloudflare Worker, Workers AI binding named AI.
@@ -27,7 +27,7 @@ async function guardAiRequest(request,env,kind){
 
 /* Central daily request-attempt gate. Each UTC date maps to one SQLite-backed Durable Object.
    Counters are NOT Neurons: verify Cloudflare's Neuron dashboard before raising caps. */
-const DAY_CAPS=Object.freeze({research:24}); // conservative public-beta trial caps; revisit using measured consumption
+const DAY_CAPS=Object.freeze({research:24,wikipedia:48}); // Shared request limits, independent of model allowances.
 const resetUtc=()=>new Date(Date.now()+86400000).toISOString().slice(0,10)+'T00:00:00Z';
 export class DailyBudget {
  constructor(state,env){this.state=state;this.env=env}
@@ -47,10 +47,24 @@ export class DailyBudget {
    return json(await updateReferenceBank(this.state,this.env?.REFERENCE_FETCH||fetch,scheduledTime));
   }
   if(request.method!=='POST')return new Response('Not found',{status:404});
+  const path=new URL(request.url).pathname;
+  if(path==='/reference-backoff'){
+   const {until}=await request.json();
+   if(!Number.isSafeInteger(until)||until<=Date.now())return json({error:'Invalid retry deadline.'},400);
+   await this.state.storage.transaction(async tx=>{
+    const previous=Number(await tx.get('wikipediaRetryAt')||0);
+    if(until>previous)await tx.put('wikipediaRetryAt',until);
+   });
+   return json({ok:true});
+  }
   let kind;try{({kind}=await request.json())}catch{return new Response('Bad request',{status:400})}
-  const cap=DAY_CAPS[kind];
+  const cap=Object.hasOwn(DAY_CAPS,kind)?DAY_CAPS[kind]:0;
   if(!cap)return new Response('Unknown budget type',{status:400});
   const usage=await this.state.storage.transaction(async tx=>{
+   if(kind==='wikipedia'){
+    const retryAt=Number(await tx.get('wikipediaRetryAt')||0);
+    if(retryAt>Date.now())return {allowed:false,retryAt};
+   }
    const n=Number(await tx.get(kind)||0);
    if(n>=cap)return {allowed:false,attempts:n,remaining:0};
    await tx.put(kind,n+1);
@@ -59,14 +73,19 @@ export class DailyBudget {
   return new Response(JSON.stringify({...usage,kind,cap}),{headers:{'content-type':'application/json','cache-control':'no-store'}});
  }
 }
+const dailyBudget=env=>env.DAILY_BUDGET.getByName('omniforge-'+new Date().toISOString().slice(0,10));
+const sendBudget=(stub,path,body)=>stub.fetch('https://budget.internal'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
 async function guardDailyBudget(env,kind){
  if(!env.DAILY_BUDGET?.getByName)return json({error:'Reference-search accounting is not configured. Chat and local tools remain available.',protectionUnavailable:true},503);
  try{
-  const day=new Date().toISOString().slice(0,10);
-  const response=await env.DAILY_BUDGET.getByName('omniforge-'+day).fetch('https://budget.internal/reserve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind})});
+  const response=await sendBudget(dailyBudget(env),'/reserve',{kind});
   if(!response.ok)throw Error('Budget storage error');
   const value=await response.json();
-  if(value.allowed!==true)return json({error:'The shared reference-search allowance is exhausted for today. Chat and local tools remain available. Search resets at 00:00 UTC (1:00 AM Nigeria time).',dailyLimit:true,resetAt:resetUtc(),kind},429);
+  if(value.retryAt)return json({error:'Wikipedia asked us to wait before retrying. Saved references remain available.',retryAfter:Math.ceil((value.retryAt-Date.now())/1000)},429);
+  if(value.allowed!==true){
+   const resetAt=resetUtc(),retryAfter=Math.ceil((Date.parse(resetAt)-Date.now())/1000);
+   return json({error:'The shared reference-search allowance is exhausted for today. Chat and local tools remain available. Search resets at 00:00 UTC (1:00 AM Nigeria time).',dailyLimit:true,resetAt,retryAfter,kind},429);
+  }
   return null;
  }catch{
   return json({error:'Reference-search accounting is temporarily unavailable. Chat and local tools remain available.',protectionUnavailable:true},503);
@@ -74,10 +93,38 @@ async function guardDailyBudget(env,kind){
 }
 
 const json=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
+function referenceReply(evidence,cloudRetryAfter=null){
+ return {
+  reply:(cloudRetryAfter!==null?'Cloud AI is unavailable. ':'')+'Wikipedia returned these excerpts:\n\n'+evidence.sources.map(item=>'**'+item.title+'**\n'+item.excerpt).join('\n\n')+'\n\nRetrieved reference · no AI inference.',
+  live:false,toolOnly:true,provider:'reference-retrieval',providerName:'Wikipedia reference retrieval',artifact:{type:'text'},cloudRetryAfter,
+  research:{scope:evidence.scope,retrievedAt:evidence.retrievedAt,note:'Search excerpts may be incomplete. Open the sources for their full context.'},
+  sources:evidence.sources,orchestration:{kind:'reference-retrieval',toolsUsed:['reference-search']},
+ };
+}
+async function directReference(request,env,url){
+ if(request.method!=='POST')return json({error:'Method not allowed'},405);
+ if(request.headers.get('origin')!==url.origin)return json({error:'Wikipedia lookup requires a same-origin request.'},403);
+ const parsed=await bodyJSON(request,1200);if(parsed.error)return parsed.error;
+ const topic=publicReferenceQuery(parsed.data.topic);
+ if(!topic)return json({error:'Enter a short public topic of 2–150 characters. Leave out private information, email addresses and links.'},400);
+ const limit=await guardDailyBudget(env,'wikipedia');if(limit)return limit;
+ try{
+  const evidence=await lookupWikipedia(topic,env.RESEARCH_FETCH||fetch);
+  if(!evidence.sources.length)return json({error:'Wikipedia returned no matching excerpts. Try a more specific topic.'},404);
+  return json(referenceReply(evidence));
+ }catch(error){
+  if(error?.kind==='reference_throttled'){
+   await sendBudget(dailyBudget(env),'/reference-backoff',{until:Date.now()+error.retryAfter}).catch(()=>{});
+   return json({error:'Wikipedia asked us to wait before retrying. Saved references remain available.',retryAfter:Math.ceil(error.retryAfter/1000)},429);
+  }
+  return json({error:'Wikipedia lookup is temporarily unavailable. Saved references remain available.'},503);
+ }
+}
 export default {
  scheduled(controller,env,ctx){ctx.waitUntil(refreshScheduledReference(env,controller.scheduledTime));},
  async fetch(request,env){const url=new URL(request.url);
  if(url.pathname==='/quick-chat')return Response.redirect(url.origin+'/',302);
+ if(url.pathname==='/api/reference-search')return directReference(request,env,url);
  if(url.pathname==='/api/reference-bank'){
   if(request.method!=='GET')return json({error:'Method not allowed'},405);
   try{
@@ -176,13 +223,9 @@ export default {
    if(!response.ok){
     if((response.status>=500||response.status===429)&&evidence?.scope==='wikipedia'&&evidence.sources.length&&
        !data.image&&!websiteTask&&!['image','code','vector'].includes(plan.kind)){
-     return json({
-      reply:'Cloud AI is unavailable. Wikipedia returned the following excerpts:\n\n'+evidence.sources.map(item=>'**'+item.title+'**\n'+item.excerpt).join('\n\n')+'\n\nRetrieved reference · no AI inference.',
-      live:false,toolOnly:true,provider:'reference-retrieval',providerName:'Wikipedia reference retrieval',artifact:{type:'text'},
-      cloudRetryAfter:Number(response.headers.get('retry-after'))||null,
-      research:{scope:evidence.scope,retrievedAt:evidence.retrievedAt,mode:lookup.researchMode,note:'Search excerpts may be incomplete. Open the sources for the full context.'},
-      sources:evidence.sources,orchestration:{kind:'reference-retrieval',toolsUsed:['reference-search']},
-     });
+     const result=referenceReply(evidence,Number(response.headers.get('retry-after'))||0);
+     result.research.mode=lookup.researchMode;
+     return json(result);
     }
     return response;
    }

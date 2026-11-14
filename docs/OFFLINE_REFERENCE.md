@@ -6,6 +6,8 @@ Local Knowledge can retrieve a close match from the bundled educational topics, 
 
 The mode button selects Local Knowledge for subsequent questions. In Cloud AI mode, an unavailable provider or active cooldown can fall back to a matching saved entry for the current question. When a live chat already retrieved usable Wikipedia search excerpts before encountering an AI error, it can show those excerpts directly. Cloud inference, live lookup, saved references and deterministic tools have separate labels. The application leaves an unmatched request visible and reserves cloud generation for connected providers. Arithmetic, symbolic maths, platform identity and saved website recall use local data and code.
 
+Select **Wikipedia lookup** in the composer, or enter `/wiki <public topic>`, to find excerpts outside the saved snapshot. It sends only the explicitly entered public topic, uses a separate shared allowance of 48 lookups per UTC day, and uses no AI provider allowance. Use a short public topic. Saved mode uses the local references for the same topic. Each live result links back to the source.
+
 ## Daily public reference snapshot
 
 The Worker is scheduled for 02:15 UTC (03:15 WAT) daily. The first download can initialize a new snapshot before the first scheduled run. A dedicated instance of the existing SQLite-backed Durable Object reserves one update attempt per UTC date, with a single fixed Wikipedia Action API call for eight selected topics. Topics include education, technology and a small rotation of public reference articles. The server retains the latest successful records, up to 64, including per-article provenance. Failed fetches, invalid data and rate-limit responses preserve the last usable copy.

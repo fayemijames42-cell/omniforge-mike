@@ -1,4 +1,4 @@
-import {fetchBounded} from './server/providers.js';
+import {fetchBounded,ProviderError,retryDelay} from './server/providers.js';
 /* OMNIFORGE web evidence adapter.
  * Server-only outbound requests to documented, fixed-host search APIs.
  * Wikipedia offers keyless encyclopedic lookups; Tavily free Researcher plan
@@ -48,6 +48,12 @@ export function researchIntent(message){
  const intent=interpretUserIntent(message);
  return {requested:intent.researchMode!=='none',fresh:intent.fresh,query:intent.query};
 }
+export function publicReferenceQuery(value){
+ if(typeof value!=='string'||value.length>150)return '';
+ const topic=value.trim().replace(/\s+/g,' ');
+ if(topic.length<2||PRIVACY.test(topic)||/\b(?:my|mine|our|ours)\b|https?:|www\.|@|\b\d{7,}\b/i.test(topic))return '';
+ return topic;
+}
 function clean(value,n=600){
  return String(value||'').replace(/<[^>]*>/g,' ').replace(/&(?:amp|quot|lt|gt|nbsp|#39);/gi,x=>({'&amp;':'&','&quot;':'"','&lt;':'<','&gt;':'>','&nbsp;':' ','&#39;':"'"}[x.toLowerCase()]||' ')).replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,n);
 }
@@ -59,8 +65,9 @@ function urlCheck(url){
   return u.toString().slice(0,650);
  }catch{return ''}
 }
-async function jsonLimited(url,options={},fetcher=fetch){
+async function jsonLimited(url,options={},fetcher=fetch,validate){
  const {bytes}=await fetchBounded(fetcher,url,options,{timeout:6500,maximum:95000,validate:response=>{
+  validate?.(response);
   if(!response.ok)throw Error('Search source is unavailable (HTTP '+response.status+').');
  }});
  return JSON.parse(new TextDecoder().decode(bytes));
@@ -88,7 +95,7 @@ async function wikiRest(query,fetcher){
  const data=await jsonLimited(u.toString(),{headers:WIKI_HEADERS},fetcher);
  return (Array.isArray(data.pages)?data.pages:[]).slice(0,4).map(wikiSource).filter(Boolean);
 }
-async function wikiAction(query,fetcher){
+async function wikiAction(query,fetcher,validate){
  // Official MediaWiki Action API supports search even where REST API
  // is inaccessible from a particular network; response shape differs.
  const u=new URL('https://en.wikipedia.org/w/api.php');
@@ -96,9 +103,17 @@ async function wikiAction(query,fetcher){
   action:'query',list:'search',srsearch:query,srlimit:'4',
   srnamespace:'0',srprop:'snippet',format:'json',formatversion:'2'
  }))u.searchParams.set(name,value);
- const data=await jsonLimited(u.toString(),{headers:WIKI_HEADERS},fetcher);
+ const data=await jsonLimited(u.toString(),{headers:WIKI_HEADERS},fetcher,validate);
  return (Array.isArray(data.query?.search)?data.query.search:[]).slice(0,4)
   .map(p=>wikiSource({title:p.title,key:p.title,snippet:p.snippet})).filter(Boolean);
+}
+export async function lookupWikipedia(topic,fetcher){
+ const sources=await wikiAction(topic,fetcher,response=>{
+  if(response.status===429||response.headers.has('retry-after')){
+   throw new ProviderError('reference_throttled',{status:429,retryAfter:retryDelay(response.headers.get('retry-after'))||300000});
+  }
+ });
+ return {scope:'wikipedia',retrievedAt:new Date().toISOString(),sources};
 }
 async function encyclopedia(query,fetcher){
  let firstError='';

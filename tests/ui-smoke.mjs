@@ -162,7 +162,7 @@ async function verifyDailyReferences(){
    {id:'wiki-13',question:'Chemistry',tags:'chemical reactions',answer:'Fixture reference for chemistry and the study of substances.',url:'https://en.wikipedia.org/w/index.php?oldid=125',retrievedAt},
   ]};
   await page.route('**/api/reference-bank',route=>route.fulfill({status:200,json:dailyResponse}));
-  let cloudCalls=0, imageCalls=0;
+  let cloudCalls=0, imageCalls=0, referenceCalls=0;
   await page.route('**/api/chat',route=>{
    cloudCalls++;
    return route.fulfill({status:429,headers:{'Retry-After':'90'},json:{
@@ -172,6 +172,14 @@ async function verifyDailyReferences(){
   await page.route('**/api/image',route=>{
    imageCalls++;
    return route.fulfill({status:503,json:{error:'Fixture image provider unavailable'}});
+  });
+  await page.route('**/api/reference-search',route=>{
+   referenceCalls++;
+   assert.deepEqual(route.request().postDataJSON(),{topic:'Arithmetic'});
+   return route.fulfill({status:200,json:{provider:'reference-retrieval',live:false,toolOnly:true,
+    reply:'Fixture lookup result for arithmetic.',sources:[{title:'Arithmetic',publisher:'Wikipedia',url:'https://en.wikipedia.org/wiki/Arithmetic'}],
+    research:{scope:'wikipedia',retrievedAt}
+   }});
   });
   const openPanel=async name=>{
    await page.locator('#mobileMenuButton').click();
@@ -216,6 +224,13 @@ async function verifyDailyReferences(){
   assert.equal(cloudCalls,1,'a known cooldown must not submit another inference request');
   assert.ok(compared.text.includes('Saved reference comparison'));
   assert.deepEqual(compared.sources.map(item=>item.title),['Physics','Chemistry']);
+  await page.locator('#composerMode').selectOption('reference');
+  await submit('Arithmetic');
+  await page.locator('#chatStream').getByRole('link',{name:'Arithmetic',exact:true}).waitFor();
+  assert.equal(await page.locator('#composerMode').inputValue(),'chat');
+  assert.equal((await messages()).at(-1).engine,'WIKIPEDIA RETRIEVAL · NO AI');
+  assert.equal(referenceCalls,1);
+  assert.equal(cloudCalls,1);
 
   dailyResponse={format:1,publisher:'Wikipedia',license,updatedAt:'2026-11-15T02:15:00.000Z',entries:[{id:'wrong'}]};
   const malformed=await page.evaluate(()=>window.OMNI_KNOWLEDGE.syncDaily({force:true}));
@@ -237,6 +252,7 @@ async function verifyDailyReferences(){
   await page.locator('#chatStream').getByText(/Image generation needs a connected image provider/).waitFor();
   assert.equal(imageCalls,1);
   assert.equal(cloudCalls,1);
+  assert.equal(referenceCalls,1);
   assert.deepEqual(errors,[]);
  }finally{await context.close()}
 }

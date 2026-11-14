@@ -2,7 +2,7 @@
 (function(){'use strict';const C=window.OMNI,W=window.OMNI_WORKSPACE,F=window.OMNI_FILES,Pool=window.MIKEE_POOL;const $=s=>document.querySelector(s);
 if(!C||!W||!F||!window.OMNI_CONTEXT||!window.OMNI_CALC)return;
 const mobileLayout=matchMedia('(max-width: 800px)');
-let project=null,activeView='preview',mobileView=mobileLayout.matches?'chat':'preview',preferences={name:'MICHELLE'},selectedAsset=null,originalURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,messageQueued=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message',pendingImage=null,activeAbort=null,imageJob=null,providerRetryUntil={chat:0,image:0,audio:0};
+let project=null,activeView='preview',mobileView=mobileLayout.matches?'chat':'preview',preferences={name:'MICHELLE'},selectedAsset=null,originalURL=null,previewToken=0,queue=Promise.resolve(),aiState='AI — NOT TESTED YET',requestPending=false,messageQueued=false,pendingStartedAt=0,pendingTimer=null,pendingKind='message',pendingImage=null,activeAbort=null,imageJob=null,providerRetryUntil={chat:0,image:0,audio:0,reference:0};
 const ui={chat:$('#chatStream'),chips:$('#chips'),edit:$('#editControls'),grid:$('#assetGrid'),photoEditor:$('#photoEditor'),frame:$('#siteFrame'),previewEmpty:$('#previewEmpty'),select:$('#projectSelect')};
 const E=C.esc, uid=C.uuid, K=window.OMNI_KNOWLEDGE;const imagePreviewURLs=new Set(), photoURLs=new Set();let photoRender=0;function notify(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>t.style.display='none',3600)}
 function fail(e){const msg=e?.name==='QuotaExceededError'?'Device storage is full. Export a backup, remove unused photos, then try again.':e?.message||String(e);notify(msg);console.warn('OMNIFORGE action failed',e?.code==='PROJECT_CONFLICT'?'PROJECT_CONFLICT':e?.name||'Error')}
@@ -293,7 +293,7 @@ function renderPendingBubble(){
 function updatePendingText(){
  if(!requestPending)return;
  const elapsed=Math.floor((Date.now()-pendingStartedAt)/1000);
- let label=imageJob?'Waiting for a free image worker…':pendingKind==='audio'?'MICHELLE is transcribing your audio…':pendingKind==='website'?'MICHELLE is creating your website…':pendingKind==='image'?'MICHELLE is generating your image…':'MICHELLE is thinking…';
+ let label=imageJob?'Waiting for a free image worker…':pendingKind==='audio'?'MICHELLE is transcribing your audio…':pendingKind==='website'?'MICHELLE is creating your website…':pendingKind==='image'?'MICHELLE is generating your image…':pendingKind==='reference'?'Looking up Wikipedia references…':'MICHELLE is thinking…';
  if(elapsed>=45&&!imageJob)label='Taking longer than usual — still processing your request…';
  else if(elapsed>=15&&!imageJob&&pendingKind!=='audio')label=pendingKind==='website'?'Still generating your website…':pendingKind==='image'?'Still generating your image…':'Still working on your reply…';
  $('#typingText').textContent=label;
@@ -330,7 +330,7 @@ function setPending(busy,text=''){
 function waitingForProvider(capability){
  const next=providerRetryUntil[capability];
  if(next<=Date.now())return false;
- notify('This service is waiting for free capacity. Next estimated retry: '+new Date(next).toLocaleString()+'.');
+ notify((capability==='reference'?'Wikipedia is waiting before the next lookup.':'This service is waiting for free capacity.')+' Next estimated retry: '+new Date(next).toLocaleString()+'.');
  return true;
 }
 function rememberProviderDelay(capability,error){
@@ -418,7 +418,7 @@ async function sendSymbolic(text){
  aiState='LOCAL SYMBOLIC MATH · NO AI';
  await saveConversation(draft);clearSubmittedPrompt(text);await refreshList();await showAll();
 }
-async function localReply(text,route,body,engine,{existing=false,data}={}){
+async function localReply(text,route,body,engine,{existing=false,data,retrieval}={}){
  const draft=conversationDraft();
  if(draft.chatOnly&&!draft.chatTitleSet){const title=autoChatTitle(text);if(title){draft.name=title;draft.chatTitleSet=true}}
  if(!existing){const user=msg('user',text);user.route=route;draft.messages.push(user)}
@@ -427,6 +427,10 @@ async function localReply(text,route,body,engine,{existing=false,data}={}){
  if(publicRecords?.length){
   reply.sources=publicRecords.map(record=>({title:record.question,publisher:record.source,url:record.url,retrievedAt:record.retrievedAt}));
   reply.researchScope='saved-wikipedia';
+ }
+ if(retrieval){
+  reply.sources=retrieval.sources.slice(0,4);reply.researchScope='wikipedia';reply.retrievedAt=retrieval.research?.retrievedAt;
+  reply.researchNote=retrieval.research?.note;
  }
  draft.messages.push(reply);aiState=engine;
  await saveConversation(draft);clearSubmittedPrompt(text);await refreshList();await showAll();
@@ -440,13 +444,13 @@ async function localAnswer(text){
  await K.pendingRefresh();
  return K.answer(text).catch(()=>data);
 }
-async function respondOffline(text,{existing=false,reason='',onlyIfFound=false,details=''}={}){
- const data=await localAnswer(text);
+async function respondOffline(text,{query=text,existing=false,reason='',onlyIfFound=false,details=''}={}){
+ const data=await localAnswer(query);
  if(onlyIfFound&&!data?.found)return false;
  const caption=data?.kind==='comparison'?'\n\nSources: '+data.records.map(record=>record.source).join(' and '):
   data?.found?'\n\nSaved topic: '+data.question+'\nSource: '+data.source:'';
  const warning=data?.records?.some(record=>['personal','import','saved-ai'].includes(record.kind))?'\nUser-saved material is unverified.':'';
- const start=reason?'Cloud AI is unavailable. Showing saved information.\n\n':'';
+ const start=reason?reason+'\n\n':'';
  const reference=data?.text||'Saved references could not be opened on this device.';
  const label=data?.kind==='comparison'?'Saved reference comparison':'Saved reference';
  const body=start+reference+caption+warning+'\n\n'+label+' · no AI inference.'+details;
@@ -462,6 +466,29 @@ function noReferenceForTask(text,route){
   pendingImage?'Photo analysis needs a connected vision provider. The image has not been identified.':
   'This request needs a connected AI provider. Your saved references and local tools remain available.';
  return localReply(text,route.label,detail,'CLOUD AI UNAVAILABLE');
+}
+async function searchReferences(text,topic){
+ if(!topic)throw Error('Enter a public topic for Wikipedia lookup.');
+ if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false)return respondOffline(text,{query:topic});
+ if(!Pool)return respondOffline(text,{query:topic,reason:'Wikipedia lookup could not load.'});
+ if(waitingForProvider('reference')){
+  await respondOffline(text,{query:topic,reason:'Wikipedia is waiting before the next lookup. Showing saved information.',onlyIfFound:true});
+  return;
+ }
+ activeAbort=new AbortController();setPending(true,'reference');pendingKind='reference';updatePendingText();
+ try{
+  const data=await Pool.request('/api/reference-search',{body:{topic},signal:activeAbort.signal,timeout:9000});
+  if(data.provider!=='reference-retrieval'||data.live!==false||data.toolOnly!==true||typeof data.reply!=='string'||!Array.isArray(data.sources)||!data.sources.length)
+   throw Error('No usable reference was returned.');
+  await localReply(text,'Wikipedia lookup',data.reply,'WIKIPEDIA RETRIEVAL · NO AI',{retrieval:data});
+ }catch(error){
+  if(activeAbort.signal.aborted)return notify('Wikipedia lookup cancelled.');
+  rememberProviderDelay('reference',error);
+  if(error.status===429||error.status>=500||error.code==='REQUEST_TIMEOUT'||error.name==='TypeError'){
+   if(await respondOffline(text,{query:topic,reason:'Wikipedia is unavailable. Showing saved information.',onlyIfFound:true}))return;
+  }
+  notify(error.message);
+ }finally{activeAbort=null;setPending(false)}
 }
 async function checkWebsite(text){
  const result=F.inspectDocument(C.renderSite(project));
@@ -482,6 +509,9 @@ async function send(text){
  text=text.trim();if(!text||requestPending)return;
  const context=window.OMNI_CONTEXT;
  const mode=$('#composerMode');
+ if(!pendingImage&&(mode.value==='reference'||/^\/wiki(?:\s|$)/i.test(text))){
+  mode.value='chat';return searchReferences(text,text.replace(/^\/wiki(?:\s+|$)/i,'').trim());
+ }
  const imageRequest=pendingImage?null:context.composerImagePrompt(text,mode.value);
  if(mode.value==='image')mode.value='chat';
  if(imageRequest!==null)return sendImage(text,imageRequest);
@@ -500,11 +530,11 @@ async function send(text){
  const localMode=window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false;
  if(localMode)return canRetrieve?respondOffline(text):noReferenceForTask(text,route);
  if(!Pool){
-  if(canRetrieve&&await respondOffline(text,{reason:'Cloud module unavailable',onlyIfFound:true}))return;
+  if(canRetrieve&&await respondOffline(text,{reason:'Cloud AI could not load. Showing saved information.',onlyIfFound:true}))return;
   throw Error('Cloud AI could not load. Reload to reconnect. Local tools are available.');
  }
  if(waitingForProvider('chat')){
-  if(canRetrieve)await respondOffline(text,{reason:'Provider cooldown',onlyIfFound:true});
+  if(canRetrieve)await respondOffline(text,{reason:'Cloud AI is waiting for capacity. Showing saved information.',onlyIfFound:true});
   return;
  }
  let promptSaved=false;
@@ -549,7 +579,7 @@ async function send(text){
   if(!cancelled){
    rememberProviderDelay('chat',e);
    if(canRetrieve&&(e?.status===429||e?.status>=500||e?.code==='REQUEST_TIMEOUT'||e?.name==='TypeError')&&
-      await respondOffline(text,{existing:true,reason:'Provider unavailable',onlyIfFound:true,details:providerFailureDetails(e)}))return;
+      await respondOffline(text,{existing:true,reason:'Cloud AI is unavailable. Showing saved information.',onlyIfFound:true,details:providerFailureDetails(e)}))return;
   }
   if(project){const draft=conversationDraft();draft.messages.push(msg('assistant',message,'ERROR'));await saveConversation(draft);await showAll()}else fail(e)
  }finally{activeAbort=null;setPending(false);Pool?.refresh().catch(()=>{})}

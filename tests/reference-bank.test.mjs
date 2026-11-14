@@ -128,3 +128,41 @@ test('Cloud capacity errors can return already-retrieved Wikipedia excerpts with
   assert.deepEqual(body.sources.map(x=>x.title),['Mathematics']);
   assert.equal(body.sources[0].excerpt,extract);
 });
+
+test('Direct Wikipedia lookup uses only its own allowance, rejects private input, and honours upstream cooldown',async()=>{
+  const storage=makeStorage();
+  const object=new DailyBudget({storage},{});
+  const env={
+    DAILY_BUDGET:{getByName:()=>({fetch:(url,options)=>object.fetch(new Request(url,options))})},
+    MIKEE_POOL:{idFromName(){assert.fail('Lookup must not reach the inference pool');}},
+    AI:{run(){assert.fail('Lookup must not spend inference capacity');}},
+  };
+  let calls=0;
+  const post=(topic,origin='https://unit.test')=>worker.fetch(new Request('https://unit.test/api/reference-search',{
+    method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({topic}),
+  }),env);
+  env.RESEARCH_FETCH=async url=>{
+    calls++;
+    const address=new URL(url);
+    assert.equal(address.origin,'https://en.wikipedia.org');
+    assert.equal(address.searchParams.get('srsearch'),'Satoru Gojo');
+    if(calls>1)return new Response('',{status:429,headers:{'retry-after':'120'}});
+    return Response.json({query:{search:[{title:'Satoru Gojo',snippet:extract}]}});
+  };
+  assert.equal((await post('my private address')).status,400);
+  assert.equal((await post('Satoru Gojo','https://unrelated.test')).status,403);
+  assert.equal(calls,0);
+  const result=await post('Satoru Gojo');
+  assert.equal(result.status,200);
+  const body=await result.json();
+  assert.equal(body.live,false);
+  assert.equal(body.sources[0].title,'Satoru Gojo');
+  assert.equal(await storage.get('wikipedia'),1);
+  assert.equal(await storage.get('research'),undefined);
+  const throttled=await post('Satoru Gojo');
+  assert.equal(throttled.status,429);
+  assert.equal((await throttled.json()).retryAfter,120);
+  assert.equal((await post('Satoru Gojo')).status,429);
+  assert.equal(calls,2);
+  assert.equal(await storage.get('wikipedia'),2);
+});
