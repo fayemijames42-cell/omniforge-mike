@@ -62,14 +62,14 @@ for(const message of ['Write a Node.js Express backend.','Generate Cloudflare Wo
   assert.equal(p.kind,'code');assert.equal(p.website,false);assert.equal(p.research.researchMode,'none');assert.match(planGuidance(p),/never browser scripts/);
  });
 }
-test('All identity questions use common pre-routing Michelle guidance, without old aliases',async()=>{
- for(const message of ['Who are you?','Who owns you?','Who developed you?','What is your name?','What company owns OMNIFORGE?']){
+test('Direct identity and ownership answers use verified application metadata without inference',async()=>{
+ for(const message of ['Who are you?','Who owns you?','Who developed you?','What is your name?','What company owns OMNIFORGE?','Hello Michelle. Who are you, and who owns OMNIFORGE?']){
   const result=await run({message,history:previous});
-  assert.equal(result.response.status,200);assert.equal(result.calls,1);
-  assert.match(result.messages[0].content,/You are Michelle/);assert.match(result.messages[0].content,/ADEN INC\./);
-  assert.doesNotMatch(result.messages[0].content,/You are MIKEE|called Aden|cutoff (?:is |in )?2021/);
-  assert.equal(result.messages.at(-1).content,message);
+  assert.equal(result.response.status,200);assert.equal(result.calls,0);
+  assert.equal(result.data.live,false);assert.equal(result.data.provider,'platform-information');
+  assert.match(result.data.reply,/Michelle.*OMNIFORGE.*ADEN INC\./);
  }
+ assert.equal(C.identityReply('Who are you and explain how to build a website?'),null);
  assert.equal(IDENTITY.displayName,'MICHELLE');
 });
 test('Provider fallback preserves the exact prepared history, active source, identity and current request',async()=>{
@@ -183,7 +183,7 @@ test('An unsolicited artifact gets one budgeted model recovery with saved-projec
 });
 
 test('Code focus does not inject programming instructions into an ordinary identity question',async()=>{
- const result=await run({message:'Who are you?',focus:'code',history:previous});
+ const result=await run({message:'Who are you? Keep it to one sentence.',focus:'code',history:previous});
  assert.equal(result.data.orchestration.kind,'chat');assert.match(result.messages[0].content,/CURRENT ACTION: conversation/);
  assert.doesNotMatch(result.messages[0].content,/Provide correct, minimal, testable code/);
 });

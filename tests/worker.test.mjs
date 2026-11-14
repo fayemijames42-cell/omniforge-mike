@@ -130,7 +130,7 @@ test('Chat response explicitly identifies provider and model',async()=>{
 test('assistant identifies ADEN INC as developer in the system guidance',async()=>{
  let prompt;
  const local={AI:{run:async(_model,input)=>{prompt=input.messages[0].content;return {response:'OMNIFORGE was developed by ADEN INC.'}}}};
- const response=await worker.fetch(req({message:'Who developed OMNIFORGE?'}),local);
+ const response=await worker.fetch(req({message:'Who developed OMNIFORGE? Answer in one sentence.'}),local);
  assert.equal(response.status,200);
  assert.match(prompt,/developed and owned by ADEN INC/);
  assert.match(prompt,/Never disclose private application source code/);

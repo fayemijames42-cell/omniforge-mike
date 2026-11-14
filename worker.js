@@ -3,6 +3,7 @@ import {ownerAuthorized} from './server/coordinator.js';
 export {MikeeCoordinator} from './server/coordinator.js';
 import {collectEvidence,evidenceText} from './research.js';
 import {planRequest,planGuidance,reviewAnswer} from './server/nexus.js';
+import {referenceRequest,referenceSnapshot,refreshScheduledReference,updateReferenceBank} from './server/reference-bank.js';
 // OMNIFORGE MICHELLE — Cloudflare Worker, Workers AI binding named AI.
 // Real model calls only; no scripted pretend responses.
 import {VERSION,IDENTITY} from './server/config.js';
@@ -29,8 +30,22 @@ async function guardAiRequest(request,env,kind){
 const DAY_CAPS=Object.freeze({research:24}); // conservative public-beta trial caps; revisit using measured consumption
 const resetUtc=()=>new Date(Date.now()+86400000).toISOString().slice(0,10)+'T00:00:00Z';
 export class DailyBudget {
- constructor(state){this.state=state}
+ constructor(state,env){this.state=state;this.env=env}
  async fetch(request){
+  if(new URL(request.url).pathname==='/reference-bank'){
+   if(request.method==='GET'){
+    const snapshot=await referenceSnapshot(this.state);
+    if(snapshot.attemptedDay)return json(snapshot);
+    // The first visitor can download a snapshot before the daily schedule
+    // runs. The durable daily claim also covers concurrent first visits.
+    await updateReferenceBank(this.state,this.env?.REFERENCE_FETCH||fetch,Date.now(),Date.now,'initial-download');
+    return json(await referenceSnapshot(this.state));
+   }
+   if(request.method!=='POST')return json({error:'Method not allowed'},405);
+   const {scheduledTime}=await request.json();
+   if(!Number.isFinite(scheduledTime))return json({error:'Scheduled time required'},400);
+   return json(await updateReferenceBank(this.state,this.env?.REFERENCE_FETCH||fetch,scheduledTime));
+  }
   if(request.method!=='POST')return new Response('Not found',{status:404});
   let kind;try{({kind}=await request.json())}catch{return new Response('Bad request',{status:400})}
   const cap=DAY_CAPS[kind];
@@ -59,8 +74,18 @@ async function guardDailyBudget(env,kind){
 }
 
 const json=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
-export default {async fetch(request,env){const url=new URL(request.url);
+export default {
+ scheduled(controller,env,ctx){ctx.waitUntil(refreshScheduledReference(env,controller.scheduledTime));},
+ async fetch(request,env){const url=new URL(request.url);
  if(url.pathname==='/quick-chat')return Response.redirect(url.origin+'/',302);
+ if(url.pathname==='/api/reference-bank'){
+  if(request.method!=='GET')return json({error:'Method not allowed'},405);
+  try{
+   const response=await referenceRequest(env);
+   if(!response.ok)throw Error('Reference snapshot unavailable');
+   return new Response(response.body,{headers:{'content-type':'application/json; charset=utf-8','cache-control':'public, max-age=300','x-content-type-options':'nosniff'}});
+  }catch{return json({error:'Daily reference snapshot is temporarily unavailable. Saved knowledge remains available.'},503)}
+ }
  if(url.pathname==='/api/transcribe'&&request.method==='POST'){const origin=request.headers.get('origin');if(origin&&origin!==url.origin)return json({error:'Cross-origin requests not allowed'},403);const limited=await guardAiRequest(request,env,'chat');if(limited)return limited;}
  if(['/api/providers','/api/transcribe','/api/admin/providers'].includes(url.pathname)||/^\/api\/image\/[a-f0-9-]{36}$/.test(url.pathname))return poolHTTP.fetch(request,env);
  if(url.pathname==='/api/health')return json({ok:true,version:VERSION,identity:IDENTITY,mode:'free-pool',poolBound:!!env.MIKEE_POOL,ownerSetup:typeof env.MIKEE_ADMIN_TOKEN==='string'&&env.MIKEE_ADMIN_TOKEN.length>=24,aiBound:!!env.AI,budgetBound:!!env.DAILY_BUDGET,webSearchConfigured:!!env.TAVILY_API_KEY,encyclopediaSearch:true,verified:false});
@@ -103,6 +128,8 @@ export default {async fetch(request,env){const url=new URL(request.url);
   const summary=inputSummary&&typeof inputSummary==='object'&&!Array.isArray(inputSummary)?{name:String(inputSummary.name||'').slice(0,140),title:String(inputSummary.title||'').slice(0,140),headings:Array.isArray(inputSummary.headings)?inputSummary.headings.slice(0,6).map(x=>String(x).slice(0,140)):[],savedLocally:inputSummary.savedLocally===true}:null;
   const plan=planRequest({message,history:data.history,currentHtml,focus,image:data.image,sources});
   const history=plan.history,websiteTask=plan.website;
+  const identityReply=!data.image&&globalThis.OMNI_CONTEXT.identityReply(message);
+  if(identityReply)return json({reply:identityReply,live:false,toolOnly:true,provider:'platform-information',providerName:'OMNIFORGE platform information',artifact:{type:'text'},orchestration:{kind:'platform-information',toolsUsed:['platform-information']}});
   if(summary&&globalThis.OMNI_CONTEXT.projectRecallQuestion(message))return json({reply:globalThis.OMNI_CONTEXT.projectRecallReply(summary),live:false,toolOnly:true,provider:'local-project-context',providerName:'Current project context',model:'browser-supplied project metadata',artifact:{type:'text'},orchestration:{kind:'project-context',contextTurns:history.length,parts:1,toolsUsed:['project-context']}});
   if(plan.kind==='image')return json({error:'Use the image-generation workflow for this request. No text model or SVG substitute was used.',code:'IMAGE_WORKFLOW_REQUIRED'},409);
   const limited=await guardAiRequest(request,env,'chat');if(limited)return limited;
@@ -146,7 +173,19 @@ export default {async fetch(request,env){const url=new URL(request.url);
    const provider=typeof data.provider==='string'&&data.provider!=='auto'&&await ownerAuthorized(request,env)?data.provider:'auto';
    const remainingBudget=()=>Math.max(0,CHAT_BUDGET_MS-(Date.now()-requestStarted));
    const response=await complete(request,env,{messages,maxTokens:websiteTask?3000:2000,provider,budgetMs:remainingBudget(),...(data.image?{image:data.image}:{})});
-   if(!response.ok)return response;
+   if(!response.ok){
+    if((response.status>=500||response.status===429)&&evidence?.scope==='wikipedia'&&evidence.sources.length&&
+       !data.image&&!websiteTask&&!['image','code','vector'].includes(plan.kind)){
+     return json({
+      reply:'Cloud AI is unavailable. Wikipedia returned the following excerpts:\n\n'+evidence.sources.map(item=>'**'+item.title+'**\n'+item.excerpt).join('\n\n')+'\n\nRetrieved reference · no AI inference.',
+      live:false,toolOnly:true,provider:'reference-retrieval',providerName:'Wikipedia reference retrieval',artifact:{type:'text'},
+      cloudRetryAfter:Number(response.headers.get('retry-after'))||null,
+      research:{scope:evidence.scope,retrievedAt:evidence.retrievedAt,mode:lookup.researchMode,note:'Search excerpts may be incomplete. Open the sources for the full context.'},
+      sources:evidence.sources,orchestration:{kind:'reference-retrieval',toolsUsed:['reference-search']},
+     });
+    }
+    return response;
+   }
    let out=await response.json(),modelAttempts=1;
    // A model may accidentally continue a previous website draft on a normal chat turn.
    // Do not display generated project HTML as conversational text or save it as an edit.

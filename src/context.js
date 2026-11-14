@@ -4,6 +4,8 @@
 const raw=m=>m?.aiContent??m?.content??m?.text;
 const body=m=>String(raw(m)??'');
 const IDENTITY=Object.freeze({name:'Michelle',displayName:'MICHELLE',platform:'OMNIFORGE',owner:'ADEN INC.'});
+const identityQuestion="(?:who (?:are you|owns (?:you|omniforge)|(?:created|developed) (?:you|omniforge))|what company owns omniforge|what(?: is|'s) your name|what is omniforge)";
+const identityPattern=new RegExp('^'+identityQuestion+'(?:[?.,! ]+(?:and )?'+identityQuestion+')?[?!. ]*$','i');
 function taskText(message){
  return String(message||'').trim().replace(/^(?:(?:hey|hi|hello)[\s,!:.-]+)?(?:michelle|mikee|mickey|mike|nexus)[\s,!:.-]+/i,'').replace(/^(?:(?:please\s+|(?:can|could|would|will) you\s+)|(?:i (?:want|need) (?:you )?to|i'd like (?:you )?to|let's)\s+)+/i,'').trim();
 }
@@ -14,18 +16,31 @@ function programmingRequest(message){
 }
 function imagePrompt(message){
  const text=taskText(message);
+ if(/^(?:images|pictures|photos)\s+of\s+.{2,}$/i.test(text)&&!/\b(?:svg|vector|html|code)\b/i.test(text))return text.slice(0,900);
  const match=text.match(/^(?:generate|genrate|create|make|draw|render|design|produce)\s+(?:(?:me|us)\s+)?(?:(?:an?|the)\s+)?(?:(?:highly|very|ultra|realistic|photorealistic|detailed|cinematic|digital|high-quality|colourful|colorful|beautiful|professional|simple|original|3d|cartoon|anime)\s+){0,4}(?:image|picture|photo|photograph|illustration|artwork|painting)\s*(?:of|showing|depicting|with|about|for)?\s+(.+)$/i);
  // Explicit vector/code requests belong in programming, never the raster queue.
  return match&&!/\b(?:svg|vector|html|code)\b/i.test(text)&&match[1].trim().length>1?text.slice(0,900):null;
 }
 const websiteReference=message=>/\b(?:website|webpage|landing page|current (?:site|project)|previous site|site we|we (?:just )?(?:created|built|made)|what did we (?:just )?(?:create|build|make))\b/i.test(message);
+function identityReply(message){
+ const text=taskText(message).replace(/^(?:hello|hi|hey)[!,.:\s]+(?:michelle[!,.:\s]+)?/i,'');
+ if(!identityPattern.test(text))return null;
+ return 'I’m '+IDENTITY.name+', the AI assistant for '+IDENTITY.platform+'. '+IDENTITY.owner+' owns and develops the platform.';
+}
+function composerImagePrompt(message,mode){
+ if(/^\/image\s+/i.test(message))return message.replace(/^\/image\s+/i,'').trim().slice(0,900);
+ const explicit=imagePrompt(message);
+ if(explicit!==null)return explicit;
+ if(mode!=='image'||!message.trim()||/^(?:who|what|why|how|which|when|where|is|are|does|do you|did you|tell me|identify|explain)\b/i.test(taskText(message)))return null;
+ return message.trim().slice(0,900);
+}
 const websiteCheckRequest=message=>/^(?:check|test|verify|inspect|review|audit)\b.{0,90}\b(?:website|webpage|site|page)\b/i.test(taskText(message))&&!/\b(?:explain|how to|how can|how do)\b/i.test(message);
 function projectRecallQuestion(message){
  const text=taskText(message);
  return /^(?:what|which)\s+(?:website|site|project)\s+(?:(?:did|have) we|(?:is|was) (?:this|active|current|open)|are we (?:editing|working on))\b/i.test(text)||/^what (?:did|have) we (?:just )?(?:create|build|make|created|built|made)\b/i.test(text)||/^(?:what is|what's) (?:the )?(?:name|title) of (?:the |my |our |this |current |active )*(?:website|site|project)\b/i.test(text);
 }
 function projectRecallReply(summary){
- const title=String(summary?.title||summary?.name||'Untitled website').replace(/\s+/g,' ').trim().slice(0,140);
+ const title=String(summary?.title||summary?.headings?.[0]||summary?.name||'Untitled website').replace(/\s+/g,' ').trim().slice(0,140);
  return 'The active website in this conversation is “'+title+'”.';
 }
 function selectHistory(items){
@@ -79,5 +94,5 @@ function websiteDocument(reply){
  }
  return {html,complete:!!html,valid:!!html&&!issues.length,issues};
 }
-root.OMNI_CONTEXT=Object.freeze({IDENTITY,taskText,programmingRequest,imagePrompt,websiteReference,websiteCheckRequest,projectRecallQuestion,projectRecallReply,projectSummary,websiteDocument,selectHistory,websiteAction});
+root.OMNI_CONTEXT=Object.freeze({IDENTITY,taskText,programmingRequest,imagePrompt,composerImagePrompt,identityReply,websiteReference,websiteCheckRequest,projectRecallQuestion,projectRecallReply,projectSummary,websiteDocument,selectHistory,websiteAction});
 })(typeof window!=='undefined'?window:globalThis);

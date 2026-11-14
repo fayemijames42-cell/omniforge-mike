@@ -150,6 +150,96 @@ async function verifyRequestRecovery(){
   assert.equal(await mobile.locator('#prompt').inputValue(),'This draft must not use quota.');
  }finally{await context.close()}
 }
+async function verifyDailyReferences(){
+ const context=await browser.newContext({viewport:{width:360,height:780}});
+ try{
+  const page=await context.newPage(), errors=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  const retrievedAt='2026-11-14T02:15:00.000Z',license='https://creativecommons.org/licenses/by-sa/4.0/';
+  let dailyResponse={format:1,publisher:'Wikipedia',license,updatedAt:retrievedAt,entries:[
+   {id:'wiki-11',question:'Satoru Gojo',tags:'satori gojo saturo gojo jjk',answer:'Fixture reference for a fictional character in Jujutsu Kaisen.',url:'https://en.wikipedia.org/w/index.php?oldid=123',retrievedAt},
+   {id:'wiki-12',question:'Physics',tags:'matter energy',answer:'Fixture reference for physics and the study of matter and energy.',url:'https://en.wikipedia.org/w/index.php?oldid=124',retrievedAt},
+   {id:'wiki-13',question:'Chemistry',tags:'chemical reactions',answer:'Fixture reference for chemistry and the study of substances.',url:'https://en.wikipedia.org/w/index.php?oldid=125',retrievedAt},
+  ]};
+  await page.route('**/api/reference-bank',route=>route.fulfill({status:200,json:dailyResponse}));
+  let cloudCalls=0, imageCalls=0;
+  await page.route('**/api/chat',route=>{
+   cloudCalls++;
+   return route.fulfill({status:429,headers:{'Retry-After':'90'},json:{
+    code:'FREE_POOL_WAIT',error:'Fixture provider quota',diagnostics:{providers:[{provider:'Cloudflare Workers AI',reason:'Daily free usage limit reached',retryAt:Date.UTC(2026,10,15)}]}
+   }});
+  });
+  await page.route('**/api/image',route=>{
+   imageCalls++;
+   return route.fulfill({status:503,json:{error:'Fixture image provider unavailable'}});
+  });
+  const openPanel=async name=>{
+   await page.locator('#mobileMenuButton').click();
+   await page.locator('[data-mobile="'+name+'"]').click();
+  };
+  const submit=async text=>{
+   await page.locator('#prompt').fill(text);
+   await page.locator('#sendBtn').click();
+   const stream=page.locator('#chatStream');
+   await stream.getByText(text,{exact:true}).last().waitFor();
+  };
+  const messages=()=>page.evaluate(()=>window.OMNI_TEST.getProject()?.messages||[]);
+  await page.goto(address);
+  await page.locator('#startupStatus').waitFor({state:'hidden'});
+  await page.waitForFunction(async()=> (await window.OMNI_KNOWLEDGE.stats()).publicRecords===3);
+  assert.equal((await page.evaluate(()=>window.OMNI_KNOWLEDGE.stats())).publicRecords,3);
+  await page.locator('#newProject').click();
+  await submit('Hello Michelle. Who are you, and who owns OMNIFORGE?');
+  await page.locator('#chatStream').getByText(/ADEN INC. owns and develops/).waitFor();
+  assert.equal(cloudCalls,0);
+
+  await page.locator('#composerMode').selectOption('image');
+  await submit('images of saturo gojo');
+  await page.locator('#chatStream').getByText(/Fixture image provider unavailable/).waitFor();
+  assert.equal(imageCalls,1);
+  assert.equal(await page.locator('#composerMode').inputValue(),'chat');
+  const followUp='do you know him from jjk satori Gojo';
+  await submit(followUp);
+  await page.locator('#chatStream').getByRole('link',{name:'Satoru Gojo',exact:true}).waitFor();
+  assert.equal(cloudCalls,1);
+  assert.equal(imageCalls,1);
+  const afterFallback=await messages();
+  assert.equal(afterFallback.filter(message=>message.role==='user'&&message.text===followUp).length,1);
+  assert.equal(afterFallback.at(-1).engine,'SAVED REFERENCE · NO AI');
+  assert.equal(afterFallback.at(-1).sources[0].retrievedAt,retrievedAt);
+  assert.match(afterFallback.at(-1).text,/Daily free usage limit reached/);
+  assert.match(afterFallback.at(-1).text,/Earliest retry across connected services/);
+
+  await submit('Compare Physics and Chemistry');
+  await page.locator('#chatStream').getByRole('link',{name:'Chemistry',exact:true}).waitFor();
+  const compared=(await messages()).at(-1);
+  assert.equal(cloudCalls,1,'a known cooldown must not submit another inference request');
+  assert.ok(compared.text.includes('Saved reference comparison'));
+  assert.deepEqual(compared.sources.map(item=>item.title),['Physics','Chemistry']);
+
+  dailyResponse={format:1,publisher:'Wikipedia',license,updatedAt:'2026-11-15T02:15:00.000Z',entries:[{id:'wrong'}]};
+  const malformed=await page.evaluate(()=>window.OMNI_KNOWLEDGE.syncDaily({force:true}));
+  assert.equal(malformed.status,'unavailable');
+  assert.equal((await page.evaluate(()=>window.OMNI_KNOWLEDGE.stats())).publicUpdatedAt,retrievedAt);
+
+  await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
+  await context.setOffline(true);
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.locator('#startupStatus').waitFor({state:'hidden'});
+  await openPanel('chat');
+  await submit('Who is Satoru Gojo?');
+  await page.waitForFunction(()=>window.OMNI_TEST.getProject()?.messages.at(-1).engine==='SAVED REFERENCE · NO AI');
+  assert.match((await messages()).at(-1).text,/fictional character/);
+  await submit('Create a simple website for Sunrise Bakery.');
+  await page.locator('#chatStream').getByText(/Cloud AI is needed for automatic website creation/).waitFor();
+  assert.equal((await page.evaluate(()=>window.OMNI_TEST.getProject())).chatOnly,true);
+  await submit('Generate a realistic image of a flying cow.');
+  await page.locator('#chatStream').getByText(/Image generation needs a connected image provider/).waitFor();
+  assert.equal(imageCalls,1);
+  assert.equal(cloudCalls,1);
+  assert.deepEqual(errors,[]);
+ }finally{await context.close()}
+}
 async function submitAndReadReply(text){
  const count=await page.evaluate(()=>window.OMNI_TEST.getProject()?.messages.length||0);
  await page.locator('#prompt').fill(text);
@@ -235,6 +325,7 @@ try {
   await verifyConcurrentSaves();
   await verifyLongHistoryAndOptionalModules();
   await verifyRequestRecovery();
+  await verifyDailyReferences();
   await page.setExtraHTTPHeaders({origin:'http://127.0.0.1:'+server.address().port});
   await page.goto('http://127.0.0.1:' + server.address().port, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => !!window.OMNI_TEST && !!window.MIKEE_POOL.catalog());
@@ -381,7 +472,7 @@ try {
 
   await page.locator('#prompt').fill('What is a diode?');
   await page.route('**/api/chat',route=>route.abort('failed'));
-  await page.locator('#sendBtn').click();await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.engine==='ERROR');
+  await page.locator('#sendBtn').click();await page.waitForFunction(()=>window.OMNI_TEST.getProject().messages.at(-1)?.engine==='SAVED REFERENCE · NO AI');
   assert.equal(await page.evaluate(()=>window.OMNI_OFFLINE_UI.isOffline()),false);
   await page.unroute('**/api/chat');time+=61000;
   await page.locator('#prompt').fill('Say connection restored.');await page.locator('#sendBtn').click();await page.locator('#typingIndicator').waitFor({state:'hidden'});
@@ -397,5 +488,5 @@ try {
   await go('photos');await page.locator('.asset-tile').click();await page.locator('#addPhoto').waitFor({state:'visible'});assert.equal(await page.locator('#addPhoto').isDisabled(),true);
   await page.screenshot({ path: resolve(root, '../mikee-mobile-qa.png'), fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS mobile UI: blocked database recovery with preserved chats, Michelle identity with legacy preferences, typing feedback, website edits, ordinary chat and Express code preserve the site, active-project recall, static diagnostics, failed saves and concurrent edits preserve newer work, incomplete HTML protection, image failure without a placeholder, image generation/save/placement/export, encrypted owner connection, audio draft, faithful ZIP/JSON restore, restored JavaScript/CSS, image remapping, safe blob cleanup, network recovery and offline reload; provider responses are fixtures. Calls:', fixtureCalls);
+  console.log('PASS mobile UI: saved reference fallback, retained snapshot, quota and image routing, blocked database recovery with preserved chats, Michelle identity with legacy preferences, typing feedback, website edits, ordinary chat and Express code preserve the site, active-project recall, static diagnostics, failed saves and concurrent edits preserve newer work, incomplete HTML protection, image generation/save/placement/export, encrypted owner connection, audio draft, faithful ZIP/JSON restore, safe blob cleanup, network recovery and offline reload; provider responses are fixtures. Calls:', fixtureCalls);
 } catch(error) {console.log('UI failure state',JSON.stringify(await page.evaluate(()=>({messages:window.OMNI_TEST?.getProject()?.messages?.slice(-2),assets:window.OMNI_TEST?.getProject()?.assets?.length,toast:document.querySelector('#toast')?.textContent,local:window.OMNI_OFFLINE_UI?.isOffline()}))),errors);throw error;} finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

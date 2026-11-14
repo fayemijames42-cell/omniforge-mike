@@ -21,7 +21,8 @@ const cleanReason = reason => pauseMessages[reason] || 'Temporarily unavailable'
 function safeDiagnostics(attempts) {
   const skipped = new Set(['needs_key', 'needs_binding', 'paused', 'free_confirmation', 'development_only']);
   const providers = attempts.filter(item => item && BY_ID[item.provider] && !skipped.has(item.reason))
-    .slice(0, 5).map(item => ({ provider: BY_ID[item.provider].name, reason: cleanReason(item.reason) }));
+    .slice(0, 5).map(item => ({ provider: BY_ID[item.provider].name, reason: cleanReason(item.reason),
+      ...(['daily_budget','monthly_budget','allowance'].includes(item.reason)&&Number.isFinite(item.retryAt)?{retryAt:item.retryAt}:{}) }));
   const shared = attempts.find(item => item && !item.provider && ['daily_budget', 'monthly_budget'].includes(item.reason));
   return { providers, ...(shared ? { shared: cleanReason(shared.reason) } : {}) };
 }
@@ -234,13 +235,13 @@ export class MikeeCoordinator {
         let micros = 0;
         if (profile.creditBudget) {
           const check = await this.reserve(profile, tokens, { preview: true });
-          if (!check.ok) { attempts.push({ provider: profile.id, reason: check.reason }); if (check.retryAt && (!retryAt || check.retryAt < retryAt)) retryAt = check.retryAt; continue; }
+          if (!check.ok) { attempts.push({ provider: profile.id, reason: check.reason, retryAt:check.retryAt }); if (check.retryAt && (!retryAt || check.retryAt < retryAt)) retryAt = check.retryAt; continue; }
           micros = await gatewayPrice(this.fetcher, profile, key, model, tokens - maxTokens, maxTokens, Math.min(12000,Math.max(1,remaining())));
         }
         if(remaining()<1000)return timedOut();
         const grant = await this.reserve(profile, tokens, { audio: capability === 'transcribe', micros });
         if (!grant.ok) {
-          attempts.push({ provider: profile.id, reason: grant.reason });
+          attempts.push({ provider: profile.id, reason: grant.reason, retryAt:grant.retryAt });
           if (grant.retryAt && (!retryAt || grant.retryAt < retryAt)) retryAt = grant.retryAt;
           continue;
         }
@@ -261,8 +262,8 @@ export class MikeeCoordinator {
         if (reservation) await this.finish(profile, reservation, issue);
         else await this.locked(async () => { const q = this.ledger(profile.id, this.now()); q.reason = issue.kind; q.cooldown = this.now() + (issue.retryAfter || 30000); await this.persist(); });
         if (issue.definitive) return json({ error: issue.kind === 'refused' ? 'The service declined this request. Please revise it.' : 'The service rejected this request. Please revise the input.', code: issue.kind }, issue.status);
-        attempts.push({ provider: profile.id, reason: issue.kind });
         const next = this.now() + (issue.retryAfter || 30000); if (!retryAt || next < retryAt) retryAt = next;
+        attempts.push({ provider: profile.id, reason: issue.kind, retryAt:next });
       }
     }
     return remaining()<1000?timedOut():this.unavailable(attempts, retryAt);
@@ -273,7 +274,7 @@ export class MikeeCoordinator {
     if (data.provider && data.provider !== 'auto' && !['cloudflare-image', 'pollinations-image', 'horde-image'].includes(data.provider)) return json({ error: 'Unknown image provider.' }, 400);
     for (const profile of PROFILES.filter(p => p.capabilities.includes('image') && (!data.provider || data.provider === 'auto' || data.provider === p.id))) {
       const grant = await this.reserve(profile, 0);
-      if (!grant.ok) { attempts.push({ provider: profile.id, reason: grant.reason }); if (grant.retryAt && (!retryAt || grant.retryAt < retryAt)) retryAt = grant.retryAt; continue; }
+      if (!grant.ok) { attempts.push({ provider: profile.id, reason: grant.reason, retryAt:grant.retryAt }); if (grant.retryAt && (!retryAt || grant.retryAt < retryAt)) retryAt = grant.retryAt; continue; }
       try {
         if (profile.id === 'pollinations-image' || profile.id === 'cloudflare-image') {
           const result = profile.id === 'cloudflare-image' ? await cloudflareImage(this.env, data.prompt) : await pollinationsImage(this.fetcher, data.prompt, crypto.getRandomValues(new Uint32Array(1))[0]);
@@ -292,9 +293,9 @@ export class MikeeCoordinator {
         const issue = error instanceof ProviderError ? error : new ProviderError('capacity');
         await this.finish(profile, grant.reservation, issue);
         if (issue.definitive) return json({ error: 'The image request was declined. Please revise it.' }, 422);
-        attempts.push({ provider: profile.id, reason: issue.kind });
         const next=this.now()+(issue.retryAfter||30000);
         if(!retryAt||next<retryAt)retryAt=next;
+        attempts.push({ provider: profile.id, reason: issue.kind, retryAt:next });
       }
     }
     return this.unavailable(attempts, retryAt);

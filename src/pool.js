@@ -55,7 +55,8 @@
         if (diagnostic && typeof diagnostic === 'object') {
           const providers = Array.isArray(diagnostic.providers) ? diagnostic.providers : [];
           error.providerDiagnostics = providers.slice(0, 5).filter(item => item && typeof item.provider === 'string' && typeof item.reason === 'string')
-            .map(item => ({ provider: item.provider.replace(/[\r\n]/g, ' ').slice(0, 48), reason: item.reason.replace(/[\r\n]/g, ' ').slice(0, 100) }));
+            .map(item => ({ provider: item.provider.replace(/[\r\n]/g, ' ').slice(0, 48), reason: item.reason.replace(/[\r\n]/g, ' ').slice(0, 100),
+              ...(Number.isFinite(item.retryAt)&&item.retryAt>0&&item.retryAt<=8640000000000000?{retryAt:item.retryAt}:{}) }));
           if (typeof diagnostic.shared === 'string') error.sharedDiagnostic = diagnostic.shared.replace(/[\r\n]/g, ' ').slice(0, 120);
         }
         throw error;
