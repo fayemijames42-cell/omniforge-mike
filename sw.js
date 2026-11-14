@@ -32,7 +32,8 @@ async function workspacePage(response){
 async function fetchAsset(path,cache='no-cache'){
  return network(path,{cache,integrity:ASSETS[path],redirect:'error'},15000,response=>{
   const type=response.headers.get('content-type')||'';
-  const expected=path.startsWith('/src/knowledge.xml')?/xml/i:path.includes('.css?')?/text\/css/i:/(javascript|ecmascript)/i;
+  const expected=path.startsWith('/src/knowledge.xml')?/xml/i:path.includes('.css?')?/text\/css/i:
+   path.startsWith('/src/reference-seed.json?')?/application\/json/i:/(javascript|ecmascript)/i;
   if(response.status!==200||!expected.test(type))throw Error('Offline asset unavailable: '+path);
  });
 }
@@ -98,7 +99,8 @@ self.addEventListener('fetch',event=>{
  }
  if(Object.prototype.hasOwnProperty.call(ASSETS,path)){
   event.respondWith((async()=>await cached(path)||fetchAsset(path))());
- }else if(/^\/(?:src|vendor)\/[^?]+\.(?:js|css)\?v=[a-z0-9.-]+$/i.test(path)){
+ }else if(/^\/(?:src|vendor)\/[^?]+\.(?:js|css)\?v=[a-z0-9.-]+$/i.test(path)||
+          /^\/src\/reference-seed\.json\?v=[a-z0-9.-]+$/i.test(path)){
   event.respondWith((async()=>await cached(path,url.searchParams.get('v'))||network(request,{},15000))());
  }
 });

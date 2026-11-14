@@ -2,10 +2,10 @@
    No AI calls, no eval, no private-chat harvesting. */
 (function(root){'use strict';
 const DB='omniforge-local-knowledge',HOUR=3600000,MAX_XML=2*1024*1024;
-const REFERENCE_KEY='publicReferenceV1',MAX_PUBLIC=64,MAX_SNAPSHOT=150000;
+const REFERENCE_KEY='publicReferenceV1',LOOKUP_KEY='publicLookupsV1',MAX_LOOKUPS=128,wiki=root.OMNI_WIKIPEDIA;
 const STOP=new Set('a an and are as at be by can could do does for from how i in is it me my of on or our please the their there these this to us was were what when where which who why will with would you your tell explain about give show help know define describe into using uses used work works michelle him her them'.split(' '));
 const FRESH=/\b(?:latest|today|right now|breaking|this week|as of|currently|most recent|(?:current|recent)\s+(?:news|weather|price|rates?|results|events|government|president|rules|laws|status|data|research|population|information))\b/i;
-let dbPromise,memo=null,bundledSync,dailySync,nextDailyCheck=0;
+let dbPromise,memo=null,bundledSync,seedSync,dailySync,nextDailyCheck=0;
 const clean=s=>String(s??'').replace(/\s+/g,' ').trim();
 const words=s=>[...new Set(clean(s).toLowerCase().replace(/[^a-z0-9]+/g,' ').split(' ').filter(w=>w.length>1&&!STOP.has(w)))];
 function score(query,r){
@@ -114,41 +114,10 @@ function syncBundled({force=false}={}){
  return bundledSync;
 }
 function parseSnapshot(data){
- const timestamp=value=>typeof value==='string'&&/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{3})?Z$/.test(value)&&Number.isFinite(Date.parse(value));
- if(data?.format!==1||data.publisher!=='Wikipedia'||data.license!=='https://creativecommons.org/licenses/by-sa/4.0/'||
-    !timestamp(data.updatedAt)||!Array.isArray(data.entries)||!data.entries.length||data.entries.length>MAX_PUBLIC)throw Error('Daily reference snapshot is unavailable.');
- const ids=new Set();
- const entries=data.entries.map(entry=>{
-  if(!entry||typeof entry.id!=='string'||!/^wiki-\d{1,12}$/.test(entry.id)||ids.has(entry.id)||
-     typeof entry.question!=='string'||!entry.question.trim()||entry.question.length>130||
-     typeof entry.answer!=='string'||!entry.answer.trim()||entry.answer.length>680||
-     typeof entry.tags!=='string'||entry.tags.length>160||!timestamp(entry.retrievedAt)||
-     typeof entry.url!=='string'||!/^https:\/\/en\.wikipedia\.org\/w\/index\.php\?oldid=\d{1,16}$/.test(entry.url))throw Error('Invalid public reference record.');
-  ids.add(entry.id);
-  return {id:entry.id,question:entry.question,answer:entry.answer,tags:entry.tags,
-   source:'Wikipedia',kind:'public',url:entry.url,retrievedAt:entry.retrievedAt,license:data.license};
- });
- return {updatedAt:data.updatedAt,entries};
-}
-async function readSnapshot(response,signal){
- if(!response.ok||Number(response.headers.get('content-length'))>MAX_SNAPSHOT)throw Error('Daily reference snapshot is unavailable.');
- const reader=response.body?.getReader();
- if(!reader)throw Error('Daily reference snapshot is empty.');
- const cancel=()=>{void reader.cancel().catch(()=>{})};
- signal.addEventListener('abort',cancel,{once:true});
- try{
-  const decoder=new TextDecoder();
-  let size=0,text='';
-  for(;;){
-   const {done,value}=await reader.read();
-   if(signal.aborted)throw Error('Daily reference snapshot timed out.');
-   if(done)break;
-   size+=value.length;
-   if(size>MAX_SNAPSHOT)throw Error('Daily reference snapshot is too large.');
-   text+=decoder.decode(value,{stream:true});
-  }
-  return parseSnapshot(JSON.parse(text+decoder.decode()));
- }finally{signal.removeEventListener('abort',cancel);cancel()}
+ const {updatedAt,entries}=wiki.validateSnapshot(data);
+ return {updatedAt,entries:entries.map(({id,question,answer,tags,url,retrievedAt})=>({
+  id,question,answer,tags,url,retrievedAt,source:'Wikipedia',kind:'public',license:wiki.license,
+ }))};
 }
 async function saveSnapshot(snapshot){
  const db=await openDB();
@@ -163,34 +132,81 @@ async function saveSnapshot(snapshot){
   tx.onabort=()=>reject(tx.error||Error('Daily reference save aborted.'));
  });
 }
+async function downloadSnapshot(url,cache,timeout){
+ const controller=new AbortController();
+ let timer;
+ try{
+  return await Promise.race([
+   (async()=>{
+    const response=await fetch(url,{cache,signal:controller.signal,credentials:'omit',redirect:'error',referrerPolicy:'no-referrer'});
+    return wiki.validateSnapshot(await wiki.readJSON(response,controller.signal));
+   })(),
+   new Promise((_,reject)=>{
+    timer=setTimeout(()=>{controller.abort();reject(Error('Daily reference refresh timed out.'));},timeout);
+   }),
+  ]);
+ }finally{clearTimeout(timer)}
+}
+function syncSeed(){
+ if(!seedSync)seedSync=(async()=>{
+  if(await getMeta(REFERENCE_KEY))return;
+  const release=document.querySelector('meta[name="omniforge-build"]')?.content;
+  const path='/src/reference-seed.json'+(release?'?v='+encodeURIComponent(release):'');
+  const snapshot=await downloadSnapshot(path,'default',4000);
+  await saveSnapshot(parseSnapshot(snapshot));
+ })().catch(()=>{}).finally(()=>{seedSync=null});
+ return seedSync;
+}
 async function refreshDaily(force){
+ const seed=syncSeed();
  if(typeof navigator!=='undefined'&&navigator.onLine===false)return {status:'offline'};
  if(!force&&Date.now()<nextDailyCheck)return {status:'recent'};
  if(!force&&Date.now()-(await getMeta('referenceCheckedAt')||0)<HOUR)return {status:'recent'};
  nextDailyCheck=Date.now()+300000;
- const controller=new AbortController();
- let timer;
+ const cache=force?'no-cache':'default';
  try{
-  const deadline=new Promise((_,reject)=>{
-   timer=setTimeout(()=>{controller.abort();reject(Error('Daily reference refresh timed out.'));},8500);
-  });
-  const transfer=async()=>{
-   const response=await fetch('/api/reference-bank',{cache:force?'no-cache':'default',signal:controller.signal});
-   if(controller.signal.aborted)throw Error('Daily reference refresh timed out.');
-   return readSnapshot(response,controller.signal);
-  };
-  const snapshot=await Promise.race([transfer(),deadline]);
-  const changed=await saveSnapshot(snapshot);
+  const served=await downloadSnapshot('/api/reference-bank',cache,4800).catch(()=>null);
+  // A bundled response means the Worker could not verify the publisher's copy.
+  // The public file can also be downloaded without sending any visitor data.
+  const published=!served||served.delivery==='bundled'?
+   await downloadSnapshot(wiki.snapshotUrl,cache,4500).catch(()=>null):served;
+  const latest=published&&(!served||published.updatedAt>=served.updatedAt)?published:served;
+  if(!published&&latest){
+   await saveSnapshot(parseSnapshot(latest));
+   return {status:'unavailable'};
+  }
+  if(!latest){await seed;return {status:'unavailable'}}
+  const changed=await saveSnapshot(parseSnapshot(latest));
   await setMeta('referenceCheckedAt',Date.now());
-  return {status:changed?'updated':'recent',count:snapshot.entries.length};
+  return {status:changed?'updated':'recent',count:latest.entries.length};
  }catch{return {status:'unavailable'}}
- finally{clearTimeout(timer)}
 }
 function syncDaily({force=false}={}){
  if(!dailySync)dailySync=refreshDaily(force).finally(()=>{dailySync=null});
  return dailySync;
 }
-const pendingRefresh=()=>Promise.allSettled([bundledSync,dailySync]);
+const pendingRefresh=()=>Promise.allSettled([bundledSync,seedSync,dailySync]);
+async function saveLookups(data){
+ const retrievedAt=data.research.retrievedAt;
+ const entries=data.sources.slice(0,4).map(source=>({
+  id:'lookup-'+new URL(source.url).searchParams.get('oldid'),
+  question:source.title,tags:'',url:source.url,answer:source.excerpt,retrievedAt,
+ }));
+ const snapshot=parseSnapshot({format:1,publisher:'Wikipedia',license:wiki.license,updatedAt:retrievedAt,entries});
+ const db=await openDB();
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction('meta','readwrite'),store=tx.objectStore('meta'),read=store.get(LOOKUP_KEY);
+  read.onsuccess=()=>{
+   const records=new Map((read.result||[]).map(record=>[record.question,record]));
+   for(const entry of snapshot.entries){
+    if(!records.has(entry.question)||records.get(entry.question).retrievedAt<=entry.retrievedAt)records.set(entry.question,entry);
+   }
+   store.put([...records.values()].sort((a,b)=>b.retrievedAt.localeCompare(a.retrievedAt)).slice(0,MAX_LOOKUPS),LOOKUP_KEY);
+  };
+  tx.oncomplete=()=>resolve();
+  tx.onabort=()=>reject(tx.error||Error('Wikipedia results could not be saved.'));
+ });
+}
 function retrieve(query,records,publicRecords){
  const local=bestMatch(query,records);
  const reference=publicMatch(query,publicRecords);
@@ -200,22 +216,22 @@ function retrieve(query,records,publicRecords){
 }
 async function answer(query){
  if(FRESH.test(query))return {found:false,text:'This question needs up-to-date information. Saved references cannot verify the latest answer.'};
- const [records,snapshot]=await Promise.all([list(),getMeta(REFERENCE_KEY)]);
- const publicRecords=snapshot?.entries||[];
+ const [records,snapshot,lookups]=await Promise.all([list(),getMeta(REFERENCE_KEY),getMeta(LOOKUP_KEY)]);
+ const publicRecords=[...(snapshot?.entries||[]),...(lookups||[])].sort((a,b)=>b.retrievedAt.localeCompare(a.retrievedAt));
  const comparison=query.match(/^(?:please\s+)?(?:compare|(?:what(?: is|'s) the )?difference between)\s+(.{2,90}?)\s+(?:and|with|versus|vs\.?)\s+(.{2,90}?)[?.!]*$/i);
  if(comparison){
   const left=retrieve(comparison[1],records,publicRecords),right=retrieve(comparison[2],records,publicRecords);
-  if(left&&right&&left.id!==right.id)return {found:true,kind:'comparison',text:'Saved references for both topics:\n\n**'+left.question+'**\n'+left.answer+'\n\n**'+right.question+'**\n'+right.answer,records:[left,right]};
+  if(left&&right&&left.id!==right.id&&clean(left.question).toLowerCase()!==clean(right.question).toLowerCase())return {found:true,kind:'comparison',text:'Saved references for both topics:\n\n**'+left.question+'**\n'+left.answer+'\n\n**'+right.question+'**\n'+right.answer,records:[left,right]};
   return {found:false,text:'I did not find two distinct saved entries for this comparison.'};
  }
  const match=retrieve(query,records,publicRecords);
- return match?{found:true,text:match.answer,question:match.question,source:match.source,kind:match.kind,records:[match]}:{found:false,text:'I did not find a close match in saved references. Try a specific topic or use Cloud AI when it is available.'};
+ return match?{found:true,text:match.answer,question:match.question,source:match.source,kind:match.kind,records:[match]}:{found:false,text:'I did not find a close match in saved references. While online, choose Wikipedia lookup for a public topic or use Cloud AI when it is available.'};
 }
 async function stats(){
  const entries=await list();const estimate=typeof navigator!=='undefined'&&navigator.storage?.estimate?await navigator.storage.estimate().catch(()=>null):null;
- const snapshot=await getMeta(REFERENCE_KEY);
+ const [snapshot,lookups]=await Promise.all([getMeta(REFERENCE_KEY),getMeta(LOOKUP_KEY)]);
  return {records:entries.length,usage:estimate?.usage??null,quota:estimate?.quota??null,checkedAt:await getMeta('checkedAt')||0,
-  publicRecords:snapshot?.entries.length||0,publicUpdatedAt:snapshot?.updatedAt||null};
+  publicRecords:snapshot?.entries.length||0,lookupRecords:lookups?.length||0,publicUpdatedAt:snapshot?.updatedAt||null};
 }
-root.OMNI_KNOWLEDGE={words,score,bestMatch,publicMatch,parseXML,parseSnapshot,addRecord,importFile,syncBundled,syncDaily,pendingRefresh,answer,stats,list};
+root.OMNI_KNOWLEDGE={words,score,bestMatch,publicMatch,parseXML,parseSnapshot,addRecord,importFile,syncBundled,syncDaily,saveLookups,pendingRefresh,answer,stats,list};
 })(window);

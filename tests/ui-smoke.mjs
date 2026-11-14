@@ -155,13 +155,14 @@ async function verifyDailyReferences(){
  try{
   const page=await context.newPage(), errors=[];
   page.on('pageerror',error=>errors.push(error.message));
-  const retrievedAt='2026-11-14T02:15:00.000Z',license='https://creativecommons.org/licenses/by-sa/4.0/';
+  const retrievedAt='2099-11-14T02:15:00.000Z',license='https://creativecommons.org/licenses/by-sa/4.0/';
   let dailyResponse={format:1,publisher:'Wikipedia',license,updatedAt:retrievedAt,entries:[
    {id:'wiki-11',question:'Satoru Gojo',tags:'satori gojo saturo gojo jjk',answer:'Fixture reference for a fictional character in Jujutsu Kaisen.',url:'https://en.wikipedia.org/w/index.php?oldid=123',retrievedAt},
    {id:'wiki-12',question:'Physics',tags:'matter energy',answer:'Fixture reference for physics and the study of matter and energy.',url:'https://en.wikipedia.org/w/index.php?oldid=124',retrievedAt},
    {id:'wiki-13',question:'Chemistry',tags:'chemical reactions',answer:'Fixture reference for chemistry and the study of substances.',url:'https://en.wikipedia.org/w/index.php?oldid=125',retrievedAt},
   ]};
   await page.route('**/api/reference-bank',route=>route.fulfill({status:200,json:dailyResponse}));
+  await page.route('https://raw.githubusercontent.com/**/snapshot.json',route=>route.fulfill({status:503}));
   let cloudCalls=0, imageCalls=0, referenceCalls=0;
   await page.route('**/api/chat',route=>{
    cloudCalls++;
@@ -173,13 +174,16 @@ async function verifyDailyReferences(){
    imageCalls++;
    return route.fulfill({status:503,json:{error:'Fixture image provider unavailable'}});
   });
-  await page.route('**/api/reference-search',route=>{
+  await page.route('https://en.wikipedia.org/w/api.php?**',route=>{
    referenceCalls++;
-   assert.deepEqual(route.request().postDataJSON(),{topic:'Arithmetic'});
-   return route.fulfill({status:200,json:{provider:'reference-retrieval',live:false,toolOnly:true,
-    reply:'Fixture lookup result for arithmetic.',sources:[{title:'Arithmetic',publisher:'Wikipedia',url:'https://en.wikipedia.org/wiki/Arithmetic'}],
-    research:{scope:'wikipedia',retrievedAt}
-   }});
+   const request=route.request(),url=new URL(request.url());
+   assert.equal(request.method(),'GET');
+   assert.equal(url.searchParams.get('gsrsearch'),'Arithmetic');
+   assert.equal(url.searchParams.get('origin'),'*');
+   return route.fulfill({
+    status:200,headers:{'access-control-allow-origin':'*'},
+    json:{query:{pages:[{title:'Arithmetic',lastrevid:901,index:1,extract:'A fixture reference for arithmetic, which studies the basic operations on numbers.'}]}},
+   });
   });
   const openPanel=async name=>{
    await page.locator('#mobileMenuButton').click();
@@ -229,10 +233,12 @@ async function verifyDailyReferences(){
   await page.locator('#chatStream').getByRole('link',{name:'Arithmetic',exact:true}).waitFor();
   assert.equal(await page.locator('#composerMode').inputValue(),'chat');
   assert.equal((await messages()).at(-1).engine,'WIKIPEDIA RETRIEVAL · NO AI');
+  assert.equal((await messages()).at(-1).sources[0].url,'https://en.wikipedia.org/w/index.php?oldid=901');
+  await page.waitForFunction(async()=> (await window.OMNI_KNOWLEDGE.stats()).lookupRecords===1);
   assert.equal(referenceCalls,1);
   assert.equal(cloudCalls,1);
 
-  dailyResponse={format:1,publisher:'Wikipedia',license,updatedAt:'2026-11-15T02:15:00.000Z',entries:[{id:'wrong'}]};
+  dailyResponse={format:1,publisher:'Wikipedia',license,updatedAt:'2099-11-15T02:15:00.000Z',entries:[{id:'wrong'}]};
   const malformed=await page.evaluate(()=>window.OMNI_KNOWLEDGE.syncDaily({force:true}));
   assert.equal(malformed.status,'unavailable');
   assert.equal((await page.evaluate(()=>window.OMNI_KNOWLEDGE.stats())).publicUpdatedAt,retrievedAt);
@@ -245,6 +251,11 @@ async function verifyDailyReferences(){
   await submit('Who is Satoru Gojo?');
   await page.waitForFunction(()=>window.OMNI_TEST.getProject()?.messages.at(-1).engine==='SAVED REFERENCE · NO AI');
   assert.match((await messages()).at(-1).text,/fictional character/);
+  await submit('/wiki Arithmetic');
+  await page.locator('#chatStream').getByText(/fixture reference for arithmetic/i).last().waitFor();
+  const reused=(await messages()).at(-1);
+  assert.equal(reused.engine,'SAVED REFERENCE · NO AI');
+  assert.equal(reused.sources[0].url,'https://en.wikipedia.org/w/index.php?oldid=901');
   await submit('Create a simple website for Sunrise Bakery.');
   await page.locator('#chatStream').getByText(/Cloud AI is needed for automatic website creation/).waitFor();
   assert.equal((await page.evaluate(()=>window.OMNI_TEST.getProject())).chatOnly,true);

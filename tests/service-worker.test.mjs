@@ -9,7 +9,8 @@ const cacheName='omniforge-shell-'+build;
 const rootFor=release=>'<meta name="omniforge-build" content="'+release+'"><main>Workspace</main>';
 const css='/src/style.css?v='+build;
 const script='/src/core.js?v='+build;
-const assets={[css]:'text/css',[script]:'text/javascript','/src/knowledge.xml':'application/xml'};
+const seed='/src/reference-seed.json?v='+build;
+const assets={[css]:'text/css',[script]:'text/javascript','/src/knowledge.xml':'application/xml',[seed]:'application/json'};
 const digest=text=>'sha256-'+createHash('sha256').update(text).digest('base64');
 const source=readFileSync(new URL('../sw.js',import.meta.url),'utf8')
  .replaceAll('__BUILD_ID__',build)
@@ -82,6 +83,7 @@ test('Install caches the matching verified assets before activating and retains 
  assert.equal(h.skipped(),1);
  assert.equal(h.stores.get(cacheName).get('/'),rootFor(build));
  assert.equal(h.stores.get(cacheName).get(script),script);
+ assert.equal(await(await h.fetch(seed)).text(),seed);
  assert.equal(h.requests.find(request=>request.path===script).options.integrity,digest(script));
  await h.run('activate');
  assert.equal(h.claimed(),1);

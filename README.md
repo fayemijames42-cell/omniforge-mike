@@ -15,8 +15,8 @@ Public app: https://omniforge-mike.fayemijames42.workers.dev/
 | Photo tools | Local crop, resize, rotation and image adjustments. Explicit photo analysis needs a connected compatible vision provider. |
 | Audio | Transcription adapter for Groq/Gemini; a compatible free account key is required. The user reviews the transcript before sending it. |
 | Mathematics | Bounded local arithmetic, polynomial calculus and linear/quadratic equations. Compound arithmetic explanations can use an observed calculator result. |
-| References | The composer offers Wikipedia lookup without inference. Automatic research and optional broader Tavily search retain independent request accounting. |
-| Notes and local knowledge | Local notes, bundled starter facts, user-imported XML and a daily public Wikipedia snapshot. Saved references and supported local tools remain available during cloud outages. Responses show their source. |
+| References | The composer offers direct public Wikipedia lookup without inference. Automatic research and optional broader Tavily search retain independent request accounting. |
+| Notes and local knowledge | Local notes, bundled starter facts, imported XML, a daily public Wikipedia snapshot and recent Wikipedia lookup results. Saved references and supported local tools remain available during cloud outages. Responses show their source. |
 | Backup | ZIP/JSON restore preserves saved source, current notes/chat, images and image references. Exports check portable size limits before download. Undo history is omitted from portable backups. |
 
 A retrieved source is not a verified claim. Citation checks identify source markers actually used by the response; `factChecked` remains false. Provider bindings and successful deployments are also distinct from live inference.

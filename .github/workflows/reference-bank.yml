@@ -1,0 +1,49 @@
+name: Publish public reference snapshot
+on:
+  schedule:
+    - cron: '37 3 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/reference-bank.yml'
+      - 'server/reference-bank.js'
+      - 'src/reference-seed.json'
+      - 'src/wikipedia.js'
+      - 'tools/publish-reference-bank.mjs'
+permissions:
+  contents: read
+concurrency:
+  group: public-reference-publisher
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'fayemijames42-cell/omniforge-mike' && github.event.repository.private == false && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - name: Verify local retrieval and analysis
+        run: node --test tests/offline.test.mjs tests/calculator.test.mjs tests/symbolic.test.mjs tests/reference-bank.test.mjs
+      - uses: actions/checkout@v7
+        with:
+          ref: reference-snapshots
+          path: reference-snapshots
+      - name: Refresh fixed public Wikipedia topics
+        env:
+          SNAPSHOT_EVENT: ${{ github.event_name }}
+        run: node tools/publish-reference-bank.mjs reference-snapshots/snapshot.json "$SNAPSHOT_EVENT"
+      - name: Publish the data file
+        working-directory: reference-snapshots
+        run: |
+          git add -- snapshot.json
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Refresh public Wikipedia reference snapshot'
+          git push origin HEAD:refs/heads/reference-snapshots

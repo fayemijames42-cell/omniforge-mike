@@ -32,7 +32,7 @@ async function updateStatus(){
  const status=$('#memoryStatus');if(!status)return;
  try{
   const stats=await K.stats(),size=n=>n==null?'unknown':(n/1048576).toFixed(1)+' MB';
-  status.textContent=stats.records+' starter and personal entries. '+stats.publicRecords+' Wikipedia references saved on this device. Last public snapshot: '+(stats.publicUpdatedAt?new Date(stats.publicUpdatedAt).toLocaleString():'waiting for a download')+'. Browser storage: '+size(stats.usage)+' used (estimated quota '+size(stats.quota)+').';
+  status.textContent=stats.records+' starter and personal entries. '+stats.publicRecords+' snapshot references and '+stats.lookupRecords+' recent Wikipedia lookups saved on this device. Last public snapshot: '+(stats.publicUpdatedAt?new Date(stats.publicUpdatedAt).toLocaleString():'waiting for a download')+'. Browser storage: '+size(stats.usage)+' used (estimated quota '+size(stats.quota)+').';
  }catch(e){status.textContent='Knowledge storage unavailable: '+e.message}
 }
 async function fileImport(event){

@@ -3,7 +3,8 @@ import {ownerAuthorized} from './server/coordinator.js';
 export {MikeeCoordinator} from './server/coordinator.js';
 import {collectEvidence,evidenceText,lookupWikipedia,publicReferenceQuery} from './research.js';
 import {planRequest,planGuidance,reviewAnswer} from './server/nexus.js';
-import {referenceRequest,referenceSnapshot,refreshScheduledReference,updateReferenceBank} from './server/reference-bank.js';
+import {publishedReference} from './server/reference-bank.js';
+import referenceSeed from './src/reference-seed.json' with {type:'json'};
 // OMNIFORGE MICHELLE — Cloudflare Worker, Workers AI binding named AI.
 // Real model calls only; no scripted pretend responses.
 import {VERSION,IDENTITY} from './server/config.js';
@@ -32,20 +33,6 @@ const resetUtc=()=>new Date(Date.now()+86400000).toISOString().slice(0,10)+'T00:
 export class DailyBudget {
  constructor(state,env){this.state=state;this.env=env}
  async fetch(request){
-  if(new URL(request.url).pathname==='/reference-bank'){
-   if(request.method==='GET'){
-    const snapshot=await referenceSnapshot(this.state);
-    if(snapshot.attemptedDay)return json(snapshot);
-    // The first visitor can download a snapshot before the daily schedule
-    // runs. The durable daily claim also covers concurrent first visits.
-    await updateReferenceBank(this.state,this.env?.REFERENCE_FETCH||fetch,Date.now(),Date.now,'initial-download');
-    return json(await referenceSnapshot(this.state));
-   }
-   if(request.method!=='POST')return json({error:'Method not allowed'},405);
-   const {scheduledTime}=await request.json();
-   if(!Number.isFinite(scheduledTime))return json({error:'Scheduled time required'},400);
-   return json(await updateReferenceBank(this.state,this.env?.REFERENCE_FETCH||fetch,scheduledTime));
-  }
   if(request.method!=='POST')return new Response('Not found',{status:404});
   const path=new URL(request.url).pathname;
   if(path==='/reference-backoff'){
@@ -94,12 +81,7 @@ async function guardDailyBudget(env,kind){
 
 const json=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
 function referenceReply(evidence,cloudRetryAfter=null){
- return {
-  reply:(cloudRetryAfter!==null?'Cloud AI is unavailable. ':'')+'Wikipedia returned these excerpts:\n\n'+evidence.sources.map(item=>'**'+item.title+'**\n'+item.excerpt).join('\n\n')+'\n\nRetrieved reference · no AI inference.',
-  live:false,toolOnly:true,provider:'reference-retrieval',providerName:'Wikipedia reference retrieval',artifact:{type:'text'},cloudRetryAfter,
-  research:{scope:evidence.scope,retrievedAt:evidence.retrievedAt,note:'Search excerpts may be incomplete. Open the sources for their full context.'},
-  sources:evidence.sources,orchestration:{kind:'reference-retrieval',toolsUsed:['reference-search']},
- };
+ return globalThis.OMNI_WIKIPEDIA.reply(evidence,cloudRetryAfter);
 }
 async function directReference(request,env,url){
  if(request.method!=='POST')return json({error:'Method not allowed'},405);
@@ -117,21 +99,23 @@ async function directReference(request,env,url){
    await sendBudget(dailyBudget(env),'/reference-backoff',{until:Date.now()+error.retryAfter}).catch(()=>{});
    return json({error:'Wikipedia asked us to wait before retrying. Saved references remain available.',retryAfter:Math.ceil(error.retryAfter/1000)},429);
   }
-  return json({error:'Wikipedia lookup is temporarily unavailable. Saved references remain available.'},503);
+  const code=error?.kind==='network'||error?.kind==='timeout'?'REFERENCE_TRANSPORT':'REFERENCE_UNAVAILABLE';
+  return json({error:'Wikipedia lookup is temporarily unavailable. Saved references remain available.',code,
+   ...(error?.kind==='reference_upstream'?{upstreamStatus:error.status}:{}),
+  },503);
  }
 }
 export default {
- scheduled(controller,env,ctx){ctx.waitUntil(refreshScheduledReference(env,controller.scheduledTime));},
  async fetch(request,env){const url=new URL(request.url);
  if(url.pathname==='/quick-chat')return Response.redirect(url.origin+'/',302);
  if(url.pathname==='/api/reference-search')return directReference(request,env,url);
  if(url.pathname==='/api/reference-bank'){
   if(request.method!=='GET')return json({error:'Method not allowed'},405);
-  try{
-   const response=await referenceRequest(env);
-   if(!response.ok)throw Error('Reference snapshot unavailable');
-   return new Response(response.body,{headers:{'content-type':'application/json; charset=utf-8','cache-control':'public, max-age=300','x-content-type-options':'nosniff'}});
-  }catch{return json({error:'Daily reference snapshot is temporarily unavailable. Saved knowledge remains available.'},503)}
+  const snapshot=await publishedReference(referenceSeed,env.REFERENCE_FETCH||fetch);
+  return Response.json(snapshot,{headers:{
+   'cache-control':snapshot.delivery==='published'?'public, max-age=300':'public, max-age=60',
+   'x-content-type-options':'nosniff',
+  }});
  }
  if(url.pathname==='/api/transcribe'&&request.method==='POST'){const origin=request.headers.get('origin');if(origin&&origin!==url.origin)return json({error:'Cross-origin requests not allowed'},403);const limited=await guardAiRequest(request,env,'chat');if(limited)return limited;}
  if(['/api/providers','/api/transcribe','/api/admin/providers'].includes(url.pathname)||/^\/api\/image\/[a-f0-9-]{36}$/.test(url.pathname))return poolHTTP.fetch(request,env);
