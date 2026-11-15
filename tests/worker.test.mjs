@@ -9,7 +9,7 @@ const allGuards={CHAT_VISITOR_LIMIT:allow,CHAT_SHARED_LIMIT:allow,IMAGE_VISITOR_
 const fixtureJPEG=Buffer.concat([Buffer.from([0xff,0xd8,0xff]),Buffer.alloc(147)]).toString('base64');
 const worker={fetch(req,env){return realWorker.fetch(req,{...allGuards,...env})}};
 const req=(body,origin='https://mikee.test')=>new Request('https://mikee.test/api/chat',{method:'POST',headers:{'content-type':'application/json',origin},body:JSON.stringify(body)});
-let calls=0;const env={AI:{run:async(model,input)=>{calls++;assert.equal(model,'@cf/meta/llama-3.1-8b-instruct-fp8');assert.equal(input.messages.at(-1).content,'hello');return {response:'Test fixture response'}}}};
+let calls=0;const env={AI:{run:async(model,input)=>{calls++;assert.equal(model,'@cf/google/gemma-4-26b-a4b-it');assert.equal(input.messages.at(-1).content,'hello');return {response:'Test fixture response'}}}};
 test('health never claims a live call',async()=>{const r=await worker.fetch(new Request('https://mikee.test/api/health'),env);const j=await r.json();assert.equal(j.aiBound,true);assert.equal(j.verified,false);assert.equal(calls,0)});
 test('requires binding',async()=>assert.equal((await worker.fetch(req({message:'hello'}),{})).status,503));
 test('rejects invalid JSON object',async()=>assert.equal((await worker.fetch(req(null),env)).status,400));
@@ -26,14 +26,14 @@ test('no unnecessary AI title inference endpoint',async()=>{
 });
 test('ordinary chat uses a smaller output allowance',async()=>{
  let tokens;
- const local={AI:{run:async(_model,prompt)=>{tokens=prompt.max_tokens;return {response:'A careful explanation'}}}};
+ const local={AI:{run:async(_model,prompt)=>{tokens=prompt.max_completion_tokens;return {response:'A careful explanation'}}}};
  const r=await worker.fetch(req({message:'hello'}),local);
  assert.equal(r.status,200);
  assert.equal(tokens,2000);
 });
 test('website creation allows longer responses',async()=>{
  let tokens;
- const local={AI:{run:async(_model,prompt)=>{tokens=prompt.max_tokens;return {response:'Site draft'}}}};
+ const local={AI:{run:async(_model,prompt)=>{tokens=prompt.max_completion_tokens;return {response:'Site draft'}}}};
  const r=await worker.fetch(req({message:'create a website for NOVATECH'}),local);
  assert.equal(r.status,200);
  assert.equal(tokens,3000);
@@ -121,9 +121,10 @@ test('Budget attempts are reserved before even a failing AI invocation',async()=
  assert.equal(r.status,429);assert.deepEqual(order,['reserved','failed']);
 });
 test('Chat response explicitly identifies provider and model',async()=>{
- const e={AI:{run:async()=>({response:'Greetings'})}};
+ const e={AI:{run:async()=>({model:'gemma-4-26b-a4b-it',choices:[{message:{content:'Greetings'},finish_reason:'stop'}]})}};
  const r=await worker.fetch(req({message:'hello'}),e);
- const data=await r.json();assert.equal(data.provider,'cloudflare');assert.equal(data.model,'@cf/meta/llama-3.1-8b-instruct-fp8');
+ const data=await r.json();assert.equal(data.provider,'cloudflare');assert.equal(data.model,'@cf/google/gemma-4-26b-a4b-it');
+ assert.equal(data.reply,'Greetings');
 });
 
 

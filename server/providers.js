@@ -124,18 +124,32 @@ export async function gatewayPrice(fetcher, profile, key, model, inputTokens, ou
   return Math.ceil((inputTokens * input + outputTokens * output) * 1000000);
 }
 
+function cloudflareBindingError(error, capacityDelay) {
+  if (error instanceof ProviderError) return error;
+  const detail = String(error?.message || '');
+  const upstream = classify(502, detail);
+  if (upstream.definitive) return upstream;
+  if (Number(error?.code) === 3036 || /\b3036\b|daily free allocation|daily (?:neuron |usage )?limit/i.test(detail)) {
+    return classify(429, 'daily quota');
+  }
+  if ([3042, 5028].includes(Number(error?.code)) || Number(error?.status) === 410 ||
+      /\b(?:3042|5028)\b|model (?:is |was |has been )?deprecated/i.test(detail)) {
+    return new ProviderError('model_unavailable', { retryAfter: 86400000 });
+  }
+  if (/quota|neuron|limit|429/i.test(detail)) return new ProviderError('allowance', { retryAfter: 3600000 });
+  return new ProviderError('capacity', { retryAfter: capacityDelay });
+}
+
 export async function chatCall({ fetcher, env, profile, key, model, messages, maxTokens = 3000, timeout = 18000 }) {
   if (profile.id === 'cloudflare') {
     let timer;
     try {
-      const data = await Promise.race([env.AI.run(model, { messages, max_tokens: maxTokens }), new Promise((_, reject) => {
+      const data = await Promise.race([env.AI.run(model, { messages, max_completion_tokens: maxTokens }), new Promise((_, reject) => {
         timer = setTimeout(() => reject(new ProviderError('timeout', { retryAfter: 45000 })), timeout);
       })]);
-      return extract(data, model);
+      return { ...extract(data, model), model };
     } catch (error) {
-      if (error instanceof ProviderError) throw error;
-      if (/quota|limit|neuron|429/i.test(error?.message || '')) throw new ProviderError('allowance', { retryAfter: 3600000 });
-      throw new ProviderError('capacity', { retryAfter: 30000 });
+      throw cloudflareBindingError(error, 30000);
     } finally { clearTimeout(timer); }
   }
   if (profile.id === 'ollama') {
@@ -242,6 +256,6 @@ export async function cloudflareImage(env,prompt){
   if(typeof data?.image!=='string'||data.image.length<100||data.image.length>3000000)throw new ProviderError('invalid_image');
   if(!/^[A-Za-z0-9+/]+={0,2}$/.test(data.image)||!atob(data.image.slice(0,32)).startsWith('\xff\xd8\xff'))throw new ProviderError('invalid_image');
   return {dataUrl:'data:image/jpeg;base64,'+data.image,mimeType:'image/jpeg',model:'@cf/black-forest-labs/flux-1-schnell'};
- }catch(error){if(error instanceof ProviderError)throw error;throw new ProviderError(/quota|neuron|limit/i.test(error?.message||'')?'allowance':'capacity',{retryAfter:3600000});}
+ }catch(error){throw cloudflareBindingError(error,3600000)}
  finally{clearTimeout(timer)}
 }

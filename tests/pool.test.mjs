@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import worker from '../worker.js';
 import { MikeeCoordinator } from '../server/coordinator.js';
 import { PROFILES } from '../server/catalog.js';
-import { fetchBounded, jsonRequest } from '../server/providers.js';
+import { chatCall, cloudflareImage, fetchBounded, jsonRequest } from '../server/providers.js';
 
 const req = (body, origin = 'https://mikee.test', path = '/api/chat', extra = {}) => new Request('https://mikee.test' + path, {
   method: 'POST', headers: { 'content-type': 'application/json', origin, ...extra }, body: JSON.stringify(body)
@@ -252,6 +252,67 @@ test('auto skips unconfigured Gemini and Groq and uses free Cloudflare AI',async
  assert.equal(status.providers.find(p=>p.id==='gemini').state,'needs_key');
  assert.equal(status.providers.find(p=>p.id==='groq').state,'needs_key');
  assert.ok(status.providers.find(p=>p.id==='cloudflare').verifiedAt);
+});
+
+test('A saved retired Cloudflare model switches to Gemma with its usage ledger intact',async()=>{
+ const old='@cf/meta/llama-3.1-8b-instruct-fp8',replacement='@cf/google/gemma-4-26b-a4b-it';
+ const called=[];
+ const h=await harness({env:{AI:{run:async model=>{
+  called.push(model);
+  return {model:'gemma-4-26b-a4b-it',choices:[{message:{content:'Gemma fixture'},finish_reason:'stop'}]};
+ }}}});
+ const now=Date.parse('2026-10-25T12:00:00Z');
+ const previous=h.pool.ledger('cloudflare',now);
+ Object.assign(previous,{requests:4,tokens:4000,monthTokens:9000,lastModel:old,verifiedAt:now-70000});
+ h.pool.data.config.cloudflare.model=old;
+ await h.pool.persist();
+ const restarted=new MikeeCoordinator({storage:h.storage},h.env,{now:()=>now});
+ const rows=async()=> (await restarted.status(true)).providers.find(row=>row.id==='cloudflare');
+ const before=await rows();
+ assert.equal(before.model,replacement);
+ assert.equal(before.verifiedAt,null);
+ assert.equal(before.usage.requestsDay,4);
+ assert.equal(before.usage.tokensMonth,9000);
+ const reply=await restarted.route({messages:[{role:'user',content:'Hello'}]});
+ assert.equal(reply.status,200);
+ assert.equal((await reply.json()).model,replacement);
+ assert.deepEqual(called,[replacement]);
+ const after=await rows();
+ assert.equal(after.verifiedAt,now);
+ assert.equal(after.usage.requestsDay,5);
+ assert.ok(after.usage.tokensMonth>9000);
+ assert.equal((await restarted.updateConfig({id:'cloudflare',enabled:true,model:old})).status,400);
+});
+
+test('Cloudflare daily usage errors report the real reset for chat and images',async()=>{
+ const env={AI:{run:async()=>{throw Object.assign(Error('The shared daily free allocation was reached.'),{code:3036});}}};
+ const profile=PROFILES.find(p=>p.id==='cloudflare');
+ const nextReset=new Date();
+ nextReset.setUTCHours(24,0,0,0);
+ for(const request of [
+  ()=>chatCall({env,profile,model:profile.models[0],messages:[{role:'user',content:'Hello'}]}),
+  ()=>cloudflareImage(env,'An orange on a white plate'),
+ ]){
+  await assert.rejects(request,error=>{
+   assert.equal(error.kind,'allowance');
+   assert.equal(error.status,429);
+   const reset=Date.now()+error.retryAfter;
+   assert.ok(Math.abs(reset-nextReset.getTime())<1000||Math.abs(reset-(nextReset.getTime()+86400000))<1000);
+   return true;
+  });
+ }
+});
+
+test('A retired Cloudflare model is reported as unavailable and permits another approved provider',async()=>{
+ const h=await harness({active:['cloudflare','ovh'],
+  env:{AI:{run:async()=>{throw Error('InferenceUpstreamError: 5028: This model was deprecated.');}}},
+  fetcher:async()=>fixture('Safe provider fallback'),
+ });
+ const response=await h.send({message:'Hello'}),body=await response.json();
+ assert.equal(response.status,200);
+ assert.equal(body.provider,'ovh');
+ assert.equal(body.attempts.find(attempt=>attempt.provider==='cloudflare').reason,'model_unavailable');
+ assert.equal(h.records.get('pool-v1').ledger.cloudflare.requests,1);
 });
 
 test('Website generation failure identifies each attempted free provider without credentials', async () => {

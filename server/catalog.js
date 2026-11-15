@@ -14,7 +14,7 @@ export const PROFILES = [
     { requestsDay: 900, requestsMinute: 25, tokensDay: 180000, tokensMinute: 7500, tokensMonth: 5000000 }, {
       capabilities: ['chat', 'transcribe'], base: 'https://api.groq.com/openai/v1',
       signup: 'https://console.groq.com/', note: 'Free Plan. Speech and chat share this app budget; Groq also enforces separate speech limits.' }),
-  profile('cloudflare', 'Cloudflare Workers AI', null, ['@cf/meta/llama-3.1-8b-instruct-fp8'],
+  profile('cloudflare', 'Cloudflare Workers AI', null, ['@cf/google/gemma-4-26b-a4b-it'],
     { requestsDay: 80, tokensDay: 180000, tokensMonth: 5000000 }, {
       public: true, note: 'Existing AI binding; keep the Cloudflare account on Workers Free.' }),
   profile('cloudflare-image', 'Cloudflare FLUX', null, ['@cf/black-forest-labs/flux-1-schnell'],
