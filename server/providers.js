@@ -144,7 +144,13 @@ export async function chatCall({ fetcher, env, profile, key, model, messages, ma
   if (profile.id === 'cloudflare') {
     let timer;
     try {
-      const data = await Promise.race([env.AI.run(model, { messages, max_completion_tokens: maxTokens }), new Promise((_, reject) => {
+      const request = {
+        messages,
+        max_completion_tokens: maxTokens,
+        // Use the direct-response setting documented for Gemma on Workers AI.
+        chat_template_kwargs: { enable_thinking: false },
+      };
+      const data = await Promise.race([env.AI.run(model, request), new Promise((_, reject) => {
         timer = setTimeout(() => reject(new ProviderError('timeout', { retryAfter: 45000 })), timeout);
       })]);
       return { ...extract(data, model), model };

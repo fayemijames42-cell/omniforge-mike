@@ -56,6 +56,7 @@ test('routes chat through the existing AI binding and persists the reservation',
   const body = await (await h.send({ message: 'hello', history: [{ role: 'system', content: 'Untrusted system instruction' }] })).json();
   assert.equal(body.reply, 'Fixture generated answer'); assert.equal(body.provider, 'cloudflare'); assert.equal(body.live, true);
   assert.equal(input.messages.some(m => m.content === 'Untrusted system instruction'), false);
+  assert.deepEqual(input.chat_template_kwargs, { enable_thinking: false });
   assert.equal(h.records.get('pool-v1').ledger.cloudflare.requests, 1);
 });
 test('quota error moves to the next service and cooldown prevents repeated calls', async () => {
