@@ -214,10 +214,20 @@ function retrieve(query,records,publicRecords){
  if(reference&&(!local||words(query).join(' ')===words(reference.question).join(' ')))return reference;
  return local||reference;
 }
+async function publicReferences(){
+ const [snapshot,lookups]=await Promise.all([getMeta(REFERENCE_KEY),getMeta(LOOKUP_KEY)]);
+ return [...(snapshot?.entries||[]),...(lookups||[])].sort((a,b)=>b.retrievedAt.localeCompare(a.retrievedAt));
+}
+const answerRecord=record=>({found:true,text:record.answer,question:record.question,source:record.source,kind:record.kind,records:[record]});
+async function savedDefinition(topic){
+ const [records,publicRecords]=await Promise.all([list(),publicReferences()]);
+ const record=records.find(entry=>entry.kind==='builtin'&&wiki.sameTitle(wiki.definitionTopic(entry.question),topic))||
+  publicRecords.find(entry=>wiki.sameTitle(entry.question,topic));
+ return record?answerRecord(record):null;
+}
 async function answer(query){
  if(FRESH.test(query))return {found:false,text:'This question needs up-to-date information. Saved references cannot verify the latest answer.'};
- const [records,snapshot,lookups]=await Promise.all([list(),getMeta(REFERENCE_KEY),getMeta(LOOKUP_KEY)]);
- const publicRecords=[...(snapshot?.entries||[]),...(lookups||[])].sort((a,b)=>b.retrievedAt.localeCompare(a.retrievedAt));
+ const [records,publicRecords]=await Promise.all([list(),publicReferences()]);
  const comparison=query.match(/^(?:please\s+)?(?:compare|(?:what(?: is|'s) the )?difference between)\s+(.{2,90}?)\s+(?:and|with|versus|vs\.?)\s+(.{2,90}?)[?.!]*$/i);
  if(comparison){
   const left=retrieve(comparison[1],records,publicRecords),right=retrieve(comparison[2],records,publicRecords);
@@ -225,7 +235,7 @@ async function answer(query){
   return {found:false,text:'I did not find two distinct saved entries for this comparison.'};
  }
  const match=retrieve(query,records,publicRecords);
- return match?{found:true,text:match.answer,question:match.question,source:match.source,kind:match.kind,records:[match]}:{found:false,text:'I did not find a close match in saved references. While online, choose Wikipedia lookup for a public topic or use Cloud AI when it is available.'};
+ return match?answerRecord(match):{found:false,text:'I did not find a close match in saved references. While online, you can retry in Auto or look up a specific public topic.'};
 }
 async function stats(){
  const entries=await list();const estimate=typeof navigator!=='undefined'&&navigator.storage?.estimate?await navigator.storage.estimate().catch(()=>null):null;
@@ -233,5 +243,5 @@ async function stats(){
  return {records:entries.length,usage:estimate?.usage??null,quota:estimate?.quota??null,checkedAt:await getMeta('checkedAt')||0,
   publicRecords:snapshot?.entries.length||0,lookupRecords:lookups?.length||0,publicUpdatedAt:snapshot?.updatedAt||null};
 }
-root.OMNI_KNOWLEDGE={words,score,bestMatch,publicMatch,parseXML,parseSnapshot,addRecord,importFile,syncBundled,syncDaily,saveLookups,pendingRefresh,answer,stats,list};
+root.OMNI_KNOWLEDGE={words,score,bestMatch,publicMatch,parseXML,parseSnapshot,addRecord,importFile,syncBundled,syncDaily,saveLookups,pendingRefresh,savedDefinition,answer,stats,list};
 })(window);

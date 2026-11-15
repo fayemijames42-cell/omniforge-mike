@@ -27,3 +27,20 @@ test('Bundled references match public fallback topics without guessing or mergin
  assert.equal(K.publicMatch('Physics and Economics',entries),null);
  assert.equal(K.publicMatch('What is this person in the image doing?',entries),null);
 });
+test('Automatic definition lookup sends a bounded topic only for a direct question',()=>{
+ const {definitionTopic,sameTitle,sources}=sandbox.window.OMNI_WIKIPEDIA;
+ assert.equal(definitionTopic('What is the Pythagorean theorem?'),'Pythagorean theorem');
+ assert.equal(definitionTopic('What’s a Zener diode?'),'Zener diode');
+ assert.equal(definitionTopic('Define Kepler’s laws of planetary motion.'),'Kepler’s laws of planetary motion');
+ assert.equal(sameTitle("Kepler's laws of planetary motion",'Kepler’s laws of planetary motion'),true);
+ assert.equal(sameTitle('Physics','History of physics'),false);
+ for(const question of ['What is its meaning?','What is her address?','What is my email address?',
+  'What is the current exchange rate?','What is the weather today?','What is Ada’s phone number?',
+  'What is redacted@example.invalid?','What is a diode and explain its use?','What is a diode? Give a worked example.',
+  'Explain what a diode is in simple terms','Compare physics and chemistry','Make the website pink','What is a\nprivate name?']){
+  assert.equal(definitionTopic(question),'',question);
+ }
+ const page={title:'A test article',lastrevid:55,extract:'A valid longer introduction from a reference that can be used when the topic is an exact match.'};
+ assert.equal(sources({query:{pages:[{...page,pageprops:{disambiguation:''}}]}}).length,0);
+ assert.equal(sources({query:{pages:[page]}}).length,1);
+});

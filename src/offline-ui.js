@@ -12,12 +12,12 @@ function setOffline(value){
 function renderMode(){
  const button=$('#modeToggle');
  if(!button)return;
- button.textContent=active?'◈ Local knowledge':'☁ Cloud AI';
+ button.textContent=active?'◈ This device only':'◈ Auto';
  button.classList.toggle('local-active',active);
  button.setAttribute('aria-pressed',String(active));
- button.title=active?'Use saved references and local tools.':'Try Cloud AI first, with saved references available during an outage.';
+ button.title=active?'Use saved references and local tools. Tap for Auto.':'MICHELLE chooses saved knowledge, public lookup or AI. Tap to use this device only.';
  const status=document.querySelector('.status span');
- if(status)status.textContent=active?'LOCAL KNOWLEDGE · NO AI':'CLOUD AI · READY TO TRY';
+ if(status)status.textContent=active?'DEVICE ONLY':'READY';
  const hint=$('#composerHint');
  if(active&&hint)hint.textContent='Stored answers only · no AI';
  else if(hint&&hint.textContent==='Stored answers only · no AI')hint.textContent='Changes stay on this device';
@@ -79,7 +79,7 @@ function bind(){
   return;
  }
  $('#modeToggle')?.addEventListener('click',()=>{
-  setOffline(!active);toast(active?'Local knowledge on — no model requests.':'Cloud AI selected for your next message.');
+  setOffline(!active);toast(active?'Chat will use saved references and local tools.':'MICHELLE will choose how to answer automatically.');
  });
  const refresh=async(force=false)=>{
   const results=await Promise.allSettled([K.syncBundled({force}),K.syncDaily({force})]);

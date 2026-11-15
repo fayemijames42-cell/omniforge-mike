@@ -52,7 +52,7 @@ test('Search failures produce no invented results',async()=>{
 const allow={limit:async()=>({success:true})};
 const budget={getByName:()=>({fetch:async()=>Response.json({allowed:true})})};
 const base={CHAT_VISITOR_LIMIT:allow,CHAT_SHARED_LIMIT:allow,DAILY_BUDGET:budget,AI:{run:async()=>({response:'Photosynthesis converts light into chemical energy. [1]'})},RESEARCH_FETCH:wiki};
-const request=m=>new Request('https://mikee.test/api/chat',{method:'POST',headers:{origin:'https://mikee.test'},body:JSON.stringify({message:m})});
+const request=(m,extra={})=>new Request('https://mikee.test/api/chat',{method:'POST',headers:{origin:'https://mikee.test'},body:JSON.stringify({message:m,...extra})});
 test('MIKEE web-backed chat returns references and uses exactly one model call',async()=>{
  let hits=0;
  const env={...base,AI:{run:async(_model,input)=>{hits++;assert.ok(input.messages[0].content.includes('Wikipedia'));return {response:'Plants convert sunlight to chemical energy. [1]'}}}};
@@ -90,6 +90,23 @@ test('MIKEE automatically looks up ordinary factual questions',async()=>{
  assert.equal(r.status,200);assert.equal(lookups,1);assert.equal(aiCalls,1);
  assert.equal(payload.research.mode,'automatic');
  assert.equal(payload.sources[0].title,'Diode');
+});
+test('Auto skips a redundant encyclopedia request and avoids automatic search in a saved website workspace',async()=>{
+ let lookups=0,aiCalls=0;
+ const env={...base,RESEARCH_FETCH:async(...args)=>{lookups++;return wiki(...args);},AI:{run:async()=>{
+  aiCalls++;return {response:'The model provided an answer.'};
+ }}};
+ for(const referencePolicy of ['checked','workspace']){
+  const response=await realWorker.fetch(request('What is photosynthesis?',{referencePolicy}),env);
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).sources,undefined);
+ }
+ assert.equal(lookups,0);
+ const explicit=await realWorker.fetch(request('Look up photosynthesis',{referencePolicy:'workspace'}),env);
+ assert.equal(explicit.status,200);
+ assert.equal((await explicit.json()).sources[0].title,'Photosynthesis');
+ assert.equal(lookups,1);
+ assert.equal(aiCalls,3);
 });
 test('No automatic network research for private questions or requests to build websites',async()=>{
  const sent=[];
