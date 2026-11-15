@@ -117,8 +117,8 @@ test('No automatic network research for private questions or requests to build w
   assert.equal(r.status,200,q);assert.equal((await r.json()).sources,undefined,q);
  }
  assert.equal(sent.length,5);
- assert.equal(sent[1].max_tokens,3000);
- assert.equal(sent[3].max_tokens,2000);
+ assert.equal(sent[1].max_completion_tokens,3000);
+ assert.equal(sent[3].max_completion_tokens,2000);
 });
 test('Automatic evidence retrieval failure permits clearly unverified model reply',async()=>{
  let hits=0;

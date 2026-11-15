@@ -4,7 +4,7 @@
 
 | Connection | Capabilities | Activation / constraints |
 | --- | --- | --- |
-| Existing Cloudflare Workers AI | Chat, website generation/editing | Existing `AI` binding; conservative app budget on Workers Free |
+| Cloudflare Workers AI · Gemma 4 26B | Chat, website generation/editing | Existing `AI` binding and conservative app budget on Workers Free |
 | Cloudflare FLUX | Image generation | Existing AI binding, four steps, separate per-provider cap |
 | Gemini | Chat, websites, photo analysis, audio transcription | Free-tier key and confirmation |
 | Groq | Chat, websites, Whisper transcription | Free Plan key and confirmation; per-minute token ceilings can rule out a large site |
@@ -25,6 +25,8 @@ SiliconFlow, ModelScope and Scaleway remain outside the active pool until their 
 The provider catalog is in `server/catalog.js`. Its local budgets deliberately sit below known public quotas where possible. The owner may lower them but cannot raise them above the code's ceilings. Reservations include the whole accepted website, compact history, chat framing and the maximum generated output. Failed/uncertain attempts retain their reservation. Credentials and model changes do not reset usage.
 
 The global application ceiling is 400 AI tasks per UTC day. Provider token/request day budgets use UTC; upstream daily, rolling or monthly limits still take precedence. A local reset cannot restore an exhausted provider allowance. Existing history is compacted, while accepted current HTML is kept whole. A document above 24,000 characters is rejected instead of silently truncated.
+
+Gemma 4 26B replaces Llama 3.1 8B FP8 ahead of the 20 November 2026 retirement. An older saved model selection resolves to the approved replacement. The Cloudflare binding keeps its existing usage ledger and application caps. Cloudflare counts text and image compute towards the account's 10,000 free neurons per day. This allowance resets at 00:00 UTC (01:00 WAT). On Workers Free, requests above the allowance return a usage-limit error until the reset. [Cloudflare pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/) · [Model retirement notice](https://developers.cloudflare.com/changelog/post/2026-11-05-planned-model-deprecations/)
 
 Vercel's public live catalog supplies USD/token prices but does not publish a free-eligibility field. The owner must confirm an unbilled Free-tier account; the provider enforces which models that account can access. The adapter checks the model allowlist and current prices before reserving credit cost. Missing or ambiguous pricing stops the adapter. Its application credit reservation ceiling is $4 per UTC month, below the advertised $5 free credit, but the provider's own credit period and balance remain authoritative. Never connect a purchased-credit or automatically funded account to this free pool.
 

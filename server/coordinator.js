@@ -103,8 +103,9 @@ export class MikeeCoordinator {
   }
   model(profile, capability) {
     if (profile.id === 'zai' && capability === 'vision') return 'glm-4.6v-flash';
-    if (profile.id === 'zai' && this.config(profile).model === 'glm-4.6v-flash') return 'glm-4.7-flash';
-    return this.config(profile).model || profile.models[0];
+    const configured = this.config(profile).model;
+    if (profile.id === 'zai' && configured === 'glm-4.6v-flash') return 'glm-4.7-flash';
+    return profile.models.includes(configured) ? configured : profile.models[0];
   }
   async reserve(profile, tokens, { audio = false, micros = 0, preview = false } = {}) {
     return this.locked(async () => {
@@ -157,10 +158,12 @@ export class MikeeCoordinator {
           const minute=q.recent.length>=limits.requestsMinute||q.recent.reduce((n,x)=>n+x.tokens,0)>=limits.tokensMinute?(q.recent[0]?.at||now)+60000:0;
           const retryAt=Math.max(q.cooldown||0,q.busyUntil||0,spacing,minute,dayExhausted?nextDay(now):0,monthExhausted?nextMonth(now):0);
           const state=eligibility!=='ready'?eligibility:exhausted?'budget_reached':retryAt>now?'cooldown':'ready';
+          const model=this.model(profile, 'chat');
+          const verifiedAt=profile.id==='cloudflare'&&q.lastModel!==model?null:q.verifiedAt||null;
           return { id: profile.id, name: profile.name, capabilities: profile.capabilities, state,
-            model: this.model(profile, 'chat'), models: profile.models, note: profile.note, signup: profile.signup,
+            model, models: profile.models, note: profile.note, signup: profile.signup,
             enabled: cfg.enabled !== false, hasKey: this.hasKey(profile), freeConfirmed: profile.public || cfg.freeConfirmed === true || eligibility === 'ready',
-            verifiedAt: q.verifiedAt || null, retryAt: eligibility==='ready'&&retryAt>now?retryAt:null,
+            verifiedAt, retryAt: eligibility==='ready'&&retryAt>now?retryAt:null,
             ...(owner ? { limits, usage: { requestsDay: q.requests, tokensDay: q.tokens, tokensMonth: q.monthTokens, reservedCreditDollars: q.monthMicros / 1000000, audioJobsDay: q.audioJobs }, reason: q.reason ? cleanReason(q.reason) : null } : {}) };
         }), parked: PARKED };
     });
