@@ -198,13 +198,23 @@ function drawMessages({showEarlier=false}={}){
  const visibleCount=showEarlier?count+100:count;
  ui.chat.dataset.visibleCount=String(visibleCount);
  const messages=all.slice(-visibleCount);
-for(const url of imagePreviewURLs)URL.revokeObjectURL(url);imagePreviewURLs.clear();ui.chat.innerHTML='';ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><p class="creator-badge">OMNIFORGE · OWNED BY ADEN INC.</p><h1>What would you like to explore?</h1><p>Talk to <span class="assistantName">${E(preferences.name)}</span> about any subject. Learn, write, solve problems, plan projects, or create something new.</p><div class="local-note">MICHELLE uses connected free AI services. Conversations are saved in this browser. Your messages and relevant project text are sent to the AI provider. Photo editing uses local tools. For instant offline arithmetic, type <code>/calc (5+3)*2</code>.</div></div>`;return}
+for(const url of imagePreviewURLs)URL.revokeObjectURL(url);imagePreviewURLs.clear();ui.chat.innerHTML='';ui.chips.hidden=!!messages.length;if(!messages.length){ui.chat.innerHTML=`<div class="welcome"><div class="sparkle">✦</div><p class="creator-badge">OMNIFORGE · OWNED BY ADEN INC.</p><h1>What would you like to explore?</h1><p>Talk to <span class="assistantName">${E(preferences.name)}</span> about any subject. Learn, write, solve problems, plan projects, or create something new.</p><div class="local-note">Conversations are saved in this browser. Auto checks saved information and may look up public topics on Wikipedia. When a model is needed, relevant messages and project text go to the serving AI provider. For offline arithmetic, type <code>/calc (5+3)*2</code>.</div></div>`;return}
  if(all.length>messages.length){
   const earlier=document.createElement('button');
   earlier.type='button';earlier.className='small-btn';earlier.textContent='Load earlier messages';
   earlier.onclick=()=>drawMessages({showEarlier:true});ui.chat.append(earlier);
  }
- for(const m of messages){const node=document.createElement('article');node.className='message '+(m.role==='user'?'user':'assistant');const copying=m.role==='assistant'?`<button class="copy-message" type="button" data-copy-id="${E(m.id||'')}" aria-label="Copy reply">Copy</button><button class="note-from-reply" type="button" data-save-note="${E(m.id||'')}" aria-label="Save reply as a note">Save note</button>${['WORKERS AI','LIVE AI'].includes(m.engine)&&!/<html|<!doctype/i.test(m.text)?`<button class="note-from-reply" type="button" data-memory-id="${E(m.id||'')}" aria-label="Save reply as knowledge">Remember</button>`:''}`:'';const route=m.role==='user'&&m.route?`<span class="nexus-route" title="Local NEXUS routing; no extra AI call">· ${E(m.route)}</span>`:'';node.innerHTML=`<div class="by"><span>${m.role==='user'?'You':E(preferences.name)+' · '+E(m.engine||'SAVED REPLY')+(m.model&&!m.receipt?' · '+E(m.model):'')+(['WORKERS AI','LIVE AI'].includes(m.engine)?' · '+(Array.isArray(m.sources)&&m.sources.length?(m.sources.length+' sources'):''):'')}</span>${route}${copying}</div><div class="body">${m.role==='user'?E(m.text):formatReply(m.svgSummary||m.text)}</div>`;if(m.role==='assistant'&&Array.isArray(m.sources)&&m.sources.length){
+ for(const m of messages){
+ const node=document.createElement('article'),assistant=m.role==='assistant';
+ node.className='message '+(assistant?'assistant':'user');
+ const generated=['WORKERS AI','LIVE AI'].includes(m.engine);
+ const reference=['SAVED REFERENCE · NO AI','WIKIPEDIA RETRIEVAL · NO AI'].includes(m.engine);
+ const detailsOnly=reference||generated;
+ const copying=assistant?`<button class="copy-message" type="button" data-copy-id="${E(m.id||'')}" aria-label="Copy reply">Copy</button><button class="note-from-reply" type="button" data-save-note="${E(m.id||'')}" aria-label="Save reply as a note">Save note</button>${generated&&!/<html|<!doctype/i.test(m.text)?`<button class="note-from-reply" type="button" data-memory-id="${E(m.id||'')}" aria-label="Save reply as knowledge">Remember</button>`:''}`:'';
+ const route=!assistant&&m.route?`<span class="nexus-route" title="Local NEXUS routing; no extra AI call">· ${E(m.route)}</span>`:'';
+ const speaker=assistant?E(preferences.name)+(detailsOnly?'':' · '+E(m.engine||'SAVED REPLY')):'You';
+ node.innerHTML=`<div class="by"><span>${speaker}</span>${route}${copying}</div><div class="body">${assistant?formatReply(m.svgSummary||m.text):E(m.text)}</div>`;
+ if(assistant&&Array.isArray(m.sources)&&m.sources.length){
   const section=document.createElement('div');section.className='research-sources';
   const title=document.createElement('strong');title.textContent=m.researchScope==='saved-wikipedia'?'Saved reference · Wikipedia':'Sources consulted · '+(m.researchScope==='wikipedia'?'Wikipedia reference search':'web search');
   section.append(title);
@@ -230,10 +240,12 @@ for(const url of imagePreviewURLs)URL.revokeObjectURL(url);imagePreviewURLs.clea
    section.append(license);
   }
  }
- if(m.role==='assistant'&&(m.researchNote||m.uncitedSources)){
+ const separateDetails=detailsOnly&&(!m.receipt||!Pool);
+ if(assistant&&(separateDetails||m.researchNote||m.uncitedSources)){
   // Keep retrieval diagnostics accessible without interrupting ordinary answers.
   const details=document.createElement('details');details.className='research-caveat';
-  const summary=document.createElement('summary');summary.textContent='Research details';details.append(summary);
+  const summary=document.createElement('summary');summary.textContent=separateDetails?'Response details':'Research details';details.append(summary);
+  if(separateDetails){const origin=document.createElement('p');origin.textContent=m.engine+(m.model?' · '+m.model:'');details.append(origin)}
   if(m.researchNote){const note=document.createElement('p');note.textContent=String(m.researchNote).slice(0,360);details.append(note)}
   if(m.uncitedSources){const note=document.createElement('p');note.textContent='Sources were retrieved but not cited in the answer. Check the linked references for claims that require verification.';details.append(note)}
   node.append(details);
@@ -412,7 +424,7 @@ async function sendSymbolic(text){
   const answer=window.OMNI_SYMBOLIC.compute(request);
   reply=answer.operation+'\nInput: '+answer.input+'\n\nResult: '+answer.result+'\n\nMethod:\n'+answer.steps.map((s,i)=>(i+1)+'. '+s).join('\n')+'\n\nComputed locally using a bounded polynomial engine. No AI request was made.';
  }catch(e){
-  reply='Local symbolic maths cannot complete this expression: '+String(e.message||e)+'\n\nCurrently supports polynomial differentiation, indefinite integration (including x^-1), and linear/quadratic equations in x. For other functions or a detailed explanation, ask MICHELLE in a separate Cloud AI question.';
+  reply='Local symbolic maths cannot complete this expression: '+String(e.message||e)+'\n\nCurrently supports polynomial differentiation, indefinite integration (including x^-1), and linear/quadratic equations in x. For other functions or a detailed explanation, ask MICHELLE in Auto.';
  }
  draft.messages.push(msg('assistant',reply,'NEXUS · LOCAL SYMBOLIC MATH'));
  aiState='LOCAL SYMBOLIC MATH · NO AI';
@@ -427,13 +439,15 @@ async function localReply(text,route,body,engine,{existing=false,data,retrieval}
  if(publicRecords?.length){
   reply.sources=publicRecords.map(record=>({title:record.question,publisher:record.source,url:record.url,retrievedAt:record.retrievedAt}));
   reply.researchScope='saved-wikipedia';
+ }else if(data?.kind==='builtin'){
+  reply.researchNote=data.source;
  }
  if(retrieval){
   reply.sources=retrieval.sources.slice(0,4).map(({title,publisher,url})=>({title,publisher,url}));
   reply.researchScope='wikipedia';reply.retrievedAt=retrieval.research?.retrievedAt;
   reply.researchNote=retrieval.research?.note;
  }
- draft.messages.push(reply);aiState=engine;
+ draft.messages.push(reply);aiState=['SAVED REFERENCE · NO AI','WIKIPEDIA RETRIEVAL · NO AI'].includes(engine)?'MICHELLE REPLIED':engine;
  await saveConversation(draft);clearSubmittedPrompt(text);await refreshList();await showAll();
 }
 async function localAnswer(text){
@@ -467,6 +481,30 @@ function noReferenceForTask(text,route){
   pendingImage?'Photo analysis needs a connected vision provider. The image has not been identified.':
   'This request needs a connected AI provider. Your saved references and local tools remain available.';
  return localReply(text,route.label,detail,'CLOUD AI UNAVAILABLE');
+}
+async function automaticReference(text,topic,canLookUp){
+ const saved=await K?.savedDefinition(topic).catch(()=>null);
+ if(activeAbort.signal.aborted)throw new DOMException('Cancelled','AbortError');
+ if(saved){
+  await localReply(text,'General conversation',saved.text,'SAVED REFERENCE · NO AI',{existing:true,data:saved});
+  return true;
+ }
+ if(!canLookUp||!Pool||providerRetryUntil.reference>Date.now())return false;
+ let retrieval;
+ try{
+  retrieval=await Pool.lookupWikipedia(topic,activeAbort.signal,5500);
+ }catch(error){
+  if(activeAbort.signal.aborted)throw error;
+  rememberProviderDelay('reference',error);
+  return false;
+ }
+ const source=retrieval.sources.find(item=>window.OMNI_WIKIPEDIA.sameTitle(item.title,topic));
+ if(activeAbort.signal.aborted)throw new DOMException('Cancelled','AbortError');
+ if(!source)return false;
+ const answer={...retrieval,sources:[source]};
+ await localReply(text,'General conversation',source.excerpt,'WIKIPEDIA RETRIEVAL · NO AI',{existing:true,retrieval:answer});
+ await K?.saveLookups(answer).catch(()=>{});
+ return true;
 }
 async function searchReferences(text,topic){
  if(!topic)throw Error('Enter a public topic for Wikipedia lookup.');
@@ -531,18 +569,23 @@ async function send(text){
  if(!pendingImage&&arithmetic!==null&&arithmetic!==undefined)return sendCalculation('/calc '+arithmetic,text);
  const route=W.route(text,project?.focus||'general',!!project&&!project.chatOnly,project?.messages);
  const canRetrieve=canUseSavedReference(route);
+ const attachedNotes=project?.useSources!==false&&(project?.sources?.length||0)>0;
+ const quickTopic=!pendingImage&&route.action==='chat'&&!route.includeProject&&!attachedNotes&&
+  !['write','code','create'].includes(project?.focus)&&window.OMNI_WIKIPEDIA?.definitionTopic(context.taskText(text));
+ const inWebsiteWorkspace=project?.chatOnly===false;
+ const automaticLookup=!!quickTopic&&!inWebsiteWorkspace;
  const localMode=window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false;
- if(localMode)return canRetrieve?respondOffline(text):noReferenceForTask(text,route);
- if(!Pool){
+ if(localMode)return canRetrieve||quickTopic?respondOffline(text):noReferenceForTask(text,route);
+ if(!Pool&&!quickTopic){
   if(canRetrieve&&await respondOffline(text,{reason:'Cloud AI could not load. Showing saved information.',onlyIfFound:true}))return;
   throw Error('Cloud AI could not load. Reload to reconnect. Local tools are available.');
  }
- if(waitingForProvider('chat')){
+ if(!quickTopic&&waitingForProvider('chat')){
   if(canRetrieve)return respondOffline(text,{reason:'Cloud AI is waiting for capacity.'});
   return;
  }
  let promptSaved=false;
- aiState='MICHELLE IS GENERATING…';
+ aiState='MICHELLE IS RESPONDING…';
  setPending(true,text);activeAbort=new AbortController();
  $('.status span').textContent=aiState;
  try{
@@ -554,7 +597,12 @@ async function send(text){
   const projectContext=route.includeProject?window.OMNI_CONTEXT.projectSummary(draft,C.renderSite(draft)):null;if(currentHtml.length>24000)throw Error('This website exceeds the current AI editing limit (24,000 characters). Export a backup; manual tools remain available.');
   const userMessage=msg('user',text);userMessage.route=route.label;draft.messages.push(userMessage);
   await saveConversation(draft);promptSaved=true;clearSubmittedPrompt(text);await refreshList();await showAll();
-  const data=await Pool.request('/api/chat',{body:{message:text,history,currentHtml,...(projectContext?{projectContext}:{}),provider:'auto',focus:route.focus,sources:project.useSources===false?[]:(project.sources||[]).slice(0,3),...(pendingImage?{image:pendingImage}:{})},signal:activeAbort.signal});
+  if(quickTopic){
+   if(await automaticReference(text,quickTopic,automaticLookup))return;
+   if(!Pool||providerRetryUntil.chat>Date.now())return respondOffline(text,{existing:true,reason:'A model answer is temporarily unavailable.'});
+  }
+  const referencePolicy=inWebsiteWorkspace?'workspace':automaticLookup?'checked':undefined;
+  const data=await Pool.request('/api/chat',{body:{message:text,history,currentHtml,...(projectContext?{projectContext}:{}),provider:'auto',focus:route.focus,sources:project.useSources===false?[]:(project.sources||[]).slice(0,3),...(pendingImage?{image:pendingImage}:{}),referencePolicy},signal:activeAbort.signal});
   if(activeAbort.signal.aborted)throw new DOMException('Cancelled','AbortError');
   const localEngines={'local-calculator':'NEXUS CALCULATOR · NO AI','local-project-context':'LOCAL PROJECT CONTEXT · NO AI','platform-information':'PLATFORM INFORMATION · NO AI','reference-retrieval':'WIKIPEDIA RETRIEVAL · NO AI'};
   const localEngine=data.toolOnly===true&&localEngines[data.provider];
@@ -562,7 +610,7 @@ async function send(text){
   if((data.live!==true&&!toolOnly)||typeof data.reply!=='string')throw Error('No provider response or observed tool result was received.');
   const retry=Number(data.cloudRetryAfter);
   providerRetryUntil.chat=localEngine&&Number.isFinite(retry)&&retry>0?Date.now()+retry*1000:0;
-  aiState=localEngine||'MICHELLE REPLIED';
+  aiState='MICHELLE REPLIED';
   // Both the requested action and the returned artifact must authorize a save.
   const allowsWebsite=['website-create','website-edit'].includes(route.action)&&data.artifact?.type==='website';
   const document=window.OMNI_CONTEXT.websiteDocument(data.reply);
@@ -584,7 +632,7 @@ async function send(text){
    rememberProviderDelay('chat',e);
    if(canRetrieve&&(e?.status===429||e?.status>=500||e?.code==='REQUEST_TIMEOUT'||e?.name==='TypeError')){
     if(await respondOffline(text,{existing:true,reason:'Cloud AI is unavailable. Showing saved information.',onlyIfFound:true,details:providerFailureDetails(e)}))return;
-    message+='\n\nFor a public topic, choose Wikipedia lookup. The local calculator and saved projects are also available.';
+    message+='\n\nFor another public topic, try a focused question. Your saved projects and local tools are available.';
    }
   }
   if(project){const draft=conversationDraft();draft.messages.push(msg('assistant',message,'ERROR'));await saveConversation(draft);await showAll()}else fail(e)
@@ -733,7 +781,7 @@ async function attachVision(blob){
 }
 function waitForPoll(ms,signal){return new Promise((resolve,reject)=>{const stop=()=>{clearTimeout(timer);reject(new DOMException('Cancelled','AbortError'))};const timer=setTimeout(()=>{signal.removeEventListener('abort',stop);resolve()},ms);if(signal.aborted)stop();else signal.addEventListener('abort',stop,{once:true});});}
 async function transcribeFile(file){
- if(!file||requestPending||waitingForProvider('audio'))return;if(!Pool)throw Error('Cloud AI could not load. Reload to reconnect.');if(window.OMNI_OFFLINE_UI?.isOffline())throw Error('Switch to Cloud AI to transcribe audio.');if(file.size>2097152)throw Error('Choose a short recording under 2 MB.');
+ if(!file||requestPending||waitingForProvider('audio'))return;if(!Pool)throw Error('Cloud AI could not load. Reload to reconnect.');if(window.OMNI_OFFLINE_UI?.isOffline())throw Error('Switch to Auto to transcribe audio.');if(file.size>2097152)throw Error('Choose a short recording under 2 MB.');
  setPending(true,'audio');activeAbort=new AbortController();aiState='TRANSCRIBING AUDIO…';
  try{const form=new FormData();form.append('file',file);const result=await Pool.request('/api/transcribe',{body:form,signal:activeAbort.signal,timeout:90000});
   if(result.live!==true||!result.reply)throw Error('No transcription was received.');$('#composerMode').value='chat';$('#prompt').value=result.reply;aiState='TRANSCRIPTION RECEIVED';notify('Transcription ready. Review the text, then send it.');

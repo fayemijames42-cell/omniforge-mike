@@ -64,7 +64,7 @@
       return data;
     }, signal, timeout);
   }
-  function lookupWikipedia(topic, signal) {
+  function lookupWikipedia(topic, signal, timeout = 9000) {
     return withDeadline(async requestSignal => {
       const wiki = window.OMNI_WIKIPEDIA;
       const query = wiki.topic(topic);
@@ -99,7 +99,7 @@
       const sources = wiki.sources(data);
       if (!sources.length) throw Error('Wikipedia returned no matching excerpts.');
       return wiki.reply({ scope: 'wikipedia', retrievedAt: new Date().toISOString(), sources });
-    }, signal, 9000);
+    }, signal, timeout);
   }
   function downloadImage(url, signal) {
     const maximum = 2250000;

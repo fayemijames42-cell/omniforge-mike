@@ -169,8 +169,12 @@ export default {
    return json({reply:plan.calculation.expression+' = '+plan.calculation.formatted,live:false,toolOnly:true,provider:'local-calculator',providerName:'NEXUS Calculator',model:'deterministic arithmetic',artifact:{type:'text'},orchestration:{kind:'calculate',contextTurns:history.length,parts:1,toolsUsed:['calculator']}});
   }
   const lookup=plan.research;
+  const browserChecked=data.referencePolicy==='checked'&&!lookup.fresh&&
+   !env.TAVILY_API_KEY&&!data.image&&!websiteTask&&
+   !!globalThis.OMNI_WIKIPEDIA.definitionTopic(globalThis.OMNI_CONTEXT.taskText(message));
+  const skipAutomatic=lookup.researchMode==='automatic'&&(browserChecked||data.referencePolicy==='workspace');
   let evidence=null,researchNote='';
-  if(lookup.researchMode!=='none'){
+  if(lookup.researchMode!=='none'&&!skipAutomatic){
    if(lookup.fresh&&!env.TAVILY_API_KEY){
     if(lookup.researchMode==='explicit')return json({error:'Michelle cannot verify current facts from the wider web until an approved search provider is connected. No AI credits were spent.',researchUnavailable:true},503);
     researchNote='General live web search is unavailable, so current facts cannot be verified. If the question depends on latest information, do not guess; explain the limitation and provide only stable background.';

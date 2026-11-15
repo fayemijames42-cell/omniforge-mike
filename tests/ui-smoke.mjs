@@ -166,6 +166,11 @@ async function verifyDailyReferences(){
   let cloudCalls=0, imageCalls=0, referenceCalls=0;
   await page.route('**/api/chat',route=>{
    cloudCalls++;
+   const data=route.request().postDataJSON();
+   if(data.message==='What is a pendulum clock?'){
+    assert.equal(data.referencePolicy,'checked');
+    return route.fulfill({status:200,json:{live:true,provider:'cloudflare',providerName:'Fixture language model',reply:'A clock that uses a swinging pendulum.',artifact:{type:'text'}}});
+   }
    return route.fulfill({status:429,headers:{'Retry-After':'90'},json:{
     code:'FREE_POOL_WAIT',error:'Fixture provider quota',diagnostics:{providers:[{provider:'Cloudflare Workers AI',reason:'Daily free usage limit reached',retryAt:Date.UTC(2026,10,15)}]}
    }});
@@ -178,11 +183,14 @@ async function verifyDailyReferences(){
    referenceCalls++;
    const request=route.request(),url=new URL(request.url());
    assert.equal(request.method(),'GET');
-   assert.equal(url.searchParams.get('gsrsearch'),'Arithmetic');
+   const topic=url.searchParams.get('gsrsearch');
+   assert.ok(['Arithmetic','arithmetic','pendulum clock'].includes(topic));
    assert.equal(url.searchParams.get('origin'),'*');
+   assert.equal(request.headers().cookie,undefined);
+   assert.equal(request.headers().referer,undefined);
    return route.fulfill({
     status:200,headers:{'access-control-allow-origin':'*'},
-    json:{query:{pages:[{title:'Arithmetic',lastrevid:901,index:1,extract:'A fixture reference for arithmetic, which studies the basic operations on numbers.'}]}},
+    json:{query:{pages:[{title:topic==='pendulum clock'?'Pendulum':'Arithmetic',lastrevid:901,index:1,extract:'A fixture reference for arithmetic, which studies the basic operations on numbers.'}]}},
    });
   });
   const openPanel=async name=>{
@@ -196,14 +204,35 @@ async function verifyDailyReferences(){
    await stream.getByText(text,{exact:true}).last().waitFor();
   };
   const messages=()=>page.evaluate(()=>window.OMNI_TEST.getProject()?.messages||[]);
+  const replyTo=async text=>{
+   const before=(await messages()).length;
+   await submit(text);
+   await page.waitForFunction(count=>window.OMNI_TEST.getProject()?.messages.length===count+2&&!document.querySelector('#sendBtn').disabled,before);
+   return (await messages()).at(-1);
+  };
   await page.goto(address);
   await page.locator('#startupStatus').waitFor({state:'hidden'});
   await page.waitForFunction(async()=> (await window.OMNI_KNOWLEDGE.stats()).publicRecords===3);
   assert.equal((await page.evaluate(()=>window.OMNI_KNOWLEDGE.stats())).publicRecords,3);
+  assert.match(await page.locator('#modeToggle').textContent(),/Auto/);
   await page.locator('#newProject').click();
   await submit('Hello Michelle. Who are you, and who owns OMNIFORGE?');
   await page.locator('#chatStream').getByText(/ADEN INC. owns and develops/).waitFor();
   assert.equal(cloudCalls,0);
+  const localDefinition=await replyTo('What is Physics?');
+  assert.equal(localDefinition.engine,'SAVED REFERENCE · NO AI');
+  assert.equal(localDefinition.sources[0].title,'Physics');
+  const previous=page.locator('#chatStream .assistant').last();
+  assert.equal(await previous.locator('.by > span').textContent(),'MICHELLE');
+  await previous.getByText('Response details',{exact:true}).click();
+  await previous.getByText('SAVED REFERENCE · NO AI',{exact:true}).waitFor();
+  assert.equal(cloudCalls,0);
+  assert.equal(referenceCalls,0);
+
+  const model=await replyTo('What is a pendulum clock?');
+  assert.equal(model.engine,'LIVE AI','a related yet different article cannot answer the question');
+  assert.equal(cloudCalls,1);
+  assert.equal(referenceCalls,1);
 
   await page.locator('#composerMode').selectOption('image');
   await submit('images of saturo gojo');
@@ -213,7 +242,7 @@ async function verifyDailyReferences(){
   const followUp='do you know him from jjk satori Gojo';
   await submit(followUp);
   await page.locator('#chatStream').getByRole('link',{name:'Satoru Gojo',exact:true}).waitFor();
-  assert.equal(cloudCalls,1);
+  assert.equal(cloudCalls,2);
   assert.equal(imageCalls,1);
   const afterFallback=await messages();
   assert.equal(afterFallback.filter(message=>message.role==='user'&&message.text===followUp).length,1);
@@ -225,18 +254,27 @@ async function verifyDailyReferences(){
   await submit('Compare Physics and Chemistry');
   await page.locator('#chatStream').getByRole('link',{name:'Chemistry',exact:true}).waitFor();
   const compared=(await messages()).at(-1);
-  assert.equal(cloudCalls,1,'a known cooldown must not submit another inference request');
+  assert.equal(cloudCalls,2,'a known cooldown must not submit another inference request');
   assert.ok(compared.text.includes('Saved reference comparison'));
   assert.deepEqual(compared.sources.map(item=>item.title),['Physics','Chemistry']);
+  const lookup=await replyTo('What is arithmetic?');
+  assert.equal(lookup.engine,'WIKIPEDIA RETRIEVAL · NO AI');
+  assert.equal(lookup.sources[0].title,'Arithmetic');
+  assert.equal(cloudCalls,2,'a new public topic can be looked up during model cooldown');
+  assert.equal(referenceCalls,2);
+  const repeated=await replyTo('Define arithmetic.');
+  assert.equal(repeated.engine,'SAVED REFERENCE · NO AI');
+  assert.equal(repeated.sources[0].url,'https://en.wikipedia.org/w/index.php?oldid=901');
+  assert.equal(referenceCalls,2);
+  assert.equal(cloudCalls,2);
   await page.locator('#composerMode').selectOption('reference');
-  await submit('Arithmetic');
-  await page.locator('#chatStream').getByRole('link',{name:'Arithmetic',exact:true}).waitFor();
+  assert.equal((await replyTo('Arithmetic')).engine,'WIKIPEDIA RETRIEVAL · NO AI');
   assert.equal(await page.locator('#composerMode').inputValue(),'chat');
   assert.equal((await messages()).at(-1).engine,'WIKIPEDIA RETRIEVAL · NO AI');
   assert.equal((await messages()).at(-1).sources[0].url,'https://en.wikipedia.org/w/index.php?oldid=901');
   await page.waitForFunction(async()=> (await window.OMNI_KNOWLEDGE.stats()).lookupRecords===1);
-  assert.equal(referenceCalls,1);
-  assert.equal(cloudCalls,1);
+  assert.equal(referenceCalls,3);
+  assert.equal(cloudCalls,2);
 
   dailyResponse={format:1,publisher:'Wikipedia',license,updatedAt:'2099-11-15T02:15:00.000Z',entries:[{id:'wrong'}]};
   const malformed=await page.evaluate(()=>window.OMNI_KNOWLEDGE.syncDaily({force:true}));
@@ -262,8 +300,8 @@ async function verifyDailyReferences(){
   await submit('Generate a realistic image of a flying cow.');
   await page.locator('#chatStream').getByText(/Image generation needs a connected image provider/).waitFor();
   assert.equal(imageCalls,1);
-  assert.equal(cloudCalls,1);
-  assert.equal(referenceCalls,1);
+  assert.equal(cloudCalls,2);
+  assert.equal(referenceCalls,3);
   assert.deepEqual(errors,[]);
  }finally{await context.close()}
 }

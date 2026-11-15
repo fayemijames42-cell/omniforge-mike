@@ -58,6 +58,21 @@
     return normalized.length < 2 || privateTopic.test(normalized) ? '' : normalized;
   }
 
+  // Automatic lookup is limited to a single, self-contained definition.
+  // A related article cannot answer a follow-up, a comparison or another task.
+  function definitionTopic(value) {
+    const question = String(value || '').trim();
+    if (/[\u0000-\u001f\u007f]/.test(question)) return '';
+    const match = question.match(/^(?:what(?: is| are|['’]s)|define)\s+(?:(?:a|an|the)\s+)?(.+?)[?.!]?$/i);
+    if (!match) return '';
+    const subject = topic(match[1]);
+    if (!/^[\p{L}\p{N}][\p{L}\p{N}'’ –-]{1,79}$/u.test(subject) ||
+        /\b(?:and|or|this|that|those|these|it|its|they|their|she|he|her|his|your|we|our|current|currently|latest|recent|present|today|now|yesterday|tomorrow|price|weather|address|phone|password|email|where|when|why|how|give|include|compare|versus|between|than|examples?|steps?|differences?|meaning of)\b/i.test(subject)) return '';
+    return subject;
+  }
+  const titleKey = value => String(value || '').normalize('NFKC').toLowerCase().replace(/’/g, "'").replace(/\s+/g, ' ').trim();
+  const sameTitle = (left, right) => titleKey(left) === titleKey(right);
+
   function apiUrl(parameters) {
     const url = new URL('https://en.wikipedia.org/w/api.php');
     url.search = new URLSearchParams({action: 'query', format: 'json', formatversion: '2', ...parameters});
@@ -70,7 +85,8 @@
   function lookupUrl(query, fromBrowser = false) {
     return apiUrl({
       ...introduction, generator: 'search', gsrsearch: query, gsrnamespace: '0',
-      gsrlimit: '4', exlimit: '4', ...(fromBrowser ? {origin: '*'} : {}),
+      gsrlimit: '4', exlimit: '4', prop: introduction.prop + '|pageprops', ppprop: 'disambiguation',
+      ...(fromBrowser ? {origin: '*'} : {}),
     });
   }
   const plain = (value, limit) => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, limit) : '';
@@ -85,7 +101,8 @@
 
   function sources(data) {
     if (data?.error || !Array.isArray(data?.query?.pages)) return [];
-    return data.query.pages.slice(0, 4).sort((left, right) => (left?.index ?? 5) - (right?.index ?? 5))
+    return data.query.pages.slice(0, 4).filter(page => typeof page?.pageprops?.disambiguation !== 'string')
+      .sort((left, right) => (left?.index ?? 5) - (right?.index ?? 5))
       .map(article).filter(Boolean);
   }
 
@@ -100,5 +117,5 @@
     };
   }
 
-  root.OMNI_WIKIPEDIA = {license, agent, snapshotUrl, maxRecords, maxBytes, introduction, validateSnapshot, readJSON, topic, apiUrl, lookupUrl, plain, article, sources, reply};
+  root.OMNI_WIKIPEDIA = {license, agent, snapshotUrl, maxRecords, maxBytes, introduction, validateSnapshot, readJSON, topic, definitionTopic, sameTitle, apiUrl, lookupUrl, plain, article, sources, reply};
 })(typeof window === 'object' ? window : globalThis);
