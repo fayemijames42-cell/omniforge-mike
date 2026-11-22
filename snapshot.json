@@ -1,20 +1,12 @@
 {
   "entries": [
     {
-      "id": "wiki-18716923",
-      "question": "Algebra",
-      "tags": "algebra unknowns equations",
-      "answer": "Algebra is a branch of mathematics that deals with abstract systems, known as algebraic structures, and the manipulation of expressions within those systems. It is a generalization of arithmetic that introduces variables and algebraic operations other than the standard arithmetic operations, such as addition and multiplication. Elementary algebra is the main form of algebra taught in schools. It examines mathematical statements using variables for unspecified values and seeks to determine for which values the statements are true. To do so, it uses different methods of transforming equations to isolate variables. Linear...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1382106610",
-      "retrievedAt": "2026-11-21T04:34:00.784Z"
-    },
-    {
       "id": "wiki-9127632",
       "question": "Biology",
       "tags": "life science organisms",
       "answer": "Biology is the scientific study of life and living organisms. It is a broad natural science that encompasses a wide range of fields and unifying principles that explain the structure, function, growth, origin, evolution, and distribution of life. Central to biology are five fundamental themes: the cell as the basic unit of life, genes and heredity as the basis of inheritance, evolution as the driver of biological diversity, energy transformation for sustaining life processes, and homeostasis, the maintenance of internal stability. Biology examines life across multiple levels of organization, from molecules and cells...",
       "url": "https://en.wikipedia.org/w/index.php?oldid=1383003680",
-      "retrievedAt": "2026-11-21T04:34:00.784Z"
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
     },
     {
       "id": "wiki-5180",
@@ -22,6 +14,110 @@
       "tags": "chemical science reactions",
       "answer": "Chemistry is the scientific study of the properties and behavior of matter. It is a physical science within the natural sciences that studies matter: composition, structure, properties, behavior and the changes they undergo during reactions with other substances. Chemistry also addresses the nature of chemical bonds in chemical compounds. In the scope of its subject, chemistry occupies an intermediate position between physics and biology. It is sometimes called the central science because it provides a foundation for understanding both basic and applied scientific disciplines at a fundamental level. For example, chemistry...",
       "url": "https://en.wikipedia.org/w/index.php?oldid=1385890035",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-5042951",
+      "question": "Climate change",
+      "tags": "global warming climate",
+      "answer": "Present-day climate change includes both global warming—the ongoing increase in global average temperature—and its wider effects on Earth's climate system. In a broader sense, climate change also includes previous long-term changes to Earth's climate. The modern-day rise in global temperatures is driven by human activities, especially fossil fuel (coal, oil and natural gas) burning since the Industrial Revolution. Fossil fuel use, deforestation, and some agricultural and industrial practices release greenhouse gases. These gases absorb some of the heat that the Earth radiates after it warms from sunlight, warming...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1385821217",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-49610",
+      "question": "English grammar",
+      "tags": "grammar English language",
+      "answer": "English grammar is the set of structural rules of the English language. This includes the structure of words, phrases, clauses, sentences, and whole texts. Most English speech and writing follows the conventions of Standard English; but minor divergences occur depending on historical, regional, and cultural contexts. Larger divergences occur when comparing pronunciation and vocabulary. Personal pronouns retain morphological case more strongly than any other word class (a remnant of the more extensive Germanic case system of Old English). For other pronouns and all nouns, adjectives, and articles, grammatical function...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1385014983",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-18973446",
+      "question": "Geometry",
+      "tags": "geometry shapes space",
+      "answer": "Geometry is a branch of mathematics concerned with properties of space such as the distance, shape, size, and relative position of figures. Geometry is, along with arithmetic, one of the oldest branches of mathematics. A mathematician who works in the field of geometry is called a geometer. Until the 19th century, geometry was almost exclusively devoted to Euclidean geometry, which includes the notions of point, line, plane, distance, angle, surface, and curve, as fundamental concepts. Originally developed to model the physical world, geometry has applications in almost all sciences, and also in art, architecture...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1385977996",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-10772350",
+      "question": "History",
+      "tags": "history historical records sources",
+      "answer": "History is the systematic study of the past, focusing primarily on the human past. As an academic discipline, it analyses and interprets evidence to construct narratives about what happened and explain why it happened. Some theorists categorize history as a social science, while others see it as part of the humanities or consider it a hybrid discipline. Similar debates surround the purpose of history—for example, whether its main aim is theoretical, to uncover the truth, or practical, to learn lessons from the past. In a more general sense, the term history refers not to an academic field but to the past itself, times...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1386877510",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-17524",
+      "question": "Language",
+      "tags": "language linguistics communication",
+      "answer": "Language is a structured system of communication that consists of grammar and vocabulary. It is the primary means by which humans convey meaning, both in spoken and signed forms, and may also be conveyed through writing. Human language is characterized by its cultural and historical diversity, with significant variations observed between cultures and across time. Human languages possess the properties of productivity and displacement, which enable the creation of an infinite number of sentences, and the ability to refer to objects, events, and ideas that are not immediately present in the discourse. The use of human...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1386928646",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-338344",
+      "question": "List of tallest buildings",
+      "tags": "tallest highest building buildings skyscraper world burj khalifa",
+      "answer": "This is a list of the tallest buildings. Tall buildings, such as skyscrapers, are intended here as enclosed structures with continuously occupiable floors and a height of at least 350 metres (1,148 ft). Such definition excludes non-building structures, such as radio towers.",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1376498189",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-18963870",
+      "question": "Literature",
+      "tags": "literature written works",
+      "answer": "Literature is any collection of written work. The term is also used more narrowly for writings considered an art form, especially novels, plays, and poems. It includes both print and digital writing. In recent centuries, the definition has expanded to include oral literature, much of which has been transcribed. Literature is a method of recording, preserving, and transmitting knowledge and entertainment. It can also have a social, psychological, spiritual, or political role. Literary criticism is one of the oldest academic disciplines, and it is concerned with the literary merit or intellectual significance of specific...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1380824083",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-18831",
+      "question": "Mathematics",
+      "tags": "maths math numbers",
+      "answer": "Mathematics is a field of knowledge concerned with abstract concepts such as numbers, geometric shapes, sets, functions, and probabilities. It uses logical reasoning and proof to study and establish their properties, often expressed as theorems, formulas, and equations. Mathematics is widely used to model and solve problems in science, engineering, technology, economics, and everyday life. There are many areas of mathematics, including number theory (the study of integers and their properties), algebra (the study of operations and the structures they form), geometry (the study of shapes and spaces that contain them...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1385774090",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-22939",
+      "question": "Physics",
+      "tags": "physical science matter energy",
+      "answer": "Physics is the scientific study of matter, its fundamental constituents, its motion and behavior through space and time, and the related entities of energy and force. It is one of the most fundamental scientific disciplines. A scientist who specializes in the field of physics is called a physicist. Physics is one of the oldest academic disciplines. Over much of the past two millennia, physics, chemistry, biology, and certain branches of mathematics were part of natural philosophy, but during the Scientific Revolution in the 17th century, these natural sciences branched into separate research endeavors. Physics intersects...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1384142980",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-26513034",
+      "question": "Pythagorean theorem",
+      "tags": "pythagoras theorem right triangle hypotenuse",
+      "answer": "In mathematics, the Pythagorean theorem or Pythagoras's theorem is a fundamental relation in Euclidean geometry between the three sides of a right triangle. It states that the area of the square whose side is the hypotenuse (the side opposite the right angle) is equal to the sum of the areas of the squares on the other two sides. The theorem can be written as an equation relating the lengths of the sides a, b and the hypotenuse c, sometimes called the Pythagorean equation: a2+b2=c2. The theorem is named for the Greek philosopher Pythagoras, born around 570 BC. The theorem has been proved numerous times by many different...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1386629982",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-25784",
+      "question": "Renewable energy",
+      "tags": "renewable energy solar wind",
+      "answer": "Renewable energy (also called green energy) is energy made from renewable natural resources that are replenished on a human timescale. The most widely used renewable energy types are solar energy, wind power, bioenergy/biomass, and hydropower. Bioenergy and geothermal power are also significant in some countries. Renewable energy installations can be large or small and are suited for both urban and rural areas. Renewable energy is often deployed together with further electrification. This has several benefits: electricity can move heat and vehicles efficiently and is clean at the point of consumption. Variable renewable...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1386552459",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-68793664",
+      "question": "Satoru Gojo",
+      "tags": "saturo gojo satori jjk jujutsu kaisen character",
+      "answer": "Satoru Gojo (Japanese: 五条 悟, Hepburn: Gojō Satoru), often known as The Honored One, is a fictional character from Gege Akutami's manga and anime series Jujutsu Kaisen. He was first introduced in Akutami's short series Tokyo Metropolitan Curse Technical School as the mentor of the cursed teenager Yuta Okkotsu, who suffers from Rika's curse. This miniseries became the prequel Jujutsu Kaisen 0 of Jujutsu Kaisen. In Jujutsu Kaisen, Gojo takes up the same role, but instead mentors student Yuji Itadori who suffers a curse of Sukuna. Gojo was designed by Akutami to be a formidable yet endearing figure who is passionate...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1385201259",
+      "retrievedAt": "2026-11-22T04:36:43.233Z"
+    },
+    {
+      "id": "wiki-18716923",
+      "question": "Algebra",
+      "tags": "algebra unknowns equations",
+      "answer": "Algebra is a branch of mathematics that deals with abstract systems, known as algebraic structures, and the manipulation of expressions within those systems. It is a generalization of arithmetic that introduces variables and algebraic operations other than the standard arithmetic operations, such as addition and multiplication. Elementary algebra is the main form of algebra taught in schools. It examines mathematical statements using variables for unspecified values and seeks to determine for which values the statements are true. To do so, it uses different methods of transforming equations to isolate variables. Linear...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1382106610",
       "retrievedAt": "2026-11-21T04:34:00.784Z"
     },
     {
@@ -57,51 +153,11 @@
       "retrievedAt": "2026-11-21T04:34:00.784Z"
     },
     {
-      "id": "wiki-338344",
-      "question": "List of tallest buildings",
-      "tags": "tallest highest building buildings skyscraper world burj khalifa",
-      "answer": "This is a list of the tallest buildings. Tall buildings, such as skyscrapers, are intended here as enclosed structures with continuously occupiable floors and a height of at least 350 metres (1,148 ft). Such definition excludes non-building structures, such as radio towers.",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1376498189",
-      "retrievedAt": "2026-11-21T04:34:00.784Z"
-    },
-    {
-      "id": "wiki-18831",
-      "question": "Mathematics",
-      "tags": "maths math numbers",
-      "answer": "Mathematics is a field of knowledge concerned with abstract concepts such as numbers, geometric shapes, sets, functions, and probabilities. It uses logical reasoning and proof to study and establish their properties, often expressed as theorems, formulas, and equations. Mathematics is widely used to model and solve problems in science, engineering, technology, economics, and everyday life. There are many areas of mathematics, including number theory (the study of integers and their properties), algebra (the study of operations and the structures they form), geometry (the study of shapes and spaces that contain them...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1385774090",
-      "retrievedAt": "2026-11-21T04:34:00.784Z"
-    },
-    {
-      "id": "wiki-22939",
-      "question": "Physics",
-      "tags": "physical science matter energy",
-      "answer": "Physics is the scientific study of matter, its fundamental constituents, its motion and behavior through space and time, and the related entities of energy and force. It is one of the most fundamental scientific disciplines. A scientist who specializes in the field of physics is called a physicist. Physics is one of the oldest academic disciplines. Over much of the past two millennia, physics, chemistry, biology, and certain branches of mathematics were part of natural philosophy, but during the Scientific Revolution in the 17th century, these natural sciences branched into separate research endeavors. Physics intersects...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1384142980",
-      "retrievedAt": "2026-11-21T04:34:00.784Z"
-    },
-    {
       "id": "wiki-22934",
       "question": "Probability",
       "tags": "probability chance mathematics",
       "answer": "Probability concerns events and numerical descriptions of how likely they are to occur. The probability of an event is a number between 0 and 1; the larger the probability, the more likely an event is to occur. This number is often expressed as a percentage (%), ranging from 0% to 100%. A simple example is the tossing of a fair (unbiased) coin. Since the coin is fair, the two outcomes (\"heads\" and \"tails\") are both equally probable; the probability of \"heads\" equals the probability of \"tails\"; and since no other outcomes are possible, the probability of either \"heads\" or \"tails\" is 1/2 (which could also be written...",
       "url": "https://en.wikipedia.org/w/index.php?oldid=1381440308",
-      "retrievedAt": "2026-11-21T04:34:00.784Z"
-    },
-    {
-      "id": "wiki-26513034",
-      "question": "Pythagorean theorem",
-      "tags": "pythagoras theorem right triangle hypotenuse",
-      "answer": "In mathematics, the Pythagorean theorem or Pythagoras's theorem is a fundamental relation in Euclidean geometry between the three sides of a right triangle. It states that the area of the square whose side is the hypotenuse (the side opposite the right angle) is equal to the sum of the areas of the squares on the other two sides. The theorem can be written as an equation relating the lengths of the sides a, b and the hypotenuse c, sometimes called the Pythagorean equation: a2+b2=c2. The theorem is named for the Greek philosopher Pythagoras, born around 570 BC. The theorem has been proved numerous times by many different...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1386629982",
-      "retrievedAt": "2026-11-21T04:34:00.784Z"
-    },
-    {
-      "id": "wiki-68793664",
-      "question": "Satoru Gojo",
-      "tags": "saturo gojo satori jjk jujutsu kaisen character",
-      "answer": "Satoru Gojo (Japanese: 五条 悟, Hepburn: Gojō Satoru), often known as The Honored One, is a fictional character from Gege Akutami's manga and anime series Jujutsu Kaisen. He was first introduced in Akutami's short series Tokyo Metropolitan Curse Technical School as the mentor of the cursed teenager Yuta Okkotsu, who suffers from Rika's curse. This miniseries became the prequel Jujutsu Kaisen 0 of Jujutsu Kaisen. In Jujutsu Kaisen, Gojo takes up the same role, but instead mentors student Yuji Itadori who suffers a curse of Sukuna. Gojo was designed by Akutami to be a formidable yet endearing figure who is passionate...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1385201259",
       "retrievedAt": "2026-11-21T04:34:00.784Z"
     },
     {
@@ -281,30 +337,6 @@
       "retrievedAt": "2026-11-18T04:37:47.356Z"
     },
     {
-      "id": "wiki-5042951",
-      "question": "Climate change",
-      "tags": "global warming climate",
-      "answer": "Present-day climate change includes both global warming—the ongoing increase in global average temperature—and its wider effects on Earth's climate system. In a broader sense, climate change also includes previous long-term changes to Earth's climate. The modern-day rise in global temperatures is driven by human activities, especially fossil fuel (coal, oil and natural gas) burning since the Industrial Revolution. Fossil fuel use, deforestation, and some agricultural and industrial practices release greenhouse gases. These gases absorb some of the heat that the Earth radiates after it warms from sunlight, warming...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1385821217",
-      "retrievedAt": "2026-11-17T04:35:15.513Z"
-    },
-    {
-      "id": "wiki-49610",
-      "question": "English grammar",
-      "tags": "grammar English language",
-      "answer": "English grammar is the set of structural rules of the English language. This includes the structure of words, phrases, clauses, sentences, and whole texts. Most English speech and writing follows the conventions of Standard English; but minor divergences occur depending on historical, regional, and cultural contexts. Larger divergences occur when comparing pronunciation and vocabulary. Personal pronouns retain morphological case more strongly than any other word class (a remnant of the more extensive Germanic case system of Old English). For other pronouns and all nouns, adjectives, and articles, grammatical function...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1385014983",
-      "retrievedAt": "2026-11-17T04:35:15.513Z"
-    },
-    {
-      "id": "wiki-10772350",
-      "question": "History",
-      "tags": "history historical records sources",
-      "answer": "History is the systematic study of the past, focusing primarily on the human past. As an academic discipline, it analyses and interprets evidence to construct narratives about what happened and explain why it happened. Some theorists categorize history as a social science, while others see it as part of the humanities or consider it a hybrid discipline. Similar debates surround the purpose of history—for example, whether its main aim is theoretical, to uncover the truth, or practical, to learn lessons from the past. In a more general sense, the term history refers not to an academic field but to the past itself, times...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1386021726",
-      "retrievedAt": "2026-11-17T04:35:15.513Z"
-    },
-    {
       "id": "wiki-64493",
       "question": "Percentage",
       "tags": "percent percentages maths",
@@ -321,53 +353,21 @@
       "retrievedAt": "2026-11-17T04:35:15.513Z"
     },
     {
-      "id": "wiki-25784",
-      "question": "Renewable energy",
-      "tags": "renewable energy solar wind",
-      "answer": "Renewable energy (also called green energy) is energy made from renewable natural resources that are replenished on a human timescale. The most widely used renewable energy types are solar energy, wind power, bioenergy/biomass, and hydropower. Bioenergy and geothermal power are also significant in some countries. Renewable energy installations can be large or small and are suited for both urban and rural areas. Renewable energy is often deployed together with further electrification. This has several benefits: electricity can move heat and vehicles efficiently and is clean at the point of consumption. Variable renewable...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1385566344",
-      "retrievedAt": "2026-11-17T04:35:15.513Z"
-    },
-    {
       "id": "wiki-26691",
       "question": "Set (mathematics)",
       "tags": "set sets mathematics theory",
       "answer": "In mathematics, a set is a collection of different things; the things are called elements or members of the set and are typically mathematical objects: numbers, symbols, points in space, lines, other geometric shapes, variables, functions, or even other sets. Sets cannot be mathematically defined, since they form a primitive notion. Instead, they are characterized by basic properties (axioms) that sets must have to correspond to intuition about collections. In modern mathematics, since the first half of the 20th century, all mathematical objects are ultimately defined in terms of sets. That is, set theory serves as...",
       "url": "https://en.wikipedia.org/w/index.php?oldid=1385125153",
       "retrievedAt": "2026-11-17T04:35:15.513Z"
-    },
-    {
-      "id": "wiki-18973446",
-      "question": "Geometry",
-      "tags": "geometry shapes space",
-      "answer": "Geometry is a branch of mathematics concerned with properties of space such as the distance, shape, size, and relative position of figures. Geometry is, along with arithmetic, one of the oldest branches of mathematics. A mathematician who works in the field of geometry is called a geometer. Until the 19th century, geometry was almost exclusively devoted to Euclidean geometry, which includes the notions of point, line, plane, distance, angle, surface, and curve, as fundamental concepts. Originally developed to model the physical world, geometry has applications in almost all sciences, and also in art, architecture...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1384743533",
-      "retrievedAt": "2026-11-16T05:02:35.141Z"
-    },
-    {
-      "id": "wiki-17524",
-      "question": "Language",
-      "tags": "language linguistics communication",
-      "answer": "Language is a structured system of communication that consists of grammar and vocabulary. It is the primary means by which humans convey meaning, both in spoken and signed forms, and may also be conveyed through writing. Human language is characterized by its cultural and historical diversity, with significant variations observed between cultures and across time. Human languages possess the properties of productivity and displacement, which enable the creation of an infinite number of sentences, and the ability to refer to objects, events, and ideas that are not immediately present in the discourse. The use of human...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1381741577",
-      "retrievedAt": "2026-11-16T05:02:35.141Z"
-    },
-    {
-      "id": "wiki-18963870",
-      "question": "Literature",
-      "tags": "literature written works",
-      "answer": "Literature is any collection of written work. The term is also used more narrowly for writings considered an art form, especially novels, plays, and poems. It includes both print and digital writing. In recent centuries, the definition has expanded to include oral literature, much of which has been transcribed. Literature is a method of recording, preserving, and transmitting knowledge and entertainment. It can also have a social, psychological, spiritual, or political role. Literary criticism is one of the oldest academic disciplines, and it is concerned with the literary merit or intellectual significance of specific...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1380824083",
-      "retrievedAt": "2026-11-16T05:02:35.141Z"
     }
   ],
-  "attemptedDay": "2026-11-21",
+  "attemptedDay": "2026-11-22",
   "attemptedBy": "scheduled",
   "format": 1,
   "publisher": "Wikipedia",
   "license": "https://creativecommons.org/licenses/by-sa/4.0/",
-  "updatedAt": "2026-11-21T04:34:00.784Z",
-  "nextTopic": 24,
+  "updatedAt": "2026-11-22T04:36:43.233Z",
+  "nextTopic": 31,
   "retryAt": 0,
   "status": "updated"
 }
