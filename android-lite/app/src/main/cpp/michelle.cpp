@@ -55,7 +55,6 @@ Java_inc_aden_omniforge_ModelBridge_nativeLoad(JNIEnv* env,jclass,jstring file){
     std::call_once(initOnce,[]{llama_backend_init();});
     auto params=llama_model_default_params();
     params.n_gpu_layers=0; // CPU only on low-memory Android.
-    params.use_mmap=true;
     loadedModel=llama_model_load_from_file(path.c_str(),params);
     if(!loadedModel){throwJava(env,"The GGUF model could not be loaded. Check its architecture and memory requirements.");return JNI_FALSE;}
     auto cparams=llama_context_default_params();
