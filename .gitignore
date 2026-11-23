@@ -12,3 +12,9 @@ desktop/engine/runners/
 desktop/offline-models/blobs/
 desktop/offline-models/manifests/
 dist-desktop/
+
+# Keep developer and recipient model/runtime binaries out of Git
+desktop/engine/**
+!desktop/engine/README.md
+desktop/offline-models/**
+!desktop/offline-models/README.md
