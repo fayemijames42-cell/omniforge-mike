@@ -607,7 +607,7 @@ async function send(text){
    if(!Pool||providerRetryUntil.chat>Date.now())return respondOffline(text,{existing:true,reason:'A model answer is temporarily unavailable.'});
   }
   const referencePolicy=inWebsiteWorkspace?'workspace':automaticLookup?'checked':undefined;
-  const data=await Pool.request('/api/chat',{body:{message:text,history,currentHtml,...(projectContext?{projectContext}:{}),provider:'auto',focus:route.focus,sources:project.useSources===false?[]:(project.sources||[]).slice(0,3),...(pendingImage?{image:pendingImage}:{}),referencePolicy},signal:activeAbort.signal,timeout:isLocalRuntime?190000:110000});
+  const data=await Pool.request('/api/chat',{body:{message:text,history,currentHtml,...(projectContext?{projectContext}:{}),provider:'auto',focus:route.focus,sources:project.useSources===false?[]:(project.sources||[]).slice(0,3),...(pendingImage?{image:pendingImage}:{}),referencePolicy},signal:activeAbort.signal,timeout:isLocalRuntime?250000:110000});
   if(activeAbort.signal.aborted)throw new DOMException('Cancelled','AbortError');
   const localEngines={'local-calculator':'NEXUS CALCULATOR · NO AI','local-project-context':'LOCAL PROJECT CONTEXT · NO AI','platform-information':'PLATFORM INFORMATION · NO AI','reference-retrieval':'WIKIPEDIA RETRIEVAL · NO AI'};
   const localEngine=data.toolOnly===true&&localEngines[data.provider];

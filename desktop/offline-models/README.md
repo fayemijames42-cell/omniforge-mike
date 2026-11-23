@@ -1,0 +1,1 @@
+Optional distribution payload: a complete verified Ollama model store can be supplied in this folder before packaging. Never commit large model weights or user data to Git. The desktop app copies this folder into its private user-data model store on first run. See desktop/README.md.
