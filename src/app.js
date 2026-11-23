@@ -349,7 +349,7 @@ function rememberProviderDelay(capability,error){
  if(error?.status===429&&error.retryAfter>0)providerRetryUntil[capability]=Date.now()+error.retryAfter*1000;
 }
 async function sendImage(text,promptText,{reuse=false}={}){
- if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false||['localhost','127.0.0.1','[::1]'].includes(location.hostname)){
+ if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false||!!document.querySelector('meta[name="omniforge-local-runtime"][content="true"]')){
   return localReply(text,'Image generation','Image generation needs a connected image provider. You can still open and download existing images in Photos.','IMAGE GENERATION UNAVAILABLE',{existing:reuse});
  }
  if(requestPending)return;
@@ -508,7 +508,7 @@ async function automaticReference(text,topic,canLookUp){
 }
 async function searchReferences(text,topic){
  if(!topic)throw Error('Enter a public topic for Wikipedia lookup.');
- if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false||['localhost','127.0.0.1','[::1]'].includes(location.hostname))return respondOffline(text,{query:topic});
+ if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false||!!document.querySelector('meta[name="omniforge-local-runtime"][content="true"]'))return respondOffline(text,{query:topic});
  if(!Pool)return respondOffline(text,{query:topic,reason:'Wikipedia lookup could not load.'});
  if(waitingForProvider('reference')){
   await respondOffline(text,{query:topic,reason:'Wikipedia is waiting before the next lookup. Showing saved information.',onlyIfFound:true});
@@ -549,7 +549,7 @@ async function recallProject(text){
 }
 async function send(text){
  text=text.trim();if(!text||requestPending)return;
- if(pendingImage&&['localhost','127.0.0.1','[::1]'].includes(location.hostname)){
+ if(pendingImage&&!!document.querySelector('meta[name="omniforge-local-runtime"][content="true"]')){
   clearVision();
   return localReply(text,'Photo analysis','The installed offline text model cannot analyse this photo. The image was not sent to a cloud service. You can still use local photo editing tools.','LOCAL VISION UNAVAILABLE');
  }
@@ -577,8 +577,8 @@ async function send(text){
  const quickTopic=!pendingImage&&route.action==='chat'&&!route.includeProject&&!attachedNotes&&
   !['write','code','create'].includes(project?.focus)&&window.OMNI_WIKIPEDIA?.definitionTopic(context.taskText(text));
  const inWebsiteWorkspace=project?.chatOnly===false;
- const automaticLookup=!!quickTopic&&!inWebsiteWorkspace&&!['localhost','127.0.0.1','[::1]'].includes(location.hostname);
- const isLocalRuntime=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
+ const automaticLookup=!!quickTopic&&!inWebsiteWorkspace&&!!!document.querySelector('meta[name="omniforge-local-runtime"][content="true"]');
+ const isLocalRuntime=!!document.querySelector('meta[name="omniforge-local-runtime"][content="true"]');
  const localMode=window.OMNI_OFFLINE_UI?.isOffline()||(navigator.onLine===false&&!isLocalRuntime);
  if(localMode)return canRetrieve||quickTopic?respondOffline(text):noReferenceForTask(text,route);
  if(!Pool&&!quickTopic){
