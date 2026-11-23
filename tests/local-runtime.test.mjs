@@ -8,7 +8,7 @@ import {createLocalHandler} from '../server/local-runtime.mjs';
 
 async function withRuntime(fetchMock,callback){
   const directory=await mkdtemp(join(tmpdir(),'omniforge-offline-test-'));
-  await writeFile(join(directory,'index.html'),'<title>OMNIFORGE</title>');
+  await writeFile(join(directory,'index.html'),'<html><head><title>OMNIFORGE</title></head><body>Local workspace</body></html>');
   const srv=createServer(createLocalHandler({publicDir:directory,model:'qwen2.5:0.5b',ollamaFetch:fetchMock}));
   await new Promise(resolve=>srv.listen(0,'127.0.0.1',resolve));
   try{await callback('http://127.0.0.1:'+srv.address().port)}finally{await new Promise(resolve=>srv.close(resolve));await rm(directory,{recursive:true,force:true});}
@@ -24,7 +24,7 @@ const fake=(url,opts)=>{
 };
 test('Local runtime serves workspace, identifies local model and uses no paid endpoint',async()=>{
   await withRuntime(fake,async base=>{
-    const home=await fetch(base+'/');assert.equal(home.status,200);assert.match(await home.text(),/OMNIFORGE/);
+    const home=await fetch(base+'/');assert.equal(home.status,200);assert.match(await home.text(),/omniforge-local-runtime/);
     const status=await (await fetch(base+'/api/health')).json();assert.equal(status.cloudflare,false);assert.equal(status.modelReady,true);
     const providers=await (await fetch(base+'/api/providers')).json();assert.equal(providers.localOnly,true);assert.equal(providers.providers[0].state,'ready');
     const r=await fetch(base+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'Hello, Michelle'})});
