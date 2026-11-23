@@ -29,11 +29,11 @@ jobs:
           mkdir -p /tmp/omni-java-tests
           javac -d /tmp/omni-java-tests android-lite/app/src/main/java/inc/aden/omniforge/OfflineMath.java android-lite/qa/OfflineMathTest.java
           java -cp /tmp/omni-java-tests inc.aden.omniforge.OfflineMathTest
-      - uses: android-actions/setup-android@v3
       - name: Install Android SDK, NDK and CMake
         shell: bash
         run: |
           set -eu
+          test -x "$(command -v sdkmanager)" || { echo 'Android SDK manager unavailable on runner'; exit 1; }
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
       - name: Fetch pinned official llama.cpp native source
