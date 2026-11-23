@@ -93,9 +93,9 @@ export function createLocalHandler({publicDir=resolve('public'),model=process.en
   };
 }
 
-export function startLocalServer({port=Number(process.env.OMNIFORGE_PORT||4321),host='127.0.0.1'}={}) {
-  const server=createServer(createLocalHandler());
-  server.listen(port,host,()=>{console.log('OMNIFORGE local-only: http://'+host+':'+port);console.log('Model: '+(process.env.OMNIFORGE_LOCAL_MODEL||DEFAULT_MODEL)+' (Ollama on this device; no cloud billing)');});
+export function startLocalServer({port=Number(process.env.OMNIFORGE_PORT||4321),host='127.0.0.1',publicDir=resolve('public'),model=process.env.OMNIFORGE_LOCAL_MODEL||DEFAULT_MODEL}={}) {
+  const server=createServer(createLocalHandler({publicDir,model}));
+  server.listen(port,host,()=>{console.log('OMNIFORGE local-only: http://'+host+':'+server.address().port);console.log('Model: '+model+' (Ollama on this device; no cloud billing)');});
   return server;
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url))startLocalServer();
