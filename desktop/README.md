@@ -7,7 +7,7 @@ The desktop launcher is a shareable AI application foundation for OMNIFORGE by A
 1. Detect the machine's RAM and disk space; recommend Lite (Qwen3.5 0.8B, 4 GB RAM), Standard (4B, 8 GB), Pro (9B, 16 GB), or Studio (27B, 32 GB+ and ideally GPU).
 2. Check for a local Ollama service. The manual Windows packaging workflow can bundle the official Ollama standalone Windows binary so the recipient does not have to install the AI engine manually.
 3. When the user clicks Download, retrieve their chosen model through Ollama and display progress. Downloads are approximately 1.3 / 4 / 7.6 / 20 GB; allow additional installation overhead. The app confirms the model is installed. **An internet connection is needed once**, unless a pre-packaged model store is available.
-4. Open the existing workspace on a random localhost loopback port with the selected local model, using no Cloudflare or paid inference API. The app can open its manual tools without any installed model, but must not claim its AI works in that state.
+4. Open the existing workspace on its fixed 127.0.0.1:4321 localhost address with the selected local model, using no Cloudflare or paid inference API. The app can open its manual tools without any installed model, but must not claim its AI works in that state.
 5. Users switch models using the OMNIFORGE desktop menu → AI model settings. Hardware estimates are not performance guarantees, and large models can run slowly on CPU-only devices.
 
 ## Development (not for recipients)
@@ -36,10 +36,10 @@ Windows x64 is the first build target; no macOS, Linux, or Android packages are 
 ## Security, storage, and release limitations
 
 - No Node integration in the Electron renderer; context isolation and sandbox enabled. Deny external windows, navigation and browser permission requests. Desktop IPC accepts requests only from the dedicated local setup screen.
-- Workspace server binds 127.0.0.1 on an available port. Ollama should also bind loopback only. Do not port-forward either service to the internet.
+- Workspace server binds 127.0.0.1:4321 so browser data remains under a stable origin between launches. If that port is occupied, setup fails clearly instead of silently switching origins. Ollama should also bind loopback only. Do not port-forward either service to the internet.
 - No automatic background model downloads; an explicit setup click is required before contacting the registry.
 - The bundled engine is provided only after official-release checksum verification by the Windows packaging workflow. Do not run untrusted builds or model archives.
-- Conversations, site content and notes live in the local browser profile. Changing the random localhost port can change the browser storage origin and **may hide earlier projects**. Export backups before uninstalling, changing edition or transferring devices. Stable-origin storage and automatic backup migration are **unresolved production blockers**.
+- Conversations, site content and notes live in the local browser profile. The desktop app uses a fixed localhost address to preserve storage across restarts. Changing devices, clearing browser data, or switching from the old website/browser to Electron does not migrate records automatically. Export and import a backup before uninstalling, switching devices or transferring projects. Automatic backup migration is still an unresolved production task.
 - The app can coexist with a user-installed Ollama already listening on 127.0.0.1:11434. This external local service may use a different model directory.
 - The smaller models are not equivalent to high-end cloud AI, and bigger models do not create new online capabilities, independent internet access, or an autonomous agent.
 - This is a code and packaging **beta**, not a verified installer. Do not certify it until an actual Windows machine completes a clean installation, first-run model download, offline inference, site editing, backup/restore, model switching, reboot, and uninstall/reinstall with data retained.
