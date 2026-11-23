@@ -54,8 +54,7 @@
       "oneClick": true,
       "perMachine": false,
       "allowElevation": false
-    },
-    "artifactName": "${productName}-${version}-${arch}.${ext}"
+    }
   },
   "devDependencies": {
     "electron": "^39.0.0",
