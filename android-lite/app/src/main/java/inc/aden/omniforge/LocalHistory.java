@@ -42,6 +42,34 @@ public final class LocalHistory {
             return data.toString(2);
         }catch(JSONException e){return "{}";}
     }
+    /** Replace only after verifying the entire backup and writing it successfully. */
+    synchronized int importJSON(String json) throws JSONException {
+        if(json==null || json.length()>1100000)throw new JSONException("Backup is too large.");
+        JSONObject root=new JSONObject(json);
+        if(!"omniforge-android-lite-v1".equals(root.optString("format")))throw new JSONException("Unsupported backup format.");
+        JSONArray values=root.optJSONArray("messages");
+        if(values==null || values.length()>80)throw new JSONException("Backup must contain at most 80 messages.");
+        List<JSONObject> validated=new ArrayList<>();
+        for(int i=0;i<values.length();i++){
+            JSONObject source=values.optJSONObject(i);
+            if(source==null)throw new JSONException("Invalid message in backup.");
+            String role=source.optString("role");
+            if(!"user".equals(role)&&!"michelle".equals(role))throw new JSONException("Invalid message role.");
+            String text=source.optString("text");
+            if(text.length()>6000)throw new JSONException("A message exceeds the allowed length.");
+            String engine=source.optString("engine","RESTORED");
+            if(engine.length()>60)throw new JSONException("Invalid engine label.");
+            JSONObject clean=new JSONObject();
+            clean.put("role",role);clean.put("text",text);clean.put("engine",engine);
+            clean.put("at",source.optLong("at",0));
+            validated.add(clean);
+        }
+        if(!store.edit().putString("history",new JSONArray(validated).toString()).commit())
+            throw new JSONException("Device storage could not save the restored backup.");
+        records.clear();
+        records.addAll(validated);
+        return records.size();
+    }
     private void trim(){while(records.size()>80)records.remove(0);}
     private boolean save(){return store.edit().putString("history",new JSONArray(records).toString()).commit();}
 }
