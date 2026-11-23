@@ -38,7 +38,7 @@ A retrieved source is not a verified claim. Citation checks identify source mark
 
 There is no alternate mock chatbot, keyword-based website generator, or second public chat implementation. `/quick-chat` redirects to the main workspace. A website previously saved by the old quick-chat page is imported into the project database once; its original local-storage copy is retained.
 
-## Free-only connections
+## Former Cloudflare free-service connections (historical; not active in the local-only runtime)
 
 Cloudflare uses the existing `AI` binding. Anonymous providers may be available without keys; they are best-effort services with their own restrictions. Other installed adapters remain inactive until a legitimate free account is connected and confirmed. Fifteen connection profiles do not mean fifteen active models or combined model weights.
 
@@ -51,7 +51,7 @@ The coordinator stops at its budgets, respects upstream limits and avoids paid f
 ```sh
 npm ci
 npm run build
-npm run deploy
+npm run offline:start
 ```
 
 The build runs syntax checks and the automated suite before generating `public/`. Browser workflow tests in `tests/ui-smoke.mjs` are optional development tests with explicitly identified model fixtures. They require an installed Playwright/Chromium test environment; no browser dependency is shipped to the phone.
