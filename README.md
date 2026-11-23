@@ -2,6 +2,8 @@
 
 > **Cloudflare shutdown — 23 November 2026.** The repository no longer contains an enabled Cloudflare deployment script or CI deploy/dry-run action. `wrangler.jsonc` retains an intentionally disabled tombstone for the existing Worker (`workers_dev: false`, empty routes and cron, no AI binding); historical Worker implementation remains only for regression/reference. This GitHub change **does not confirm** that the remote Worker, billing subscription, API tokens, linked deployments or Durable Objects have been removed in Cloudflare. See [shutdown checklist](docs/CLOUDFLARE_SHUTDOWN_2026-11-23.md). The browser's offline tools are **not yet equivalent** to a fully on-device general-purpose language model.
 
+> **OMNIFORGE Desktop beta in development:** A Windows desktop launcher with on-device hardware recommendations, user-selected Qwen3.5 models, no-terminal model download, and an opt-in Windows packaging workflow is available in [desktop/README.md](desktop/README.md). This is source code under test, **not yet a verified Windows installer**, a preloaded large AI model, or an online multi-user service. The user still needs to acquire model weights once, unless a licensed offline bundle is supplied.
+
 > **Local-only runtime available:** MICHELLE can use an installed Ollama language model without Cloudflare. This does not install a model automatically and is not GPT-6. Run `npm run offline:start` after downloading `qwen2.5:0.5b` and starting Ollama. Follow [local-only setup](docs/LOCAL_ONLY_SETUP.md). Cloudflare billing cancellation must still be completed by the account owner.
 
 OMNIFORGE by ADEN INC. is a conversation-first AI workspace. MICHELLE is the assistant; NEXUS prepares context, references and supported tool results. Connected language models generate explanations, writing and code. Website creation is one capability of the assistant.
@@ -36,7 +38,7 @@ A retrieved source is not a verified claim. Citation checks identify source mark
 
 There is no alternate mock chatbot, keyword-based website generator, or second public chat implementation. `/quick-chat` redirects to the main workspace. A website previously saved by the old quick-chat page is imported into the project database once; its original local-storage copy is retained.
 
-## Free-only connections
+## Former Cloudflare free-service connections (historical; not active in the local-only runtime)
 
 Cloudflare uses the existing `AI` binding. Anonymous providers may be available without keys; they are best-effort services with their own restrictions. Other installed adapters remain inactive until a legitimate free account is connected and confirmed. Fifteen connection profiles do not mean fifteen active models or combined model weights.
 
@@ -49,7 +51,7 @@ The coordinator stops at its budgets, respects upstream limits and avoids paid f
 ```sh
 npm ci
 npm run build
-npm run deploy
+npm run offline:start
 ```
 
 The build runs syntax checks and the automated suite before generating `public/`. Browser workflow tests in `tests/ui-smoke.mjs` are optional development tests with explicitly identified model fixtures. They require an installed Playwright/Chromium test environment; no browser dependency is shipped to the phone.
