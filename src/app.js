@@ -349,7 +349,7 @@ function rememberProviderDelay(capability,error){
  if(error?.status===429&&error.retryAfter>0)providerRetryUntil[capability]=Date.now()+error.retryAfter*1000;
 }
 async function sendImage(text,promptText,{reuse=false}={}){
- if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false){
+ if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false||['localhost','127.0.0.1','[::1]'].includes(location.hostname)){
   return localReply(text,'Image generation','Image generation needs a connected image provider. You can still open and download existing images in Photos.','IMAGE GENERATION UNAVAILABLE',{existing:reuse});
  }
  if(requestPending)return;
@@ -573,8 +573,9 @@ async function send(text){
  const quickTopic=!pendingImage&&route.action==='chat'&&!route.includeProject&&!attachedNotes&&
   !['write','code','create'].includes(project?.focus)&&window.OMNI_WIKIPEDIA?.definitionTopic(context.taskText(text));
  const inWebsiteWorkspace=project?.chatOnly===false;
- const automaticLookup=!!quickTopic&&!inWebsiteWorkspace;
- const localMode=window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false;
+ const automaticLookup=!!quickTopic&&!inWebsiteWorkspace&&!['localhost','127.0.0.1','[::1]'].includes(location.hostname);
+ const isLocalRuntime=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
+ const localMode=window.OMNI_OFFLINE_UI?.isOffline()||(navigator.onLine===false&&!isLocalRuntime);
  if(localMode)return canRetrieve||quickTopic?respondOffline(text):noReferenceForTask(text,route);
  if(!Pool&&!quickTopic){
   if(canRetrieve&&await respondOffline(text,{reason:'Cloud AI could not load. Showing saved information.',onlyIfFound:true}))return;
@@ -621,7 +622,7 @@ async function send(text){
   if(match){candidate=C.change(project,p=>{p.website.rawHtml=document.html;if(p.codeWorkspace)F.replaceDocument(p,document.html);p.chatOnly=false;}).project;answer='Website code received and saved on this device. Open Preview to inspect it, or export HTML. This has not published a live website.';}
   else if(allowsWebsite){answer=document.complete?'The AI returned website code that failed validation. Your previous website is unchanged. Ask for browser-only HTML, CSS and JavaScript.':'The AI returned incomplete HTML. Your previous website is unchanged. Ask for a shorter complete website.';}
 
-  const m=msg('assistant',answer,localEngine||'LIVE AI');m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount,toolsUsed:data.orchestration?.toolsUsed,warnings:data.quality?.warnings};clearVision();m.aiContent=allowsWebsite?(match?'[Earlier website output; use the current project when editing.]':'[Website generation failed validation; the previous project was kept.]'):data.reply;if(match)m.artifactType='website';m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';m.uncitedSources=data.quality?.sourceUse?.uncited===true;const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}candidate.messages.push(m);
+  const m=msg('assistant',answer,data.provider==='local-ollama'?'ON-DEVICE AI':(localEngine||'LIVE AI'));m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount,toolsUsed:data.orchestration?.toolsUsed,warnings:data.quality?.warnings};clearVision();m.aiContent=allowsWebsite?(match?'[Earlier website output; use the current project when editing.]':'[Website generation failed validation; the previous project was kept.]'):data.reply;if(match)m.artifactType='website';m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';m.uncitedSources=data.quality?.sourceUse?.uncited===true;const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}candidate.messages.push(m);
   await C.saveProject(candidate);project=candidate;await refreshList();await showAll();if(match&&mobileLayout.matches)switchMobile('preview');
   }catch(e){
   aiState='AI REQUEST FAILED';
