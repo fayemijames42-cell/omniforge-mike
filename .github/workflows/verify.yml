@@ -28,8 +28,8 @@ jobs:
         run: npm ci
       - name: Validate and build the application
         run: npm run build
-      - name: Check the Worker bundle without deploying
-        run: npx wrangler deploy --dry-run
+      - name: Verify local-only runtime and retirement controls
+        run: npm run offline:test
 
   browser-smoke:
     if: github.event.repository.private == false
