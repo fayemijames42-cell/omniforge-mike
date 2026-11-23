@@ -1,0 +1,76 @@
+name: OMNIFORGE Desktop
+on:
+  push:
+    paths:
+      - 'desktop/**'
+      - 'server/local-runtime.mjs'
+      - '.github/workflows/omniforge-desktop.yml'
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - 'server/local-runtime.mjs'
+      - '.github/workflows/omniforge-desktop.yml'
+  workflow_dispatch:
+    inputs:
+      package_windows:
+        description: 'Build large Windows installers with portable Ollama (may use Actions minutes/storage)'
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node --check desktop/main.cjs
+      - run: node --check desktop/preload.cjs
+      - run: node --check desktop/setup.js
+      - run: node --test desktop/tests/model-policy.test.mjs desktop/tests/runtime-launch.test.mjs
+  windows-installer:
+    if: github.event_name == 'workflow_dispatch' && inputs.package_windows
+    needs: verify
+    runs-on: windows-latest
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Download and verify official Ollama standalone engine
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path desktop/engine -Force | Out-Null
+          curl.exe --fail --location --retry 3 --output "$env:RUNNER_TEMP/ollama-windows.zip" "https://github.com/ollama/ollama/releases/latest/download/ollama-windows-amd64.zip"
+          if ($LASTEXITCODE -ne 0) { throw 'Official Ollama download failed' }
+          curl.exe --fail --location --retry 3 --output "$env:RUNNER_TEMP/ollama-sha256.txt" "https://github.com/ollama/ollama/releases/latest/download/sha256sum.txt"
+          if ($LASTEXITCODE -ne 0) { throw 'Official checksum download failed' }
+          $line = Get-Content "$env:RUNNER_TEMP/ollama-sha256.txt" | Where-Object { $_ -match 'ollama-windows-amd64\.zip' } | Select-Object -First 1
+          if (-not $line) { throw 'Missing expected checksum; cannot safely package Ollama' }
+          $expected = ($line.Trim() -split '\s+')[0].ToLowerInvariant()
+          $actual = (Get-FileHash "$env:RUNNER_TEMP/ollama-windows.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($expected -ne $actual) { throw 'Ollama SHA-256 mismatch; refusing to package' }
+          Expand-Archive "$env:RUNNER_TEMP/ollama-windows.zip" -DestinationPath desktop/engine -Force
+          if (-not (Test-Path desktop/engine/ollama.exe)) { throw 'Portable Ollama CLI not found in archive root' }
+      - name: Package Windows desktop builds
+        run: |
+          npm install --prefix desktop --no-audit --no-fund
+          npm run package:win --prefix desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: omniforge-windows-desktop-beta
+          path: dist-desktop/*.exe
+          retention-days: 3
+          if-no-files-found: error
