@@ -508,7 +508,7 @@ async function automaticReference(text,topic,canLookUp){
 }
 async function searchReferences(text,topic){
  if(!topic)throw Error('Enter a public topic for Wikipedia lookup.');
- if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false)return respondOffline(text,{query:topic});
+ if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false||['localhost','127.0.0.1','[::1]'].includes(location.hostname))return respondOffline(text,{query:topic});
  if(!Pool)return respondOffline(text,{query:topic,reason:'Wikipedia lookup could not load.'});
  if(waitingForProvider('reference')){
   await respondOffline(text,{query:topic,reason:'Wikipedia is waiting before the next lookup. Showing saved information.',onlyIfFound:true});
@@ -549,6 +549,10 @@ async function recallProject(text){
 }
 async function send(text){
  text=text.trim();if(!text||requestPending)return;
+ if(pendingImage&&['localhost','127.0.0.1','[::1]'].includes(location.hostname)){
+  clearVision();
+  return localReply(text,'Photo analysis','The installed offline text model cannot analyse this photo. The image was not sent to a cloud service. You can still use local photo editing tools.','LOCAL VISION UNAVAILABLE');
+ }
  const context=window.OMNI_CONTEXT;
  const mode=$('#composerMode');
  if(!pendingImage&&(mode.value==='reference'||/^\/wiki(?:\s|$)/i.test(text))){
