@@ -137,6 +137,18 @@
     free_confirmation: 'Confirm free account', development_only: 'Development access only', budget_reached: 'App budget reached', cooldown: 'Waiting for service reset' };
   function render() {
     if (!catalog) return;
+    if (catalog.localOnly) {
+      const provider=catalog.providers?.[0];
+      const ready=provider?.state==='ready';
+      $('#poolSummary').textContent=ready
+        ? 'On-device AI ready · '+(provider?.model||'local model')+' · no Cloudflare or paid API.'
+        : 'On-device AI not ready · run Ollama and install '+(provider?.model||'qwen2.5:0.5b')+'. Local tools still work.';
+      $('#ownerSetup').hidden=true;$('#ownerUnlock').hidden=true;$('#ownerLock').hidden=true;
+      $('#connectionList').textContent=ready
+        ? 'MICHELLE is using a local model. Nothing is sent to a cloud AI provider.'
+        : 'Run: ollama pull '+(provider?.model||'qwen2.5:0.5b')+' (once while online). Then start the local service.';
+      return;
+    }
     const chat = catalog.providers.filter(p => p.capabilities.includes('chat'));
     const ready = chat.filter(p => p.state === 'ready').length;
     const connected = chat.filter(p => ['ready', 'cooldown', 'budget_reached'].includes(p.state)).length;
