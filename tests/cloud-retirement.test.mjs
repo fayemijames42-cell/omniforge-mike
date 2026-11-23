@@ -27,3 +27,9 @@ test('Retired handler and preserved namespaces return Gone without using a bindi
     }
   }
 });
+
+test('Cloudflare deployment is blocked even when npm deploy is invoked', async () => {
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url)));
+  assert.equal(pkg.scripts.deploy, 'node tools/cloud-disabled.mjs');
+  assert.doesNotMatch(pkg.scripts['offline:start'], /wrangler|cloudflare/i);
+});
