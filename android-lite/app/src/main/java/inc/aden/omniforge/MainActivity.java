@@ -178,7 +178,7 @@ public final class MainActivity extends Activity {
         bottom.setBackgroundColor(0xff101c2d);
         LinearLayout inputRow=row();
         composer=new EditText(this);
-        composer.setHint("Ask MICHELLE or calculate 2 × 3…");
+        composer.setHint("Ask MICHELLE or calculate 2 * 3…");
         composer.setHintTextColor(0xff8294b1);composer.setTextColor(LIGHT);
         composer.setTextSize(14);composer.setMinLines(1);composer.setMaxLines(4);
         composer.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
