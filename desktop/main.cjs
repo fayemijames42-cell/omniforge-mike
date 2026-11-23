@@ -149,7 +149,7 @@ async function openWorkspace(model){
    localServer=null;
   }
   const runtime=await import(pathToFileURL(runtimeFile).href);
-  localServer=runtime.startLocalServer({port:4321,host:'127.0.0.1',publicDir,model});
+  localServer=runtime.startLocalServer({port:4321,host:'127.0.0.1',publicDir,model,desktopMode:true});
   try{await once(localServer,'listening')}
   catch{localServer=null;throw Error('Port 4321 is in use. Close any other local OMNIFORGE server, then try again. No saved data has been touched.')}
   localPort=4321;
