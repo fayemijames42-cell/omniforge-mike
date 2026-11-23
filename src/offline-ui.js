@@ -1,7 +1,7 @@
 /* OMNIFORGE offline/local reference controls; never makes inference calls. */
 (function(root){'use strict';
 const K=root.OMNI_KNOWLEDGE,$=s=>document.querySelector(s),KEY='omniforge-local-mode';
-const LOCAL_RUNTIME=['localhost','127.0.0.1','[::1]'].includes(root.location?.hostname);
+const LOCAL_RUNTIME=!!document.querySelector('meta[name="omniforge-local-runtime"][content="true"]');
 let active=false;
 try{active=localStorage.getItem(KEY)==='true'}catch{}
 function isOffline(){return active}
