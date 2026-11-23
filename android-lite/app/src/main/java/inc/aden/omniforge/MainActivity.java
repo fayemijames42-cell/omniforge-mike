@@ -284,11 +284,22 @@ public final class MainActivity extends Activity {
         if(busy){updateStatus("Stop the current generation before importing another model.");return;}
         new AlertDialog.Builder(this)
                 .setTitle("Offline language model")
-                .setMessage("Choose a trusted GGUF model file from your phone. For this 2 GB device, start with Qwen2.5 0.5B Instruct Q4_K_M. Importing requires roughly 450 MB free plus working space. The model remains private; nothing is uploaded.")
+                .setMessage("Choose a trusted GGUF model file from your phone. For this 2 GB device, start with Qwen2.5 0.5B Instruct Q4_K_M. The 491 MB model needs at least about 650 MB available storage for import and temporary files. The model remains private; nothing is uploaded.")
                 .setPositiveButton("Choose GGUF",(d,w)->{
                     Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
                     intent.setType("*/*");intent.addCategory(Intent.CATEGORY_OPENABLE);
                     startActivityForResult(intent,IMPORT_MODEL);
+                })
+                .setNeutralButton("Get official model",(d,w)->{
+                    new AlertDialog.Builder(this)
+                            .setTitle("Model download · about 491 MB")
+                            .setMessage("This opens the official Qwen model page in your browser. Downloading approximately 491 MB may incur mobile-data charges. You can also transfer the GGUF file from another device. After importing it, MICHELLE runs the model offline.")
+                            .setPositiveButton("Open official page",(confirm,choice)->{
+                                try{
+                                    startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/blob/main/qwen2.5-0.5b-instruct-q4_k_m.gguf")));
+                                }catch(android.content.ActivityNotFoundException e){updateStatus("No web browser is installed. Transfer a trusted GGUF file to the phone instead.");}
+                            })
+                            .setNegativeButton("Cancel",null).show();
                 })
                 .setNegativeButton("Cancel",null).show();
     }
