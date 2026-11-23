@@ -13,8 +13,6 @@ jobs:
     if: github.event.repository.private == false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    env:
-      WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -28,8 +26,6 @@ jobs:
         run: npm ci
       - name: Validate and build the application
         run: npm run build
-      - name: Check the Worker bundle without deploying
-        run: npx wrangler deploy --dry-run
 
   browser-smoke:
     if: github.event.repository.private == false

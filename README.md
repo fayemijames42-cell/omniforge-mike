@@ -1,8 +1,10 @@
 # OMNIFORGE · MICHELLE / NEXUS
 
+> **Cloudflare shutdown — 23 November 2026.** The repository no longer contains an enabled Cloudflare deployment script or CI deploy/dry-run action. `wrangler.jsonc` retains an intentionally disabled tombstone for the existing Worker (`workers_dev: false`, empty routes and cron, no AI binding); historical Worker implementation remains only for regression/reference. This GitHub change **does not confirm** that the remote Worker, billing subscription, API tokens, linked deployments or Durable Objects have been removed in Cloudflare. See [shutdown checklist](docs/CLOUDFLARE_SHUTDOWN_2026-11-23.md). The browser's offline tools are **not yet equivalent** to a fully on-device general-purpose language model.
+
 OMNIFORGE by ADEN INC. is a conversation-first AI workspace. MICHELLE is the assistant; NEXUS prepares context, references and supported tool results. Connected language models generate explanations, writing and code. Website creation is one capability of the assistant.
 
-Public app: https://omniforge-mike.fayemijames42.workers.dev/
+Former Cloudflare app: https://omniforge-mike.fayemijames42.workers.dev/ (retired in repository configuration; Cloudflare-account deletion and cancellation require separate verification).
 
 ## Current implementation — v0.11.7
 
