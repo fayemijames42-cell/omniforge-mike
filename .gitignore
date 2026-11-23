@@ -3,3 +3,12 @@ public/
 .wrangler/
 .dev.vars
 .env
+
+# Desktop beta: engine and model weights are downloaded/bundled only in build jobs
+desktop/engine/*.exe
+desktop/engine/*.dll
+desktop/engine/*.zip
+desktop/engine/runners/
+desktop/offline-models/blobs/
+desktop/offline-models/manifests/
+dist-desktop/
