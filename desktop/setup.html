@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>OMNIFORGE · Set up MICHELLE</title><link rel="stylesheet" href="./style.css"></head>
+<body><main class="layout">
+<header><div class="logo">O<span>✦</span></div><div class="brand"><strong>OMNIFORGE</strong><span>MICHELLE · by ADEN INC.</span></div><span class="offline">PRIVATE BY DESIGN</span></header>
+<section class="hero"><div class="eyebrow">YOUR AI. YOUR DEVICE.</div><h1>Make MICHELLE yours.</h1><p>Choose how powerful your AI should be. After a one-time model download—or with a model bundle from someone you trust—your conversations run locally, without Cloudflare or paid AI subscriptions.</p></section>
+<section class="machine" aria-live="polite" id="machine">Checking your computer and local AI engine…</section>
+<section class="models"><div class="section-head"><h2>Choose your AI edition</h2><span id="recommendation"></span></div><div class="cards" id="modelCards" role="radiogroup" aria-label="AI model edition"></div></section>
+<div class="message" id="message" role="status" aria-live="polite">Model weights are not included in the default installer. A download is necessary once unless a verified offline model pack is supplied.</div>
+<div class="progress" id="progress" role="status" aria-live="polite"></div>
+<div class="actions"><button id="install" type="button" class="primary">Download selected AI model</button><button id="open" type="button" class="secondary">Open OMNIFORGE</button></div>
+<footer><strong>Offline means this device.</strong> No online accounts or cloud synchronisation. Models use RAM and disk space, so larger models may run slowly. Local conversations and projects stay on this device; export backups regularly. AI answers require checking.</footer>
+</main><script src="./setup.js"></script></body></html>
