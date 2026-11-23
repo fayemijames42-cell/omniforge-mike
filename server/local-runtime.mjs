@@ -62,7 +62,7 @@ export function createLocalHandler({publicDir=resolve('public'),model=process.en
         const state=await providerStatus();json(res,200,{ok:true,mode:'local-only',cloudflare:false,model,modelReady:state.installed,providerServiceReady:state.available});return;
       }
       if(pathname==='/api/providers' && req.method==='GET'){
-        const state=await providerStatus();json(res,200,{localOnly:true,ownerSetup:true,providers:[{id:'local-ollama',name:'On-device Ollama',model,models:[model],capabilities:['chat','code'],state:state.installed?'ready':'needs_model',note:state.available?'Install the model with: ollama pull '+model:'Run Ollama locally and install the model: ollama pull '+model,enabled:true,hasKey:false,freeConfirmed:true}],parked:[]});return;
+        const state=await providerStatus();json(res,200,{localOnly:true,ownerSetup:true,providers:[{id:'local-ollama',name:'On-device Ollama',model,models:[model],capabilities:['chat','code'],state:state.installed?'ready':'needs_model',note:desktopMode?'Use the OMNIFORGE desktop AI model settings to install or select a model.':state.available?'Install the model with: ollama pull '+model:'Run Ollama locally and install the model: ollama pull '+model,enabled:true,hasKey:false,freeConfirmed:true}],parked:[]});return;
       }
       if(pathname==='/api/chat' && req.method==='POST'){
         const input=await bodyOf(req);
