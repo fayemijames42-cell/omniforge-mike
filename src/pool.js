@@ -35,7 +35,7 @@
     const valid = [seconds, data.retryAfter].map(Number).filter(value => Number.isFinite(value) && value > 0);
     return valid.length ? Math.ceil(Math.max(...valid)) : null;
   }
-  async function request(path, { body, method = body ? 'POST' : 'GET', signal, timeout = 110000, owner = false } = {}) {
+  async function request(path, { body, method = body ? 'POST' : 'GET', signal, timeout = (document.querySelector('meta[name="omniforge-local-runtime"]')?250000:110000), owner = false } = {}) {
     return withDeadline(async requestSignal => {
       const headers = {};
       if (body && !(body instanceof FormData)) headers['content-type'] = 'application/json';
