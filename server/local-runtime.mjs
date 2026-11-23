@@ -82,7 +82,11 @@ export function createLocalHandler({publicDir=resolve('public'),model=process.en
       if(full!==base&&!full.startsWith(base+sep)){error(res,403,'Not available.','ACCESS_DENIED');return;}
       const file=await stat(full).catch(()=>null);
       if(!file?.isFile()){error(res,404,'File not found.','NOT_FOUND');return;}
-      const data=await readFile(full);
+      let data=await readFile(full);
+      if(relative==='index.html'){
+        const html=data.toString('utf8');
+        if(html.includes('</head>'))data=Buffer.from(html.replace('</head>', '<meta name="omniforge-local-runtime" content="true"></head>'));
+      }
       res.writeHead(200,{'content-type':MIME[extname(full)]||'application/octet-stream','cache-control':relative==='index.html'?'no-cache':'public, max-age=300','x-content-type-options':'nosniff'});
       res.end(req.method==='HEAD'?undefined:data);
     }catch(e){error(res,e.status||500,e.status?e.message:'Local server error.',e.status?'BAD_REQUEST':'LOCAL_ERROR');}
