@@ -67,7 +67,9 @@ export function createLocalHandler({publicDir=resolve('public'),model=process.en
         const input=await bodyOf(req);
         const messages=promptMessages(input);
         let result;
-        try{result=await ollama('/api/chat',{model,messages,stream:false,options:{num_ctx:4096,temperature:0.55,num_predict:1400}},120000)}
+        const modern=model.startsWith('qwen3.5:');
+        const large=modern&&/:(?:9b|27b)$/.test(model);
+        try{result=await ollama('/api/chat',{model,messages,stream:false,...(modern?{think:false}:{}),options:{num_ctx:large?8192:4096,temperature:0.55,num_predict:large?2400:1400}},modern?240000:120000)}
         catch(e){error(res,503,'Local AI is unavailable. Start Ollama and install '+model+' (once). Your saved tools and knowledge still work.','LOCAL_MODEL_UNAVAILABLE');return;}
         const reply=typeof result?.message?.content==='string'?result.message.content.trim():'';
         if(!reply){error(res,502,'The local model returned no answer.','EMPTY_LOCAL_RESPONSE');return;}
