@@ -1,7 +1,5 @@
 name: Publish public reference snapshot
 on:
-  schedule:
-    - cron: '37 3 * * *'
   workflow_dispatch:
   push:
     branches: [main]
