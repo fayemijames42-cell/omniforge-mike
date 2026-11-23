@@ -1,5 +1,7 @@
 # OMNIFORGE · MICHELLE / NEXUS
 
+> **November 2026 offline transition:** The active source branch for local-only operation is `offline/cloudflare-free-local-20261123`. Cloudflare billing is **not** canceled by a code change: cancel Workers Paid under Cloudflare **Billing → Subscriptions**, verify any outstanding charges, and disable/remove the live Worker in the Cloudflare dashboard. `npm run deploy` deliberately fails in the transition branch. To run MICHELLE on your own computer with a previously downloaded Ollama model, follow [local-only setup](docs/LOCAL_ONLY_SETUP.md). The original remote-provider details below describe the historical hosted release, not the local runtime.
+
 OMNIFORGE by ADEN INC. is a conversation-first AI workspace. MICHELLE is the assistant; NEXUS prepares context, references and supported tool results. Connected language models generate explanations, writing and code. Website creation is one capability of the assistant.
 
 Public app: https://omniforge-mike.fayemijames42.workers.dev/
