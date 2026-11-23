@@ -48,3 +48,26 @@ test('API is local-only and unsupported features clearly disclose limitations',a
     const invalid=await fetch(base+'/api/chat',{method:'POST',body:'invalid'});assert.equal(invalid.status,400);
   });
 });
+
+test('Pro desktop model uses non-thinking Qwen inference without remote dependencies',async()=>{
+ let calls=0;
+ const directory=await mkdtemp(join(tmpdir(),'omniforge-desktop-pro-'));
+ const server=createServer(createLocalHandler({publicDir:directory,model:'qwen3.5:9b',ollamaFetch:(url,options)=>{
+   if(url.endsWith('/tags'))return Promise.resolve(Response.json({models:[{name:'qwen3.5:9b'}]}));
+   const data=JSON.parse(options.body);
+   assert.equal(data.model,'qwen3.5:9b');
+   assert.equal(data.think,false);
+   assert.equal(data.options.num_ctx,8192);
+   assert.equal(data.options.num_predict,2400);
+   calls++;
+   return Promise.resolve(Response.json({message:{content:'A local Qwen response.'}}));
+ }}));
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ try{
+   const base='http://127.0.0.1:'+server.address().port;
+   const r=await fetch(base+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'Explain circuits'})});
+   assert.equal(r.status,200);
+   assert.equal((await r.json()).reply,'A local Qwen response.');
+   assert.equal(calls,1);
+ }finally{await new Promise(resolve=>server.close(resolve));await rm(directory,{recursive:true,force:true})}
+});
