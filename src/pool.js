@@ -130,6 +130,7 @@
     return '<details class="response-details"><summary>Response details</summary><p>' + E(data.providerName || data.provider || 'AI provider') +
       ' · ' + E(data.model || 'model not reported') + (data.fallbackCount ? ' · ' + E(String(data.fallbackCount)) + ' fallback(s)' : '') +
       (data.attribution ? '<br>' + E(data.attribution) : '') + '</p>' +
+      (data.reasoning?.mode==='careful'?'<p>Reasoning: '+E(data.reasoning.selfReviewed?'draft + local self-review':'draft; review skipped or incomplete')+'. Not independent fact-checking.</p>':'')+
       (Array.isArray(data.toolsUsed)&&data.toolsUsed.length?'<p>Used: '+E(data.toolsUsed.slice(0,5).join(', '))+'</p>':'')+
       (Array.isArray(data.warnings)?data.warnings.slice(0,2).map(w=>'<p>'+E(w)+'</p>').join(''):'')+'</details>';
   }

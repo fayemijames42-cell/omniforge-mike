@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { answerWithReasoning, calculateArithmetic } from './local-reasoner.mjs';
 
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.json':'application/json; charset=utf-8', '.xml':'application/xml; charset=utf-8', '.svg':'image/svg+xml', '.png':'image/png', '.jpg':'image/jpeg', '.webp':'image/webp' };
 const DEFAULT_MODEL = 'qwen2.5:0.5b';
@@ -65,14 +66,27 @@ export function createLocalHandler({publicDir=resolve('public'),model=process.en
       }
       if(pathname==='/api/chat' && req.method==='POST'){
         const input=await bodyOf(req);
+        if(!input||typeof input!=='object'||Array.isArray(input)){error(res,400,'Enter a valid request object.','INVALID_REQUEST');return;}
         const messages=promptMessages(input);
-        let result;
-        try{result=await ollama('/api/chat',{model,messages,stream:false,options:{num_ctx:4096,temperature:0.55,num_predict:1400}},120000)}
+        const math=calculateArithmetic(input.message);
+        if(math){
+          json(res,200,{live:false,toolOnly:true,reply:math.expression+' = '+math.formatted,
+            provider:'local-calculator',providerName:'Offline arithmetic parser',model:'deterministic arithmetic',
+            reasoning:{mode:'tool',passes:0,selfReviewed:false,factChecked:true},orchestration:{toolsUsed:['arithmetic parser']}});return;
+        }
+        const infer=async(prompt,{timeout,num_predict,temperature})=>{
+          const result=await ollama('/api/chat',{model,messages:prompt,stream:false,options:{num_ctx:4096,temperature,num_predict}},timeout);
+          return typeof result?.message?.content==='string'?result.message.content:'';
+        };
+        let outcome;
+        try{outcome=await answerWithReasoning({input,messages,infer});}
         catch(e){error(res,503,'Local AI is unavailable. Start Ollama and install '+model+' (once). Your saved tools and knowledge still work.','LOCAL_MODEL_UNAVAILABLE');return;}
-        const reply=typeof result?.message?.content==='string'?result.message.content.trim():'';
+        const reply=outcome.reply;
         if(!reply){error(res,502,'The local model returned no answer.','EMPTY_LOCAL_RESPONSE');return;}
         const fullHTML=/<(?:!doctype\s+html|html\b)/i.test(reply)&&/<\/html\s*>/i.test(reply);
-        json(res,200,{live:true,reply,provider:'local-ollama',providerName:'On-device Ollama',model,artifact:fullHTML?{type:'website',valid:true}:null,quality:{warnings:['Generated locally; verify important claims and generated code.']}});return;
+        json(res,200,{live:true,reply,provider:'local-ollama',providerName:'On-device Ollama',model,
+          artifact:fullHTML?{type:'website',valid:true}:null,reasoning:outcome.reasoning,
+          quality:{warnings:['Generated locally; verify important claims and generated code.',...outcome.warnings]}});return;
       }
       if(pathname.startsWith('/api/')){error(res,501,'This feature has no offline AI engine. Existing local photos, notes, backups and code tools remain available.','LOCAL_FEATURE_UNAVAILABLE');return;}
       if(req.method!=='GET'&&req.method!=='HEAD'){error(res,405,'Method not allowed.','METHOD_NOT_ALLOWED');return;}

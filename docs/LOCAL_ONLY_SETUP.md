@@ -26,3 +26,9 @@ The small model is significantly less capable than ChatGPT. It may be slow or in
 ### Security and storage
 
 Model prompts, recent messages, selected user-approved notes, and existing site source are processed on the current machine. Never expose the local HTTP server publicly. Back up browser data with the existing ZIP/JSON and knowledge XML exporters before clearing site data. Installing a model and starting a local server are prerequisites; this release does not magically embed a large model in the browser.
+
+## Adaptive local reasoning
+
+MICHELLE now uses a bounded local reasoning controller. Ordinary chat makes one Ollama call; complex comparisons, implementation, website work and multi-step questions can use a second local self-review call. A failed review preserves the usable draft; oversized inputs skip review. Simple arithmetic can be checked deterministically without the language model. Response details distinguish a completed second pass from a single draft.
+
+The self-review uses the **same model**, so it is not independent fact-checking and cannot reproduce GPT-6's model weights or capabilities. All inference stays on \`127.0.0.1:11434\`. For API users, \`reasoningMode\` supports \`auto\` (default), \`quick\`, and \`careful\`. The small default Qwen model may still make mistakes or run slowly; validate important outputs.

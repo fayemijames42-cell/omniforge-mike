@@ -48,3 +48,53 @@ test('API is local-only and unsupported features clearly disclose limitations',a
     const invalid=await fetch(base+'/api/chat',{method:'POST',body:'invalid'});assert.equal(invalid.status,400);
   });
 });
+
+test('Complex tasks get two local inference passes and honest metadata',async()=>{
+  const calls=[];const fakeReview=async (url,opts)=>{
+    assert.match(url,/^http:\/\/127\.0\.0\.1:11434\/api\/chat$/);
+    calls.push(JSON.parse(opts.body));
+    return Response.json({message:{content:calls.length===1?'Draft about storage.':'IndexedDB uses browser object stores; SQLite uses relational tables.'}});
+  };
+  await withRuntime(fakeReview,async base=>{
+    const r=await fetch(base+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({message:'Compare SQLite and IndexedDB, then explain the tradeoffs.'})});
+    assert.equal(r.status,200);const data=await r.json();
+    assert.equal(data.reasoning.mode,'careful');assert.equal(data.reasoning.passes,2);
+    assert.equal(data.reasoning.selfReviewed,true);assert.equal(data.reasoning.factChecked,false);
+    assert.equal(calls.length,2);assert.match(data.reply,/relational tables/);
+  });
+});
+test('Failed local self-review keeps draft',async()=>{
+  let calls=0;
+  await withRuntime(async()=>++calls===1?Response.json({message:{content:'Useful first draft.'}}):Promise.reject(Error('Unavailable')),async base=>{
+    const r=await fetch(base+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({message:'Carefully analyse this architecture.'})});
+    assert.equal(r.status,200);const data=await r.json();
+    assert.equal(data.reply,'Useful first draft.');assert.equal(data.reasoning.selfReviewed,false);
+  });
+});
+test('Arithmetic goes through a deterministic local parser without a model call',async()=>{
+  let called=0;
+  await withRuntime(()=>{called++;throw Error('Model called');},async base=>{
+    const r=await fetch(base+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({message:'Calculate (12 + 8) * 3^2'})});
+    assert.equal(r.status,200);const data=await r.json();
+    assert.equal(data.reply,'(12 + 8) * 3^2 = 180');
+    assert.equal(data.provider,'local-calculator');assert.equal(data.toolOnly,true);
+    assert.equal(called,0);
+  });
+});
+test('Incomplete review cannot replace complete website HTML',async()=>{
+  let count=0;const html='<!doctype html><html><head><title>Demo</title></head><body>Demo</body></html>';
+  await withRuntime(async()=>Response.json({message:{content:++count===1?html:'Looks good.'}}),async base=>{
+    const r=await fetch(base+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'Create a website for a library'})});
+    assert.equal(r.status,200);const data=await r.json();
+    assert.equal(data.reply,html);assert.equal(data.artifact.type,'website');assert.equal(data.reasoning.selfReviewed,false);
+  });
+});
+test('Null JSON input returns validation error instead of HTTP 500',async()=>{
+  await withRuntime(fake,async base=>{
+    const r=await fetch(base+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:'null'});
+    assert.equal(r.status,400);
+  });
+});
