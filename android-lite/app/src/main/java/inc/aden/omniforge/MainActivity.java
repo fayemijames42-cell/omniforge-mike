@@ -290,6 +290,17 @@ public final class MainActivity extends Activity {
                     intent.setType("*/*");intent.addCategory(Intent.CATEGORY_OPENABLE);
                     startActivityForResult(intent,IMPORT_MODEL);
                 })
+                .setNeutralButton("Get official model",(d,w)->{
+                    new AlertDialog.Builder(this)
+                            .setTitle("Model download · about 491 MB")
+                            .setMessage("This opens the official Qwen model page in your browser. Downloading approximately 491 MB may incur mobile-data charges. You can also transfer the GGUF file from another device. After importing it, MICHELLE runs the model offline.")
+                            .setPositiveButton("Open official page",(confirm,choice)->{
+                                try{
+                                    startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/blob/main/qwen2.5-0.5b-instruct-q4_k_m.gguf")));
+                                }catch(android.content.ActivityNotFoundException e){updateStatus("No web browser is installed. Transfer a trusted GGUF file to the phone instead.");}
+                            })
+                            .setNegativeButton("Cancel",null).show();
+                })
                 .setNegativeButton("Cancel",null).show();
     }
     private void loadModel(){
