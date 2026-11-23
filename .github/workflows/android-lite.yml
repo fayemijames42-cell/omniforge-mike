@@ -29,6 +29,9 @@ jobs:
           mkdir -p /tmp/omni-java-tests
           javac -d /tmp/omni-java-tests android-lite/app/src/main/java/inc/aden/omniforge/OfflineMath.java android-lite/qa/OfflineMathTest.java
           java -cp /tmp/omni-java-tests inc.aden.omniforge.OfflineMathTest
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
       - name: Install Android SDK, NDK and CMake
         shell: bash
         run: |
