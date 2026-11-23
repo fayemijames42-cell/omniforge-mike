@@ -26,6 +26,8 @@ jobs:
         run: npm ci
       - name: Validate and build the application
         run: npm run build
+      - name: Verify local model API and retirement safeguards
+        run: npm run offline:test
 
   browser-smoke:
     if: github.event.repository.private == false

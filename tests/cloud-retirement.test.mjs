@@ -27,3 +27,9 @@ test('Retired handler and preserved namespaces return Gone without using a bindi
     }
   }
 });
+
+test('Cloud deployment scripts are absent and local start is vendor-neutral',async()=>{
+  const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url)));
+  assert.equal(Object.hasOwn(pkg.scripts,'deploy'),false);
+  assert.doesNotMatch(pkg.scripts['offline:start'],/wrangler|cloudflare/i);
+});

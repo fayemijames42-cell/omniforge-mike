@@ -349,7 +349,7 @@ function rememberProviderDelay(capability,error){
  if(error?.status===429&&error.retryAfter>0)providerRetryUntil[capability]=Date.now()+error.retryAfter*1000;
 }
 async function sendImage(text,promptText,{reuse=false}={}){
- if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false){
+ if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false||!!document.querySelector('meta[name="omniforge-local-runtime"][content="true"]')){
   return localReply(text,'Image generation','Image generation needs a connected image provider. You can still open and download existing images in Photos.','IMAGE GENERATION UNAVAILABLE',{existing:reuse});
  }
  if(requestPending)return;
@@ -508,7 +508,7 @@ async function automaticReference(text,topic,canLookUp){
 }
 async function searchReferences(text,topic){
  if(!topic)throw Error('Enter a public topic for Wikipedia lookup.');
- if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false)return respondOffline(text,{query:topic});
+ if(window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false||!!document.querySelector('meta[name="omniforge-local-runtime"][content="true"]'))return respondOffline(text,{query:topic});
  if(!Pool)return respondOffline(text,{query:topic,reason:'Wikipedia lookup could not load.'});
  if(waitingForProvider('reference')){
   await respondOffline(text,{query:topic,reason:'Wikipedia is waiting before the next lookup. Showing saved information.',onlyIfFound:true});
@@ -549,6 +549,10 @@ async function recallProject(text){
 }
 async function send(text){
  text=text.trim();if(!text||requestPending)return;
+ if(pendingImage&&!!document.querySelector('meta[name="omniforge-local-runtime"][content="true"]')){
+  clearVision();
+  return localReply(text,'Photo analysis','The installed offline text model cannot analyse this photo. The image was not sent to a cloud service. You can still use local photo editing tools.','LOCAL VISION UNAVAILABLE');
+ }
  const context=window.OMNI_CONTEXT;
  const mode=$('#composerMode');
  if(!pendingImage&&(mode.value==='reference'||/^\/wiki(?:\s|$)/i.test(text))){
@@ -573,8 +577,9 @@ async function send(text){
  const quickTopic=!pendingImage&&route.action==='chat'&&!route.includeProject&&!attachedNotes&&
   !['write','code','create'].includes(project?.focus)&&window.OMNI_WIKIPEDIA?.definitionTopic(context.taskText(text));
  const inWebsiteWorkspace=project?.chatOnly===false;
- const automaticLookup=!!quickTopic&&!inWebsiteWorkspace;
- const localMode=window.OMNI_OFFLINE_UI?.isOffline()||navigator.onLine===false;
+ const automaticLookup=!!quickTopic&&!inWebsiteWorkspace&&!!!document.querySelector('meta[name="omniforge-local-runtime"][content="true"]');
+ const isLocalRuntime=!!document.querySelector('meta[name="omniforge-local-runtime"][content="true"]');
+ const localMode=window.OMNI_OFFLINE_UI?.isOffline()||(navigator.onLine===false&&!isLocalRuntime);
  if(localMode)return canRetrieve||quickTopic?respondOffline(text):noReferenceForTask(text,route);
  if(!Pool&&!quickTopic){
   if(canRetrieve&&await respondOffline(text,{reason:'Cloud AI could not load. Showing saved information.',onlyIfFound:true}))return;
@@ -621,7 +626,7 @@ async function send(text){
   if(match){candidate=C.change(project,p=>{p.website.rawHtml=document.html;if(p.codeWorkspace)F.replaceDocument(p,document.html);p.chatOnly=false;}).project;answer='Website code received and saved on this device. Open Preview to inspect it, or export HTML. This has not published a live website.';}
   else if(allowsWebsite){answer=document.complete?'The AI returned website code that failed validation. Your previous website is unchanged. Ask for browser-only HTML, CSS and JavaScript.':'The AI returned incomplete HTML. Your previous website is unchanged. Ask for a shorter complete website.';}
 
-  const m=msg('assistant',answer,localEngine||'LIVE AI');m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount,toolsUsed:data.orchestration?.toolsUsed,warnings:data.quality?.warnings};clearVision();m.aiContent=allowsWebsite?(match?'[Earlier website output; use the current project when editing.]':'[Website generation failed validation; the previous project was kept.]'):data.reply;if(match)m.artifactType='website';m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';m.uncitedSources=data.quality?.sourceUse?.uncited===true;const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}candidate.messages.push(m);
+  const m=msg('assistant',answer,data.provider==='local-ollama'?'ON-DEVICE AI':(localEngine||'LIVE AI'));m.receipt={provider:data.provider,providerName:data.providerName,model:data.model,fallbackCount:data.fallbackCount,toolsUsed:data.orchestration?.toolsUsed,warnings:data.quality?.warnings};clearVision();m.aiContent=allowsWebsite?(match?'[Earlier website output; use the current project when editing.]':'[Website generation failed validation; the previous project was kept.]'):data.reply;if(match)m.artifactType='website';m.model=typeof data.model==='string'?data.model.slice(0,100):'';m.sources=Array.isArray(data.sources)?data.sources.slice(0,4):[];m.researchScope=data.research?.scope||'';m.retrievedAt=data.research?.retrievedAt||'';m.researchNote=typeof data.research?.note==='string'?data.research.note.slice(0,360):'';m.uncitedSources=data.quality?.sourceUse?.uncited===true;const vector=window.OMNI_VECTOR?.convertResponse(data.reply);if(vector&&!match){m.svgMarkup=vector.svg;m.svgSummary=vector.explanation.replace(/```(?:svg|xml)?/gi,'').trim();}candidate.messages.push(m);
   await C.saveProject(candidate);project=candidate;await refreshList();await showAll();if(match&&mobileLayout.matches)switchMobile('preview');
   }catch(e){
   aiState='AI REQUEST FAILED';
