@@ -41,6 +41,10 @@
       {
         "from": "offline-models",
         "to": "offline-models"
+      },
+      {
+        "from": "../server/local-reasoner.mjs",
+        "to": "server/local-reasoner.mjs"
       }
     ],
     "win": {
