@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class MainActivity extends Activity {
     private static final int IMPORT_MODEL=41;
     private static final int EXPORT_HISTORY=42;
+    private static final int RESTORE_HISTORY=43;
     private static final int BACKGROUND=0xff09121f;
     private static final int SURFACE=0xff142238;
     private static final int EDGE=0xff304563;
@@ -150,8 +151,8 @@ public final class MainActivity extends Activity {
         Button noteButton=button("Notes",false);
         noteButton.setOnClickListener(v->openNotes());
         tools.addView(noteButton,margins(0,dp(44),8,0,0,0));
-        Button export=button("Export",false);
-        export.setOnClickListener(v->exportHistory());
+        Button export=button("Backup",false);
+        export.setOnClickListener(v->showBackupOptions());
         tools.addView(export,margins(0,dp(44),8,0,0,0));
         top.addView(tools,margins(-1,dp(44),0,13,0,0));
 
@@ -318,6 +319,7 @@ public final class MainActivity extends Activity {
         if(result!=RESULT_OK||data==null||data.getData()==null)return;
         if(request==IMPORT_MODEL)importModel(data.getData());
         if(request==EXPORT_HISTORY)writeExport(data.getData());
+        if(request==RESTORE_HISTORY)restoreHistory(data.getData());
     }
     private void importModel(Uri uri){
         if(!active.compareAndSet(false,true)){updateStatus("Another file import is in progress.");return;}
@@ -357,6 +359,41 @@ public final class MainActivity extends Activity {
                 loadModel();
             }catch(Throwable error){partial.delete();updateStatus("Model import failed: "+error.getMessage());}
             finally{active.set(false);}
+        });
+    }
+    private void showBackupOptions(){
+        new AlertDialog.Builder(this).setTitle("Local conversation backup")
+                .setMessage("Export your saved chat as JSON, or restore a previously exported OMNIFORGE Android Lite backup. Restoring replaces the current saved conversation.")
+                .setPositiveButton("Export",(d,w)->exportHistory())
+                .setNeutralButton("Restore",(d,w)->confirmRestore())
+                .setNegativeButton("Cancel",null).show();
+    }
+    private void confirmRestore(){
+        new AlertDialog.Builder(this).setTitle("Replace saved conversation?")
+                .setMessage("Restoring a backup replaces your current conversation. Export your existing chat first if you want to keep it. Private notes and the local model are not affected.")
+                .setPositiveButton("Choose backup",(d,w)->{
+                    Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    intent.setType("application/json");intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    startActivityForResult(intent,RESTORE_HISTORY);
+                })
+                .setNegativeButton("Cancel",null).show();
+    }
+    private void restoreHistory(Uri uri){
+        if(busy){updateStatus("Stop the current model response before restoring a backup.");return;}
+        worker.execute(()->{
+            try(InputStream in=getContentResolver().openInputStream(uri)){
+                if(in==null)throw new IllegalStateException("Cannot open the selected backup.");
+                java.io.ByteArrayOutputStream buffer=new java.io.ByteArrayOutputStream();
+                byte[] chunk=new byte[8192];int count;
+                while((count=in.read(chunk))>=0){
+                    if(count==0)continue;
+                    if(buffer.size()+count>1100000)throw new IllegalStateException("Backup is larger than the 1 MB safety limit.");
+                    buffer.write(chunk,0,count);
+                }
+                int restored=history.importJSON(new String(buffer.toByteArray(),java.nio.charset.StandardCharsets.UTF_8));
+                runOnUiThread(()->rebuildHistory());
+                updateStatus("Restored "+restored+" chat messages from your local backup.");
+            }catch(Exception error){updateStatus("Backup restore failed; existing chat was kept: "+error.getMessage());}
         });
     }
     private void exportHistory(){
