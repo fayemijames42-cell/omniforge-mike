@@ -6,7 +6,7 @@
       "tags": "life science organisms",
       "answer": "Biology is the scientific study of life and living organisms. It is a broad natural science that encompasses a wide range of fields and unifying principles that explain the structure, function, growth, origin, evolution, and distribution of life. Central to biology are five fundamental themes: the cell as the basic unit of life, genes and heredity as the basis of inheritance, evolution as the driver of biological diversity, energy transformation for sustaining life processes, and homeostasis, the maintenance of internal stability. Biology examines life across multiple levels of organization, from molecules and cells...",
       "url": "https://en.wikipedia.org/w/index.php?oldid=1383003680",
-      "retrievedAt": "2026-11-22T04:36:43.233Z"
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
     },
     {
       "id": "wiki-5180",
@@ -14,7 +14,103 @@
       "tags": "chemical science reactions",
       "answer": "Chemistry is the scientific study of the properties and behavior of matter. It is a physical science within the natural sciences that studies matter: composition, structure, properties, behavior and the changes they undergo during reactions with other substances. Chemistry also addresses the nature of chemical bonds in chemical compounds. In the scope of its subject, chemistry occupies an intermediate position between physics and biology. It is sometimes called the central science because it provides a foundation for understanding both basic and applied scientific disciplines at a fundamental level. For example, chemistry...",
       "url": "https://en.wikipedia.org/w/index.php?oldid=1385890035",
-      "retrievedAt": "2026-11-22T04:36:43.233Z"
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
+    },
+    {
+      "id": "wiki-23290197",
+      "question": "CSS",
+      "tags": "website styles cascading style sheets",
+      "answer": "Cascading Style Sheets (CSS) is a style sheet language used for specifying the presentation and styling of a document written in a markup language, such as HTML or XML (including XML dialects such as SVG, MathML, or XHTML). CSS is a cornerstone technology of the World Wide Web, alongside HTML and JavaScript. CSS is designed to enable the separation of content and presentation, including layout, colors, and fonts. This separation can improve content accessibility, since the content can be written without concern for its presentation; provide more flexibility and control in the specification of presentation characteristics...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1387057698",
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
+    },
+    {
+      "id": "wiki-13191",
+      "question": "HTML",
+      "tags": "website web markup",
+      "answer": "Hypertext Markup Language (HTML) is the standard markup language for documents designed to be displayed in a web browser. It defines the content and structure of web content. It is often assisted by technologies such as Cascading Style Sheets (CSS) and scripting languages such as JavaScript. Web browsers receive HTML documents from a web server or from local storage and render the documents into multimedia web pages. HTML describes the structure of a web page semantically and originally included cues for its appearance. HTML elements are the building blocks of HTML pages. With HTML constructs, images and other objects...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1385144735",
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
+    },
+    {
+      "id": "wiki-9845",
+      "question": "JavaScript",
+      "tags": "browser programming web scripting",
+      "answer": "JavaScript (JS) is a programming language and core technology of the Web, alongside HTML and CSS. Created by Brendan Eich in 1995, it is maintained by Ecma International's TC39 technical committee, with related Web APIs maintained by W3C and WHATWG. In 2025, JavaScript was the most widely used programming language on GitHub. Web browsers have a dedicated JavaScript engine that executes the client code. These engines are also utilized in some servers and a variety of apps. The most popular runtime system for non-browser usage is Node.js. JavaScript is a high-level, often just-in-time–compiled language that conforms...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1385403131",
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
+    },
+    {
+      "id": "wiki-338344",
+      "question": "List of tallest buildings",
+      "tags": "tallest highest building buildings skyscraper world burj khalifa",
+      "answer": "This is a list of the tallest buildings. Tall buildings, such as skyscrapers, are intended here as enclosed structures with continuously occupiable floors and a height of at least 350 metres (1,148 ft). Such definition excludes non-building structures, such as radio towers.",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1376498189",
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
+    },
+    {
+      "id": "wiki-18831",
+      "question": "Mathematics",
+      "tags": "maths math numbers",
+      "answer": "Mathematics is a field of knowledge concerned with abstract concepts such as numbers, geometric shapes, sets, functions, and probabilities. It uses logical reasoning and proof to study and establish their properties, often expressed as theorems, formulas, and equations. Mathematics is widely used to model and solve problems in science, engineering, technology, economics, and everyday life. There are many areas of mathematics, including number theory (the study of integers and their properties), algebra (the study of operations and the structures they form), geometry (the study of shapes and spaces that contain them...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1385774090",
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
+    },
+    {
+      "id": "wiki-64493",
+      "question": "Percentage",
+      "tags": "percent percentages maths",
+      "answer": "In mathematics, a percentage, percent, or per cent (from Latin per centum 'by a hundred') is a number or ratio expressed as a fraction of 100. It is often denoted using the percent sign (%), although the abbreviations pct., pct, and sometimes pc are also used. A percentage is a dimensionless number (pure number), primarily used for expressing proportions, but percent is nonetheless a unit of measurement in its orthography and usage.",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1359144253",
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
+    },
+    {
+      "id": "wiki-22939",
+      "question": "Physics",
+      "tags": "physical science matter energy",
+      "answer": "Physics is the scientific study of matter, its fundamental constituents, its motion and behavior through space and time, and the related entities of energy and force. It is one of the most fundamental scientific disciplines. A scientist who specializes in the field of physics is called a physicist. Physics is one of the oldest academic disciplines. Over much of the past two millennia, physics, chemistry, biology, and certain branches of mathematics were part of natural philosophy, but during the Scientific Revolution in the 17th century, these natural sciences branched into separate research endeavors. Physics intersects...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1384142980",
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
+    },
+    {
+      "id": "wiki-26513034",
+      "question": "Pythagorean theorem",
+      "tags": "pythagoras theorem right triangle hypotenuse",
+      "answer": "In mathematics, the Pythagorean theorem or Pythagoras's theorem is a fundamental relation in Euclidean geometry between the three sides of a right triangle. It states that the area of the square whose side is the hypotenuse (the side opposite the right angle) is equal to the sum of the areas of the squares on the other two sides. The theorem can be written as an equation relating the lengths of the sides a, b and the hypotenuse c, sometimes called the Pythagorean equation: a2+b2=c2. The theorem is named for the Greek philosopher Pythagoras, born around 570 BC. The theorem has been proved numerous times by many different...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1386629982",
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
+    },
+    {
+      "id": "wiki-87837",
+      "question": "Ratio",
+      "tags": "ratio proportion mathematics",
+      "answer": "In mathematics, a ratio () shows how many times one number contains another. For example, if there are eight oranges and six lemons in a bowl of fruit, then the ratio of oranges to lemons is eight to six (that is, 8:6, which is equivalent to the ratio 4:3). Similarly, the ratio of lemons to oranges is 6:8 (or 3:4) and the ratio of oranges to the total amount of fruit is 8:14 (or 4:7). The numbers in a ratio may be quantities of any kind, such as counts of people or objects, or such as measurements of lengths, weights, time, etc. In most contexts, both numbers are restricted to be positive. A ratio may be specified...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1386487907",
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
+    },
+    {
+      "id": "wiki-68793664",
+      "question": "Satoru Gojo",
+      "tags": "saturo gojo satori jjk jujutsu kaisen character",
+      "answer": "Satoru Gojo (Japanese: 五条 悟, Hepburn: Gojō Satoru), often known as The Honored One, is a fictional character from Gege Akutami's manga and anime series Jujutsu Kaisen. He was first introduced in Akutami's short series Tokyo Metropolitan Curse Technical School as the mentor of the cursed teenager Yuta Okkotsu, who suffers from Rika's curse. This miniseries became the prequel Jujutsu Kaisen 0 of Jujutsu Kaisen. In Jujutsu Kaisen, Gojo takes up the same role, but instead mentors student Yuji Itadori who suffers a curse of Sukuna. Gojo was designed by Akutami to be a formidable yet endearing figure who is passionate...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1385201259",
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
+    },
+    {
+      "id": "wiki-26691",
+      "question": "Set (mathematics)",
+      "tags": "set sets mathematics theory",
+      "answer": "In mathematics, a set is a collection of different things; the things are called elements or members of the set and are typically mathematical objects: numbers, symbols, points in space, lines, other geometric shapes, variables, functions, or even other sets. The branch of mathematics studying sets is called set theory (including naive set theory). Sets cannot be mathematically defined, since they form a primitive notion. Instead, they are characterized by basic properties (axioms) that sets must have to correspond to intuition about collections. In modern mathematics, since the first half of the 20th century, all...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1387029837",
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
+    },
+    {
+      "id": "wiki-1192305",
+      "question": "Web accessibility",
+      "tags": "accessible websites WCAG",
+      "answer": "Web accessibility, or eAccessibility, is the inclusive practice of ensuring there are no barriers that prevent interaction with, or access to, websites on the World Wide Web by people with disabilities, including both physical and mental disabilities. Through the curb cut effect, it also benefits people with situational disabilities and those with socio-economic restrictions on bandwidth and speed. When sites are correctly designed, developed and edited, more users have equal access to information and functionality. For example, when a site is coded with semantically meaningful HTML, with textual equivalents provided...",
+      "url": "https://en.wikipedia.org/w/index.php?oldid=1385592582",
+      "retrievedAt": "2026-11-23T04:48:59.260Z"
     },
     {
       "id": "wiki-5042951",
@@ -57,14 +153,6 @@
       "retrievedAt": "2026-11-22T04:36:43.233Z"
     },
     {
-      "id": "wiki-338344",
-      "question": "List of tallest buildings",
-      "tags": "tallest highest building buildings skyscraper world burj khalifa",
-      "answer": "This is a list of the tallest buildings. Tall buildings, such as skyscrapers, are intended here as enclosed structures with continuously occupiable floors and a height of at least 350 metres (1,148 ft). Such definition excludes non-building structures, such as radio towers.",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1376498189",
-      "retrievedAt": "2026-11-22T04:36:43.233Z"
-    },
-    {
       "id": "wiki-18963870",
       "question": "Literature",
       "tags": "literature written works",
@@ -73,43 +161,11 @@
       "retrievedAt": "2026-11-22T04:36:43.233Z"
     },
     {
-      "id": "wiki-18831",
-      "question": "Mathematics",
-      "tags": "maths math numbers",
-      "answer": "Mathematics is a field of knowledge concerned with abstract concepts such as numbers, geometric shapes, sets, functions, and probabilities. It uses logical reasoning and proof to study and establish their properties, often expressed as theorems, formulas, and equations. Mathematics is widely used to model and solve problems in science, engineering, technology, economics, and everyday life. There are many areas of mathematics, including number theory (the study of integers and their properties), algebra (the study of operations and the structures they form), geometry (the study of shapes and spaces that contain them...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1385774090",
-      "retrievedAt": "2026-11-22T04:36:43.233Z"
-    },
-    {
-      "id": "wiki-22939",
-      "question": "Physics",
-      "tags": "physical science matter energy",
-      "answer": "Physics is the scientific study of matter, its fundamental constituents, its motion and behavior through space and time, and the related entities of energy and force. It is one of the most fundamental scientific disciplines. A scientist who specializes in the field of physics is called a physicist. Physics is one of the oldest academic disciplines. Over much of the past two millennia, physics, chemistry, biology, and certain branches of mathematics were part of natural philosophy, but during the Scientific Revolution in the 17th century, these natural sciences branched into separate research endeavors. Physics intersects...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1384142980",
-      "retrievedAt": "2026-11-22T04:36:43.233Z"
-    },
-    {
-      "id": "wiki-26513034",
-      "question": "Pythagorean theorem",
-      "tags": "pythagoras theorem right triangle hypotenuse",
-      "answer": "In mathematics, the Pythagorean theorem or Pythagoras's theorem is a fundamental relation in Euclidean geometry between the three sides of a right triangle. It states that the area of the square whose side is the hypotenuse (the side opposite the right angle) is equal to the sum of the areas of the squares on the other two sides. The theorem can be written as an equation relating the lengths of the sides a, b and the hypotenuse c, sometimes called the Pythagorean equation: a2+b2=c2. The theorem is named for the Greek philosopher Pythagoras, born around 570 BC. The theorem has been proved numerous times by many different...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1386629982",
-      "retrievedAt": "2026-11-22T04:36:43.233Z"
-    },
-    {
       "id": "wiki-25784",
       "question": "Renewable energy",
       "tags": "renewable energy solar wind",
       "answer": "Renewable energy (also called green energy) is energy made from renewable natural resources that are replenished on a human timescale. The most widely used renewable energy types are solar energy, wind power, bioenergy/biomass, and hydropower. Bioenergy and geothermal power are also significant in some countries. Renewable energy installations can be large or small and are suited for both urban and rural areas. Renewable energy is often deployed together with further electrification. This has several benefits: electricity can move heat and vehicles efficiently and is clean at the point of consumption. Variable renewable...",
       "url": "https://en.wikipedia.org/w/index.php?oldid=1386552459",
-      "retrievedAt": "2026-11-22T04:36:43.233Z"
-    },
-    {
-      "id": "wiki-68793664",
-      "question": "Satoru Gojo",
-      "tags": "saturo gojo satori jjk jujutsu kaisen character",
-      "answer": "Satoru Gojo (Japanese: 五条 悟, Hepburn: Gojō Satoru), often known as The Honored One, is a fictional character from Gege Akutami's manga and anime series Jujutsu Kaisen. He was first introduced in Akutami's short series Tokyo Metropolitan Curse Technical School as the mentor of the cursed teenager Yuta Okkotsu, who suffers from Rika's curse. This miniseries became the prequel Jujutsu Kaisen 0 of Jujutsu Kaisen. In Jujutsu Kaisen, Gojo takes up the same role, but instead mentors student Yuji Itadori who suffers a curse of Sukuna. Gojo was designed by Akutami to be a formidable yet endearing figure who is passionate...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1385201259",
       "retrievedAt": "2026-11-22T04:36:43.233Z"
     },
     {
@@ -297,77 +353,21 @@
       "retrievedAt": "2026-11-18T04:37:47.356Z"
     },
     {
-      "id": "wiki-23290197",
-      "question": "CSS",
-      "tags": "website styles cascading style sheets",
-      "answer": "Cascading Style Sheets (CSS) is a style sheet language used for specifying the presentation and styling of a document written in a markup language, such as HTML or XML (including XML dialects such as SVG, MathML, or XHTML). CSS is a cornerstone technology of the World Wide Web, alongside HTML and JavaScript. CSS is designed to enable the separation of content and presentation, including layout, colors, and fonts. This separation can improve content accessibility, since the content can be written without concern for its presentation; provide more flexibility and control in the specification of presentation characteristics...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1382423783",
-      "retrievedAt": "2026-11-18T04:37:47.356Z"
-    },
-    {
       "id": "wiki-9550",
       "question": "Electricity",
       "tags": "electric charge energy",
       "answer": "Electricity is the set of physical phenomena associated with the presence and motion of matter possessing an electric charge. Electricity is related to magnetism, both being part of the phenomenon of electromagnetism, as described by Maxwell's equations. Common phenomena are related to electricity, including lightning, static electricity, electric heating, electric discharges and many others. The presence of either a positive or negative electric charge produces an electric field. The motion of electric charge carriers is an electric current and produces a magnetic field. In most applications, Coulomb's law determines...",
       "url": "https://en.wikipedia.org/w/index.php?oldid=1384328813",
       "retrievedAt": "2026-11-18T04:37:47.356Z"
-    },
-    {
-      "id": "wiki-13191",
-      "question": "HTML",
-      "tags": "website web markup",
-      "answer": "Hypertext Markup Language (HTML) is the standard markup language for documents designed to be displayed in a web browser. It defines the content and structure of web content. It is often assisted by technologies such as Cascading Style Sheets (CSS) and scripting languages such as JavaScript. Web browsers receive HTML documents from a web server or from local storage and render the documents into multimedia web pages. HTML describes the structure of a web page semantically and originally included cues for its appearance. HTML elements are the building blocks of HTML pages. With HTML constructs, images and other objects...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1385144735",
-      "retrievedAt": "2026-11-18T04:37:47.356Z"
-    },
-    {
-      "id": "wiki-9845",
-      "question": "JavaScript",
-      "tags": "browser programming web scripting",
-      "answer": "JavaScript (JS) is a programming language and core technology of the Web, alongside HTML and CSS. Created by Brendan Eich in 1995, it is maintained by Ecma International's TC39 technical committee, with related Web APIs maintained by W3C and WHATWG. In 2025, JavaScript was the most widely used programming language on GitHub. Web browsers have a dedicated JavaScript engine that executes the client code. These engines are also utilized in some servers and a variety of apps. The most popular runtime system for non-browser usage is Node.js. JavaScript is a high-level, often just-in-time–compiled language that conforms...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1385403131",
-      "retrievedAt": "2026-11-18T04:37:47.356Z"
-    },
-    {
-      "id": "wiki-1192305",
-      "question": "Web accessibility",
-      "tags": "accessible websites WCAG",
-      "answer": "Web accessibility, or eAccessibility, is the inclusive practice of ensuring there are no barriers that prevent interaction with, or access to, websites on the World Wide Web by people with disabilities, including both physical and mental disabilities. Through the curb cut effect, it also benefits people with situational disabilities and those with socio-economic restrictions on bandwidth and speed. When sites are correctly designed, developed and edited, more users have equal access to information and functionality. For example, when a site is coded with semantically meaningful HTML, with textual equivalents provided...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1385592582",
-      "retrievedAt": "2026-11-18T04:37:47.356Z"
-    },
-    {
-      "id": "wiki-64493",
-      "question": "Percentage",
-      "tags": "percent percentages maths",
-      "answer": "In mathematics, a percentage, percent, or per cent (from Latin per centum 'by a hundred') is a number or ratio expressed as a fraction of 100. It is often denoted using the percent sign (%), although the abbreviations pct., pct, and sometimes pc are also used. A percentage is a dimensionless number (pure number), primarily used for expressing proportions, but percent is nonetheless a unit of measurement in its orthography and usage.",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1359144253",
-      "retrievedAt": "2026-11-17T04:35:15.513Z"
-    },
-    {
-      "id": "wiki-87837",
-      "question": "Ratio",
-      "tags": "ratio proportion mathematics",
-      "answer": "In mathematics, a ratio () shows how many times one number contains another. For example, if there are eight oranges and six lemons in a bowl of fruit, then the ratio of oranges to lemons is eight to six (that is, 8:6, which is equivalent to the ratio 4:3). Similarly, the ratio of lemons to oranges is 6:8 (or 3:4) and the ratio of oranges to the total amount of fruit is 8:14 (or 4:7). The numbers in a ratio may be quantities of any kind, such as counts of people or objects, or such as measurements of lengths, weights, time, etc. In most contexts, both numbers are restricted to be positive. A ratio may be specified...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1386096238",
-      "retrievedAt": "2026-11-17T04:35:15.513Z"
-    },
-    {
-      "id": "wiki-26691",
-      "question": "Set (mathematics)",
-      "tags": "set sets mathematics theory",
-      "answer": "In mathematics, a set is a collection of different things; the things are called elements or members of the set and are typically mathematical objects: numbers, symbols, points in space, lines, other geometric shapes, variables, functions, or even other sets. Sets cannot be mathematically defined, since they form a primitive notion. Instead, they are characterized by basic properties (axioms) that sets must have to correspond to intuition about collections. In modern mathematics, since the first half of the 20th century, all mathematical objects are ultimately defined in terms of sets. That is, set theory serves as...",
-      "url": "https://en.wikipedia.org/w/index.php?oldid=1385125153",
-      "retrievedAt": "2026-11-17T04:35:15.513Z"
     }
   ],
-  "attemptedDay": "2026-11-22",
+  "attemptedDay": "2026-11-23",
   "attemptedBy": "scheduled",
   "format": 1,
   "publisher": "Wikipedia",
   "license": "https://creativecommons.org/licenses/by-sa/4.0/",
-  "updatedAt": "2026-11-22T04:36:43.233Z",
-  "nextTopic": 31,
+  "updatedAt": "2026-11-23T04:48:59.260Z",
+  "nextTopic": 0,
   "retryAt": 0,
   "status": "updated"
 }
