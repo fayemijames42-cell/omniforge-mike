@@ -1,0 +1,65 @@
+name: OMNIFORGE Android Lite
+on:
+  pull_request:
+    paths:
+      - 'android-lite/**'
+      - '.github/workflows/android-lite.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'android-lite/**'
+      - '.github/workflows/android-lite.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Test offline calculator in standard Java
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p /tmp/omni-java-tests
+          javac -d /tmp/omni-java-tests android-lite/app/src/main/java/inc/aden/omniforge/OfflineMath.java android-lite/qa/OfflineMathTest.java
+          java -cp /tmp/omni-java-tests inc.aden.omniforge.OfflineMathTest
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK, NDK and CMake
+        shell: bash
+        run: |
+          set -eu
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+      - name: Fetch pinned official llama.cpp native source
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p android-lite/vendor/llama.cpp
+          git -C android-lite/vendor/llama.cpp init
+          git -C android-lite/vendor/llama.cpp remote add origin https://github.com/ggml-org/llama.cpp.git
+          git -C android-lite/vendor/llama.cpp fetch --depth 1 origin 1f8baae28d096624bd47d33d2d179ec479d47720
+          git -C android-lite/vendor/llama.cpp checkout FETCH_HEAD
+          test "$(git -C android-lite/vendor/llama.cpp rev-parse HEAD)" = 1f8baae28d096624bd47d33d2d179ec479d47720
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile Android app and native inference engine
+        shell: bash
+        run: gradle --no-daemon --console=plain -p android-lite :app:assembleDebug
+      - name: Verify APK and record SHA256
+        shell: bash
+        run: |
+          test -s android-lite/app/build/outputs/apk/debug/app-debug.apk
+          sha256sum android-lite/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: omniforge-android-lite-arm64-debug
+          path: android-lite/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+          if-no-files-found: error
