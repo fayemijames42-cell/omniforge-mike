@@ -17,7 +17,7 @@ function promptMessages(input) {
   if(!message) throw Object.assign(Error('Enter a message.'),{status:400});
   const focus = ['learn','write','code','create'].includes(input.focus)?input.focus:'general';
   const system = ['You are MICHELLE, a local AI assistant in OMNIFORGE, owned by ADEN INC.',
-    'You are powered by a small locally installed language model. Never claim to be GPT-6, ChatGPT, OpenAI, or a cloud assistant.',
+    'You are powered by a locally installed language model. Never claim to be GPT-6, ChatGPT, OpenAI, or a cloud assistant.',
     'Be clear, helpful and accurate. Say when you are uncertain. Never claim to have internet access or to have performed external actions.',
     'User focus: '+focus+'.',
     'If asked to create a website, output a complete browser-only HTML document beginning with <!doctype html> and ending with </html>. Use embedded CSS and JS, no remote assets.',
@@ -34,7 +34,7 @@ function promptMessages(input) {
   return messages;
 }
 
-export function createLocalHandler({publicDir=resolve('public'),model=process.env.OMNIFORGE_LOCAL_MODEL||DEFAULT_MODEL,ollamaFetch=globalThis.fetch,ollamaURL=LOCAL_AI_URL}={}) {
+export function createLocalHandler({publicDir=resolve('public'),model=process.env.OMNIFORGE_LOCAL_MODEL||DEFAULT_MODEL,ollamaFetch=globalThis.fetch,ollamaURL=LOCAL_AI_URL,desktopMode=false}={}) {
   const base=resolve(publicDir);
   async function ollama(path,body,timeout=65000) {
     const response=await ollamaFetch(ollamaURL+path,{method:body?'POST':'GET',headers:body?{'content-type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(timeout)});
@@ -75,7 +75,9 @@ export function createLocalHandler({publicDir=resolve('public'),model=process.en
             reasoning:{mode:'tool',passes:0,selfReviewed:false,factChecked:true},orchestration:{toolsUsed:['arithmetic parser']}});return;
         }
         const infer=async(prompt,{timeout,num_predict,temperature})=>{
-          const result=await ollama('/api/chat',{model,messages:prompt,stream:false,options:{num_ctx:4096,temperature,num_predict}},timeout);
+          const modern=model.startsWith('qwen3.5:');
+          const large=modern&&/:(?:9b|27b)$/.test(model);
+          const result=await ollama('/api/chat',{model,messages:prompt,stream:false,...(modern?{think:false}:{}),options:{num_ctx:large?8192:4096,temperature,num_predict:large?Math.max(num_predict,2400):num_predict}},modern?Math.max(timeout,100000):timeout);
           return typeof result?.message?.content==='string'?result.message.content:'';
         };
         let outcome;
@@ -99,7 +101,7 @@ export function createLocalHandler({publicDir=resolve('public'),model=process.en
       let data=await readFile(full);
       if(relative==='index.html'){
         const html=data.toString('utf8');
-        if(html.includes('</head>'))data=Buffer.from(html.replace('</head>', '<meta name="omniforge-local-runtime" content="true"></head>'));
+        if(html.includes('</head>'))data=Buffer.from(html.replace('</head>', '<meta name="omniforge-local-runtime" content="true">'+(desktopMode?'<meta name="omniforge-desktop-runtime" content="true">':'')+'</head>'));
       }
       res.writeHead(200,{'content-type':MIME[extname(full)]||'application/octet-stream','cache-control':relative==='index.html'?'no-cache':'public, max-age=300','x-content-type-options':'nosniff'});
       res.end(req.method==='HEAD'?undefined:data);
@@ -107,9 +109,9 @@ export function createLocalHandler({publicDir=resolve('public'),model=process.en
   };
 }
 
-export function startLocalServer({port=Number(process.env.OMNIFORGE_PORT||4321),host='127.0.0.1'}={}) {
-  const server=createServer(createLocalHandler());
-  server.listen(port,host,()=>{console.log('OMNIFORGE local-only: http://'+host+':'+port);console.log('Model: '+(process.env.OMNIFORGE_LOCAL_MODEL||DEFAULT_MODEL)+' (Ollama on this device; no cloud billing)');});
+export function startLocalServer({port=Number(process.env.OMNIFORGE_PORT||4321),host='127.0.0.1',publicDir=resolve('public'),model=process.env.OMNIFORGE_LOCAL_MODEL||DEFAULT_MODEL,desktopMode=false}={}) {
+  const server=createServer(createLocalHandler({publicDir,model,desktopMode}));
+  server.listen(port,host,()=>{console.log('OMNIFORGE local-only: http://'+host+':'+server.address().port);console.log('Model: '+model+' (Ollama on this device; no cloud billing)');});
   return server;
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url))startLocalServer();
