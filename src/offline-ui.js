@@ -1,6 +1,7 @@
 /* OMNIFORGE offline/local reference controls; never makes inference calls. */
 (function(root){'use strict';
 const K=root.OMNI_KNOWLEDGE,$=s=>document.querySelector(s),KEY='omniforge-local-mode';
+const LOCAL_RUNTIME=['localhost','127.0.0.1','[::1]'].includes(root.location?.hostname);
 let active=false;
 try{active=localStorage.getItem(KEY)==='true'}catch{}
 function isOffline(){return active}
@@ -82,7 +83,7 @@ function bind(){
   setOffline(!active);toast(active?'Chat will use saved references and local tools.':'MICHELLE will choose how to answer automatically.');
  });
  const refresh=async(force=false)=>{
-  const results=await Promise.allSettled([K.syncBundled({force}),K.syncDaily({force})]);
+  const results=await Promise.allSettled([K.syncBundled({force}),LOCAL_RUNTIME?Promise.resolve({status:'disabled for local-only runtime'}):K.syncDaily({force})]);
   await updateStatus();
   return results.map(result=>result.status==='fulfilled'?result.value.status:'unavailable');
  };
