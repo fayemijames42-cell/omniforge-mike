@@ -284,7 +284,7 @@ public final class MainActivity extends Activity {
         if(busy){updateStatus("Stop the current generation before importing another model.");return;}
         new AlertDialog.Builder(this)
                 .setTitle("Offline language model")
-                .setMessage("Choose a trusted GGUF model file from your phone. For this 2 GB device, start with Qwen2.5 0.5B Instruct Q4_K_M. Importing requires roughly 450 MB free plus working space. The model remains private; nothing is uploaded.")
+                .setMessage("Choose a trusted GGUF model file from your phone. For this 2 GB device, start with Qwen2.5 0.5B Instruct Q4_K_M. The 491 MB model needs at least about 650 MB available storage for import and temporary files. The model remains private; nothing is uploaded.")
                 .setPositiveButton("Choose GGUF",(d,w)->{
                     Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
                     intent.setType("*/*");intent.addCategory(Intent.CATEGORY_OPENABLE);
